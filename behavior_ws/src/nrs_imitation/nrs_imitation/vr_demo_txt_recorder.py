@@ -615,7 +615,7 @@ class VrDemoTxtRecorder(Node):
         )
 
         # viz
-        self.declare_parameter("viz_root", "/home/eunseop/nrs_ws/src/nrs_imitation/log")
+        self.declare_parameter("viz_root", "/home/eunseop/nrs_act/behavior_ws/src/nrs_imitation/log")
 
         # SCP transfer
         self.declare_parameter("transfer_enable", True)
