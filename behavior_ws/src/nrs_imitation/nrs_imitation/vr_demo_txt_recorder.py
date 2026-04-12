@@ -2,17 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-vr_demo_txt_recorder.py  (QP-safe + strong contact approach slow-down)
+vr_demo_txt_recorder.py
 
-요구사항 반영:
-- retime x2 유지
-- force clamp 유지 (force_clamp_abs)
-- fz는 clamp 이후,
-  (A) "첫 fz>=5N 발생 이전" 구간을 모두 0으로 강제 (pre-zero)
-  (B) "접촉 종료(연속 fz<5N)" 이후 구간도 모두 0으로 강제 (post-zero)  <-- NEW
-- contact 판단은 (위 pre/post-zero 처리된 fz) 기반 (기준 동일: 5N)
-- contact 직전 3초 동안 확실히 느리게 접근(time-warp)
-- plot: before/after 동시, AFTER-time-aligned
+수정 사항:
+- fx, fy 는 0으로 설정
+- fz 는 raw 값을 사용하되 EMA만 적용
+- recording 맨 처음 3초 / 마지막 3초의 모든 힘값은 0
+- fz clamp / pre-zero / post-zero / contact scaling 제거
+- approach slow-down의 contact 검출은 EMA된 abs(fz) 기반
 """
 
 import os
@@ -150,6 +147,20 @@ def ema_nd(Y: np.ndarray, alpha: float) -> np.ndarray:
     for i in range(1, Y.shape[0]):
         Z[i] = alpha * Y[i] + (1.0 - alpha) * Z[i - 1]
     return Z
+
+
+# ----------------------------
+# 1D EMA for fz
+# ----------------------------
+def ema_1d(y: np.ndarray, alpha: float) -> np.ndarray:
+    if y.size == 0:
+        return y.copy()
+    if alpha <= 0.0 or alpha >= 1.0:
+        return y.copy()
+    z = y.astype(np.float64).copy()
+    for i in range(1, y.size):
+        z[i] = alpha * y[i] + (1.0 - alpha) * z[i - 1]
+    return z
 
 
 # ----------------------------
@@ -320,8 +331,10 @@ def print_eval(logger, title: str, st: EvalStats, lim: Limits, safety: float):
 
 
 def constraints_ok(st: EvalStats) -> bool:
-    return (st.viol_v == 0.0 and st.viol_a == 0.0 and st.viol_w == 0.0 and st.viol_alpha == 0.0 and
-            st.viol_jpos == 0.0 and st.viol_jang == 0.0)
+    return (
+        st.viol_v == 0.0 and st.viol_a == 0.0 and st.viol_w == 0.0 and
+        st.viol_alpha == 0.0 and st.viol_jpos == 0.0 and st.viol_jang == 0.0
+    )
 
 
 # ----------------------------
@@ -344,11 +357,6 @@ def upsample_linear(X: np.ndarray, factor: int) -> np.ndarray:
 
 
 def resample_uniform_by_timewarp(P: np.ndarray, F: np.ndarray, dt: float, seg_scale: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    seg_scale: length N-1, 각 구간의 "시간 스케일" (>=1이면 느려짐)
-    새 시간은 t'_0=0, t'_{k+1}=t'_k + dt*seg_scale[k]
-    그 후 t'에 대해 다시 uniform dt 그리드로 보간해 반환.
-    """
     N = P.shape[0]
     assert seg_scale.shape[0] == N - 1
 
@@ -373,12 +381,13 @@ def resample_uniform_by_timewarp(P: np.ndarray, F: np.ndarray, dt: float, seg_sc
 
 
 # ----------------------------
-# Contact logic (fz pre/post-zero + detection)
+# Contact detection
 # ----------------------------
 def detect_contact_idx(fz: np.ndarray, fz_on: float, consec_on: int) -> Optional[int]:
     cnt_on = 0
-    for i in range(fz.size):
-        if fz[i] >= fz_on:
+    sig = np.abs(fz)
+    for i in range(sig.size):
+        if sig[i] >= fz_on:
             cnt_on += 1
             if cnt_on >= consec_on:
                 return i - consec_on + 1
@@ -387,79 +396,49 @@ def detect_contact_idx(fz: np.ndarray, fz_on: float, consec_on: int) -> Optional
     return None
 
 
-def detect_contact_off_idx(fz: np.ndarray, start_idx: int, fz_on: float, consec_off: int) -> Optional[int]:
-    """
-    접촉이 시작된 이후(start_idx 이후),
-    fz < fz_on 상태가 consec_off 연속으로 유지되면 그 시작 인덱스를 반환.
-    (기준은 동일하게 5N로 씀: fz_on)
-    """
-    if start_idx is None or start_idx < 0:
-        return None
-    cnt_off = 0
-    for i in range(start_idx, fz.size):
-        if fz[i] < fz_on:
-            cnt_off += 1
-            if cnt_off >= consec_off:
-                return i - consec_off + 1
-        else:
-            cnt_off = 0
-    return None
-
-
-def force_process_with_fz_prepost_zero(
+# ----------------------------
+# Force processing
+# ----------------------------
+def process_force_keep_fz_with_ema_and_edge_zero(
     Fraw: np.ndarray,
-    clamp_abs: float,
-    ema_alpha: float,
-    zero_xy: bool,
-    fz_gate_N: float,
-    consec_on: int,
-    consec_off: int,
-    enable_postzero: bool,
+    fz_ema_alpha: float,
+    edge_zero_sec: float,
+    record_hz: float,
+    zero_xy: bool = True,
     logger=None,
 ) -> np.ndarray:
     """
-    1) clamp 유지
-    2) (옵션) fx,fy=0
-    3) EMA
-    4) fz pre-zero: '첫 fz >= gate' 이전 구간은 0으로 강제
-    5) fz post-zero: '접촉 종료(연속 fz < gate)' 이후 구간도 0으로 강제  (enable_postzero)
-       - contact 기준은 동일하게 gate(=5N) 사용
+    - fx, fy -> 0
+    - fz -> raw 사용 + EMA만 적용
+    - 처음 edge_zero_sec, 마지막 edge_zero_sec 구간은 모든 force = 0
     """
-    Fp = np.clip(Fraw.copy(), -clamp_abs, clamp_abs)
+    Fp = Fraw.astype(np.float64).copy()
+    N = Fp.shape[0]
 
     if zero_xy:
         Fp[:, 0] = 0.0
         Fp[:, 1] = 0.0
 
-    if 0.0 < ema_alpha < 1.0:
-        for i in range(1, Fp.shape[0]):
-            Fp[i] = ema_alpha * Fp[i] + (1.0 - ema_alpha) * Fp[i - 1]
+    # fz EMA
+    Fp[:, 2] = ema_1d(Fp[:, 2], alpha=fz_ema_alpha)
 
-    fz = Fp[:, 2].copy()
+    # first / last edge_zero_sec => all forces zero
+    edge_n = int(round(edge_zero_sec * record_hz))
+    edge_n = max(0, min(edge_n, N))
 
-    # contact ON
-    c_on = detect_contact_idx(fz, fz_on=fz_gate_N, consec_on=consec_on)
-    if c_on is None:
-        # never contacted -> all fz = 0
-        Fp[:, 2] = 0.0
-        if logger is not None:
-            logger.warn("[FZ] contact ON not found -> set all fz=0")
-        return Fp
+    if edge_n > 0:
+        Fp[:edge_n, :] = 0.0
+        Fp[max(0, N - edge_n):, :] = 0.0
 
-    # pre-zero
-    if c_on > 0:
-        Fp[:c_on, 2] = 0.0
-
-    # contact OFF (post-zero)
-    if enable_postzero:
-        c_off = detect_contact_off_idx(fz, start_idx=c_on, fz_on=fz_gate_N, consec_off=consec_off)
-        if c_off is not None and c_off < fz.size:
-            Fp[c_off:, 2] = 0.0
-            if logger is not None:
-                logger.info(f"[FZ] post-zero enabled: off_idx={c_off} (t={c_off}) -> set fz[c_off:]=0")
-        else:
-            if logger is not None:
-                logger.info("[FZ] post-zero enabled: OFF not found (contact persists to end)")
+    if logger is not None:
+        logger.info(
+            f"[FORCE] zero_xy={zero_xy}, fz_ema_alpha={fz_ema_alpha}, "
+            f"edge_zero_sec={edge_zero_sec}, edge_zero_samples={edge_n}, N={N}"
+        )
+        logger.info(
+            f"[FORCE] raw_fz_max={np.max(np.abs(Fraw[:, 2])):.3f}, "
+            f"proc_fz_max={np.max(np.abs(Fp[:, 2])):.3f}"
+        )
 
     return Fp
 
@@ -623,23 +602,17 @@ class VrDemoTxtRecorder(Node):
         self.declare_parameter("remote_ip", "192.168.0.151")
         self.declare_parameter("remote_dir", "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/")
 
-        # force shaping
+        # force
         self.declare_parameter("zero_xy_forces", True)
-        self.declare_parameter("force_clamp_abs", 200.0)
-        self.declare_parameter("force_ema_alpha", 0.2)
+        self.declare_parameter("fz_ema_alpha", 0.2)
+        self.declare_parameter("force_edge_zero_sec", 3.0)
 
-        # fz gate (기준: 5N)
-        self.declare_parameter("fz_gate_N", 5.0)
-
-        # contact detection consecutive
+        # contact detect for approach slow-down
+        self.declare_parameter("fz_gate_N", 10.0)
         self.declare_parameter("consec_on", 10)
 
-        # NEW: post-contact cleanup
-        self.declare_parameter("fz_postzero_enable", True)
-        self.declare_parameter("consec_off", 10)
-
         # approach slow-down
-        self.declare_parameter("approach_slowdown_enable", True)
+        self.declare_parameter("approach_slowdown_enable", False)
         self.declare_parameter("approach_pre_sec", 5.0)
         self.declare_parameter("approach_post_sec", 0.3)
         self.declare_parameter("approach_scale_max", 30.0)
@@ -686,7 +659,6 @@ class VrDemoTxtRecorder(Node):
         self.declare_parameter("pos_jmax", 5000.0)
         self.declare_parameter("ang_jmax", 80.0)
 
-        # load params
         self.pose_topic = str(self.get_parameter("pose_topic").value)
         self.force_topic = str(self.get_parameter("force_topic").value)
 
@@ -706,14 +678,11 @@ class VrDemoTxtRecorder(Node):
         self.remote_dir = str(self.get_parameter("remote_dir").value)
 
         self.zero_xy_forces = bool(self.get_parameter("zero_xy_forces").value)
-        self.force_clamp_abs = float(self.get_parameter("force_clamp_abs").value)
-        self.force_ema_alpha = float(self.get_parameter("force_ema_alpha").value)
+        self.fz_ema_alpha = float(self.get_parameter("fz_ema_alpha").value)
+        self.force_edge_zero_sec = float(self.get_parameter("force_edge_zero_sec").value)
 
         self.fz_gate_N = float(self.get_parameter("fz_gate_N").value)
         self.consec_on = int(self.get_parameter("consec_on").value)
-
-        self.fz_postzero_enable = bool(self.get_parameter("fz_postzero_enable").value)
-        self.consec_off = int(self.get_parameter("consec_off").value)
 
         self.approach_slowdown_enable = bool(self.get_parameter("approach_slowdown_enable").value)
         self.approach_pre_sec = float(self.get_parameter("approach_pre_sec").value)
@@ -756,13 +725,11 @@ class VrDemoTxtRecorder(Node):
             ang_jmax=float(self.get_parameter("ang_jmax").value),
         )
 
-        # latest samples
         self.latest_pose6_mm_rad: Optional[np.ndarray] = None
         self.latest_force3_N: Optional[np.ndarray] = None
         self.latest_pose_t: float = 0.0
         self.latest_force_t: float = 0.0
 
-        # buffers
         self.episode_active = False
         self.finishing_ = False
         self.buf_pose = []
@@ -774,19 +741,22 @@ class VrDemoTxtRecorder(Node):
 
         self.get_logger().info(f"[RETIME] fixed x2 enabled. dt={self.dt:.6f}s, save={self.save_path}")
         self.get_logger().info(
-            f"[FZ] clamp_abs={self.force_clamp_abs}, gate={self.fz_gate_N}N, "
-            f"consec_on={self.consec_on}, postzero={self.fz_postzero_enable}, consec_off={self.consec_off}"
+            f"[FORCE] zero_xy={self.zero_xy_forces}, fz_ema_alpha={self.fz_ema_alpha}, "
+            f"edge_zero_sec={self.force_edge_zero_sec}"
         )
         self.get_logger().info(
-            f"[APPROACH] enable={self.approach_slowdown_enable}, pre={self.approach_pre_sec}s, post={self.approach_post_sec}s, "
-            f"scale_max={self.approach_scale_max}"
+            f"[CONTACT] fz_gate_N={self.fz_gate_N}, consec_on={self.consec_on}"
+        )
+        self.get_logger().info(
+            f"[APPROACH] enable={self.approach_slowdown_enable}, pre={self.approach_pre_sec}s, "
+            f"post={self.approach_post_sec}s, scale_max={self.approach_scale_max}"
         )
 
     def cb_pose(self, msg: Float64MultiArray):
         if len(msg.data) < 6:
             return
         x, y, z, rx, ry, rz = msg.data[:6]
-        self.latest_pose6_mm_rad = np.array([1000.0*x, 1000.0*y, 1000.0*z, rx, ry, rz], dtype=np.float64)
+        self.latest_pose6_mm_rad = np.array([1000.0 * x, 1000.0 * y, 1000.0 * z, rx, ry, rz], dtype=np.float64)
         self.latest_pose_t = time.time()
 
     def cb_force(self, msg: Wrench):
@@ -822,7 +792,6 @@ class VrDemoTxtRecorder(Node):
         self.buf_pose.append(self.latest_pose6_mm_rad.copy())
         self.buf_force.append(self.latest_force3_N.copy())
 
-    # ---------- pose smoothing ----------
     def _pose_pre_smooth(self, P: np.ndarray) -> np.ndarray:
         P0 = P.copy()
         if self.hampel_enable:
@@ -841,12 +810,11 @@ class VrDemoTxtRecorder(Node):
         Fr = upsample_linear(F, self.retime_k)
         return Pr, Fr
 
-    # ---------- approach slow-down ----------
     def _apply_contact_approach_slowdown(self, Pr: np.ndarray, Fr: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         if not self.approach_slowdown_enable:
             return Pr, Fr
 
-        fz = Fr[:, 2]  # 이미 pre/post-zero 반영된 fz
+        fz = Fr[:, 2]
         cidx = detect_contact_idx(fz, self.fz_gate_N, self.consec_on)
         if cidx is None:
             self.get_logger().warn("[APPROACH] contact not found -> skip approach slow-down")
@@ -873,7 +841,7 @@ class VrDemoTxtRecorder(Node):
         scale_target = 1.0 + (self.approach_scale_max - 1.0) * bump
 
         if self.approach_use_fz_ramp:
-            fz_win = fz[s0:s1]
+            fz_win = np.abs(fz[s0:s1])
             ramp = np.clip(fz_win / max(1e-6, self.approach_fz_full), 0.0, 1.0)
             scale_target = 1.0 + (scale_target - 1.0) * ramp
 
@@ -886,7 +854,6 @@ class VrDemoTxtRecorder(Node):
         )
         return Pn, Fn
 
-    # ---------- post smoothing ----------
     def _pose_post_smooth_d3(self, P: np.ndarray, lam_pos_d3: float, lam_ang_d3: float) -> np.ndarray:
         if not self.post_enable:
             return P
@@ -917,7 +884,13 @@ class VrDemoTxtRecorder(Node):
                 break
 
             st, _ = eval_qp_proxy(Pk, self.dt, self.lim, safety=self.qp_guard_safety)
-            print_eval(self.get_logger(), f"QP-GUARD iter={it} (lam_p={lam_p:.3e}, lam_a={lam_a:.3e}, safety={self.qp_guard_safety})", st, self.lim, self.qp_guard_safety)
+            print_eval(
+                self.get_logger(),
+                f"QP-GUARD iter={it} (lam_p={lam_p:.3e}, lam_a={lam_a:.3e}, safety={self.qp_guard_safety})",
+                st,
+                self.lim,
+                self.qp_guard_safety,
+            )
 
             score = max(
                 st.jpos_p95 / (self.lim.pos_jmax * self.qp_guard_safety + 1e-9),
@@ -939,7 +912,6 @@ class VrDemoTxtRecorder(Node):
         self.get_logger().warn("[QP-GUARD] could not fully satisfy constraints. Returning best smoothed.")
         return best if best is not None else self._pose_post_smooth_d3(Pref, self.lam_pos_d3, self.lam_ang_d3)
 
-    # ---------- viz ----------
     def _make_viz_dir(self) -> str:
         ts = time.strftime("%Y%m%d_%H%M%S", time.localtime())
         out_dir = os.path.join(self.viz_root, ts)
@@ -955,7 +927,6 @@ class VrDemoTxtRecorder(Node):
         except Exception as e:
             self.get_logger().error(f"[VIZ] Failed to save plots: {e}")
 
-    # ---------- episode finalize ----------
     def finish_episode(self):
         if self.finishing_:
             return
@@ -973,36 +944,31 @@ class VrDemoTxtRecorder(Node):
         st0, _ = eval_qp_proxy(rawP, self.dt, self.lim, safety=1.0)
         print_eval(self.get_logger(), "RAW (before)", st0, self.lim, 1.0)
 
-        # forces: clamp + EMA + fz pre/post-zero (gate=5N)
-        Fp = force_process_with_fz_prepost_zero(
+        # Force processing:
+        # fx, fy -> 0
+        # fz -> raw + EMA
+        # first/last 3 sec -> all zero
+        Fp = process_force_keep_fz_with_ema_and_edge_zero(
             rawF,
-            clamp_abs=self.force_clamp_abs,
-            ema_alpha=self.force_ema_alpha,
+            fz_ema_alpha=self.fz_ema_alpha,
+            edge_zero_sec=self.force_edge_zero_sec,
+            record_hz=self.record_hz,
             zero_xy=self.zero_xy_forces,
-            fz_gate_N=self.fz_gate_N,
-            consec_on=self.consec_on,
-            consec_off=self.consec_off,
-            enable_postzero=self.fz_postzero_enable,
             logger=self.get_logger(),
         )
 
-        # pre smooth pose
         Ps = self._pose_pre_smooth(rawP)
 
-        # retime x2
         Pr, Fr = self._retime_x2(Ps, Fp)
         self.get_logger().info(f"[RETIME] x2 applied: rows {Ps.shape[0]} -> {Pr.shape[0]}")
 
-        # strong approach slow-down
         Pr_slow, Fr_slow = self._apply_contact_approach_slowdown(Pr, Fr)
 
-        # final pose smoothing + QP guard
         Pf = self._qp_guard(Pr_slow)
 
         st2, _ = eval_qp_proxy(Pf, self.dt, self.lim, safety=self.qp_guard_safety)
         print_eval(self.get_logger(), "FINAL pose (retime x2 + approach slow-down + D3)", st2, self.lim, self.qp_guard_safety)
 
-        # save txt (pose+force)
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
         out9 = np.hstack([Pf, Fr_slow])
         with open(self.save_path, "w") as f:
@@ -1010,11 +976,9 @@ class VrDemoTxtRecorder(Node):
                 f.write("\t".join([f"{v:.6f}" for v in row.tolist()]) + "\n")
         self.get_logger().info(f"Saved: {self.save_path}  (rows={out9.shape[0]})")
 
-        # viz
         viz_dir = self._make_viz_dir()
         self._save_viz(viz_dir, rawP, rawF, Pf, Fr_slow)
 
-        # transfer
         if self.transfer_enable:
             self._transfer_file()
 
