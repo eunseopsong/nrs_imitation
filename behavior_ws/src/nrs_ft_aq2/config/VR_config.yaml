@@ -13,7 +13,7 @@ ft_aq:
 
     # Sensor Sampling (s)
     Sensor_sampling: 0.002    # 500 Hz
-    Publish_sampling: 0.008     # publish 주기 = 125Hz  (새로 추가)
+    Publish_sampling: 0.002     # publish 주기 = 500Hz  (새로 추가)
   
     # Sensor Coordinate
     Handle_Sensor_Order: [2, 0, 1]
@@ -23,7 +23,7 @@ ft_aq:
     Contact_Sensor_sign:  [3, 3, 3]
 
     # Recording
-    Data1_path: "/home/eunseop/nrs_ws/src/nrs_ft_aq2/measured/data1.txt"
+    Data1_path: "/home/eunseop/nrs_act/behavior_ws/src/nrs_ft_aq2/measured/data1.txt"
     Data1_switch: 0
 
     # Print

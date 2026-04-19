@@ -320,20 +320,20 @@ void FT_processing::FT_run()
   // ------------------------------------------------------------
   // 목표:
   //  - 센서 수신/필터링: 1/Ts_  (Ts_=0.002면 500Hz)
-  //  - publish 루프:     1/Publish_sampling (기본 0.008 -> 125Hz)
+  //  - publish 루프:     1/Publish_sampling (기본 0.002 -> 500Hz)
   //
   // 사용법(YAML):
   //  - Sensor_sampling: 0.002    # 센서/필터 dt (500Hz)
-  //  - Publish_sampling: 0.008   # publish 주기 (125Hz)
+  //  - Publish_sampling: 0.002   # publish 주기 (500Hz)
   // ------------------------------------------------------------
 
   // 센서 수신 주기(필터 dt): Ts_
   const double Ts_sensor = clamp_positive(Ts_, 0.002);
 
   // publish 주기: 별도 파라미터로 분리
-  double Ts_pub = 0.008; // default 125Hz
+  double Ts_pub = 0.002; // default 500Hz
   (void)node_->get_parameter("Publish_sampling", Ts_pub);
-  Ts_pub = clamp_positive(Ts_pub, 0.008);
+  Ts_pub = clamp_positive(Ts_pub, 0.002);
 
   RCLCPP_INFO(node_->get_logger(),
               "[FT_run] sensor dt=%.6f (%.1f Hz), publish dt=%.6f (%.1f Hz)",
@@ -371,7 +371,7 @@ void FT_processing::FT_run()
   });
 
   // -----------------------------
-  // (2) Publish loop @ 125Hz
+  // (2) Publish loop 500Hz
   // -----------------------------
   rclcpp::WallRate pub_rate(1.0 / Ts_pub);
 
