@@ -26,6 +26,8 @@ import sys
 import pickle
 import argparse
 from datetime import datetime
+from pathlib import Path
+from typing import Optional, List
 
 # -------------------------------------------------------------------------
 # source/ 경로 추가
@@ -57,6 +59,129 @@ except Exception:
     TASK_CONFIGS = {}
 
 
+# ============================================================
+# Dataset auto-resolve helpers
+# ============================================================
+def _is_probably_timestamp_dir(name: str) -> bool:
+    """Return True for run directory names such as 20260421_1509 or 202604211509."""
+    for fmt in ("%Y%m%d_%H%M", "%Y%m%d%H%M", "%m%d_%H%M"):
+        try:
+            datetime.strptime(name, fmt)
+            return True
+        except ValueError:
+            pass
+    return False
+
+
+def _episode_files(dataset_dir: str) -> List[Path]:
+    d = Path(dataset_dir).expanduser()
+    if not d.is_dir():
+        return []
+    return sorted(d.glob("episode_*.hdf5"))
+
+
+def _count_episodes(dataset_dir: str) -> int:
+    return len(_episode_files(dataset_dir))
+
+
+def find_latest_episodes_ft_dir(root_dir: str = "/home/eunseop/nrs_act/datasets/ACT") -> str:
+    """
+    Find the latest dataset directory that contains episode_*.hdf5.
+
+    Preferred new layout:
+      /home/eunseop/nrs_act/datasets/ACT/<RUN_ID>/episodes_ft/episode_*.hdf5
+
+    Fallbacks:
+      - any directory named episodes_ft under root
+      - root itself, if it directly contains episode_*.hdf5
+    """
+    root = Path(root_dir).expanduser()
+    if not root.exists():
+        raise FileNotFoundError(f"Dataset root does not exist: {root}")
+
+    candidates = []
+
+    # Preferred: root/<RUN_ID>/episodes_ft
+    for run_dir in root.iterdir():
+        if not run_dir.is_dir():
+            continue
+        ep_dir = run_dir / "episodes_ft"
+        if ep_dir.is_dir() and _count_episodes(str(ep_dir)) > 0:
+            stat = ep_dir.stat()
+            timestamp_bonus = 1 if _is_probably_timestamp_dir(run_dir.name) else 0
+            candidates.append((timestamp_bonus, run_dir.name, stat.st_mtime, ep_dir))
+
+    # Fallback: recursive search for episodes_ft
+    if not candidates:
+        for ep_dir in root.rglob("episodes_ft"):
+            if ep_dir.is_dir() and _count_episodes(str(ep_dir)) > 0:
+                parent_name = ep_dir.parent.name
+                stat = ep_dir.stat()
+                timestamp_bonus = 1 if _is_probably_timestamp_dir(parent_name) else 0
+                candidates.append((timestamp_bonus, parent_name, stat.st_mtime, ep_dir))
+
+    # Fallback: root directly contains episode_*.hdf5
+    if not candidates and _count_episodes(str(root)) > 0:
+        stat = root.stat()
+        candidates.append((0, root.name, stat.st_mtime, root))
+
+    if not candidates:
+        raise FileNotFoundError(
+            "No usable ACT dataset directory found. Expected episode_*.hdf5 under:\n"
+            f"  {root}/<RUN_ID>/episodes_ft/"
+        )
+
+    candidates.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    return str(candidates[0][3])
+
+
+def resolve_dataset_dir(dataset_dir: Optional[str], task_name: str) -> str:
+    """
+    Resolution order:
+      1. --dataset_dir, if provided
+      2. TASK_CONFIGS[task_name]['dataset_dir'], if available
+      3. latest /home/eunseop/nrs_act/datasets/ACT/<RUN_ID>/episodes_ft
+    """
+    if dataset_dir is not None and str(dataset_dir).strip() != "":
+        resolved = os.path.expanduser(dataset_dir)
+        if not os.path.isdir(resolved):
+            raise FileNotFoundError(f"dataset_dir does not exist: {resolved}")
+        return resolved
+
+    if task_name in TASK_CONFIGS and "dataset_dir" in TASK_CONFIGS[task_name]:
+        resolved = os.path.expanduser(str(TASK_CONFIGS[task_name]["dataset_dir"]))
+        if os.path.isdir(resolved) and _count_episodes(resolved) > 0:
+            return resolved
+        print(f"[WARN] TASK_CONFIGS dataset_dir is invalid or empty, fallback to latest: {resolved}")
+
+    latest = find_latest_episodes_ft_dir("/home/eunseop/nrs_act/datasets/ACT")
+    print(f"[AUTO] dataset_dir not provided -> using latest episodes_ft: {latest}")
+    return latest
+
+
+def parse_camera_names(camera_names_arg) -> List[str]:
+    """
+    Accept either:
+      --camera_names cam0
+      --camera_names cam_top cam_ee
+      --camera_names cam_top,cam_ee
+    """
+    if camera_names_arg is None:
+        return ["cam0"]
+    if isinstance(camera_names_arg, str):
+        raw = [camera_names_arg]
+    else:
+        raw = list(camera_names_arg)
+
+    out = []
+    for item in raw:
+        for part in str(item).split(','):
+            s = part.strip()
+            if s:
+                out.append(s)
+    return out if out else ["cam0"]
+
+
 def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] using device = {device}")
@@ -70,23 +195,17 @@ def main(args):
     seed = args.seed
     lr = args.lr
 
-    dataset_dir = args.dataset_dir
-    num_episodes = args.num_episodes
-
-    if dataset_dir is None:
-        if task_name in TASK_CONFIGS and "dataset_dir" in TASK_CONFIGS[task_name]:
-            dataset_dir = TASK_CONFIGS[task_name]["dataset_dir"]
-        else:
-            raise ValueError("dataset_dir is not provided and TASK_CONFIGS has no entry for this task.")
-
+    dataset_dir = resolve_dataset_dir(args.dataset_dir, task_name)
+    # Use explicit --num_episodes only when the user passes a positive value.
+    # Otherwise, use the actual number of episode_*.hdf5 files in the resolved dataset_dir.
+    # This avoids stale TASK_CONFIGS values such as num_episodes=51 when the latest dataset has fewer episodes.
+    num_episodes = int(args.num_episodes)
     if num_episodes <= 0:
-        if task_name in TASK_CONFIGS and "num_episodes" in TASK_CONFIGS[task_name]:
-            num_episodes = int(TASK_CONFIGS[task_name]["num_episodes"])
-        else:
-            num_episodes = 0  # load_data will use all episodes
+        num_episodes = _count_episodes(dataset_dir)
 
-    # cameras (KEEP)
-    camera_names = ["cam_top", "cam_ee"]
+    # Single-camera default for the new VR demo pipeline.
+    # Keep B,K,3,H,W multi-camera tensor format with K=1.
+    camera_names = parse_camera_names(args.camera_names)
 
     print(f"[INFO] task_name         = {task_name}")
     print(f"[INFO] dataset_dir       = {dataset_dir}")
@@ -122,6 +241,7 @@ def main(args):
             "action_dim": 9,
             "image_resize_hw": args.image_resize_hw,
             "image_pool_hw": args.image_pool_hw,
+            "temporal_agg": args.temporal_agg,
             "pretrained_backbone": (not args.no_pretrained),
 
             # split observation encoder / force GRU config
@@ -144,6 +264,7 @@ def main(args):
             "action_dim": 9,
             "image_resize_hw": args.image_resize_hw,
             "image_pool_hw": args.image_pool_hw,
+            "temporal_agg": args.temporal_agg,
             "pretrained_backbone": (not args.no_pretrained),
 
             # split observation encoder / force GRU config
@@ -255,6 +376,7 @@ def main(args):
         "amp": args.amp,
         "debug_norm": args.debug_norm,
         "debug_norm_batches": 1,
+        "temporal_agg": args.temporal_agg,
 
         # logging / reproducibility
         "use_force_history": args.use_force_history,
@@ -279,23 +401,29 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
 
     p.add_argument("--eval", action="store_true", help="run inference instead of training")
-    p.add_argument("--ckpt_dir", type=str, required=True, help="root checkpoint directory")
-    p.add_argument("--policy_class", type=str, required=True, choices=["ACT", "CNNMLP"])
-    p.add_argument("--task_name", type=str, required=True)
+    p.add_argument("--ckpt_dir", type=str, default="/home/eunseop/nrs_act/checkpoints/ur10e_swing", help="root checkpoint directory")
+    p.add_argument("--policy_class", type=str, default="ACT", choices=["ACT", "CNNMLP"])
+    p.add_argument("--task_name", type=str, default="ur10e_swing")
 
-    p.add_argument("--batch_size", type=int, required=True)
-    p.add_argument("--seed", type=int, required=True)
-    p.add_argument("--num_epochs", type=int, required=True)
-    p.add_argument("--lr", type=float, required=True)
+    p.add_argument("--batch_size", type=int, default=6)
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--num_epochs", type=int, default=500)
+    p.add_argument("--lr", type=float, default=1e-4)
 
     # dataset override
     p.add_argument("--dataset_dir", type=str, default=None)
     p.add_argument("--num_episodes", type=int, default=0)
+    p.add_argument(
+        "--camera_names",
+        nargs="+",
+        default=["cam0"],
+        help="camera dataset names under observations/images. Default: cam0",
+    )
 
     # IMPORTANT: sequence length
-    p.add_argument("--chunk_size", type=int, default=100)
-    p.add_argument("--train_seq_len", type=int, default=100)
-    p.add_argument("--val_seq_len", type=int, default=100)
+    p.add_argument("--chunk_size", type=int, default=200)
+    p.add_argument("--train_seq_len", type=int, default=None)
+    p.add_argument("--val_seq_len", type=int, default=None)
 
     # IMPORTANT: restore epoch steps
     p.add_argument("--samples_per_episode", type=int, default=50)
@@ -327,6 +455,11 @@ if __name__ == "__main__":
 
     # amp
     p.add_argument("--amp", action="store_true", default=False)
+
+    # compatibility with old custom_imitate_episodes.py alias
+    # This flag is saved in config/policy_config but does not otherwise alter training here.
+    p.add_argument("--temporal_agg", action="store_true", default=True)
+    p.add_argument("--no_temporal_agg", dest="temporal_agg", action="store_false")
 
     # debug normalization (print-only)
     p.add_argument(
@@ -364,10 +497,25 @@ if __name__ == "__main__":
 
     args = p.parse_args()
 
+    # ACT encoder expects action sequence length to match num_queries/chunk_size.
+    # If these are left unspecified, couple them to chunk_size.
+    if args.train_seq_len is None:
+        args.train_seq_len = int(args.chunk_size)
+    if args.val_seq_len is None:
+        args.val_seq_len = int(args.chunk_size)
+
     # CRITICAL FIX:
     # Some DETR/ACT modules parse sys.argv again internally.
     # Remove our custom flag to prevent "unrecognized arguments" crash.
+    remove_flags = []
     if getattr(args, "debug_norm", False):
-        sys.argv = [a for a in sys.argv if a != "--debug_norm"]
+        remove_flags.append("--debug_norm")
+    if getattr(args, "temporal_agg", False):
+        remove_flags.append("--temporal_agg")
+    if not getattr(args, "temporal_agg", True):
+        remove_flags.append("--no_temporal_agg")
+
+    if remove_flags:
+        sys.argv = [a for a in sys.argv if a not in remove_flags]
 
     main(args)
