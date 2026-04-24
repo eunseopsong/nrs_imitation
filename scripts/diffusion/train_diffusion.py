@@ -308,7 +308,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
 
     p.add_argument("--eval", action="store_true", help="run evaluation / checkpoint load instead of training")
-    p.add_argument("--ckpt_dir", type=str, default="/home/eunseop/nrs_act/checkpoints/ur10e_swing_diffusion")
+    p.add_argument("--ckpt_dir", type=str, default="/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing")
     p.add_argument("--task_name", type=str, default="ur10e_swing")
     p.add_argument("--dataset_dir", type=str, default=None)
     p.add_argument("--num_episodes", type=int, default=0)

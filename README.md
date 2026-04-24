@@ -1,53 +1,49 @@
 # nrs_act
 
-Refactored ACT-based imitation learning codebase for robotic polishing / manipulation experiments.  
-This repository is organized around a modular `source/` layout, includes a ROS 2 behavior workspace `behavior_ws/`, and supports a **single-camera ACT recording pipeline** with optional **force history** input.
+Refactored imitation-learning codebase for robotic polishing / manipulation experiments.
+
+This repository now supports **two parallel policy branches** on top of the same dataset pipeline:
+
+- **ACT**
+- **Diffusion Policy-style branch**
+
+Both branches share the same demonstration format:
+
+- observation = `position(6) + force(3) + image(cam0)`
+- action = `position(6) + force(3)`
+
+The current workflow is designed so that you can go from **VR teaching / demonstration recording** all the way to **training / evaluation / inference** by following this README only.
 
 ---
 
-# Quick Start: Current Recording → ACT Dataset → Training Pipeline
+# 0. End-to-End Quick Start
 
-This section is the most important part for the current workflow.
+This is the shortest path from recording to training.
 
-The current recommended pipeline is now:
+## 0-1. Build the ROS 2 behavior workspace
 
-```text
-1. Record human demonstration directly with:
-   vr_demo_hdf5_recorder.py
-   - position
-   - force
-   - camera image
-   - joystick-based start/end/erase/terminate
-
-2. Convert merged HDF5 into ACT episode files with:
-   demo_data_act_form_single_cam.py
-
-3. Train ACT with:
-   scripts/act/train_act.py
+```bash
+cd ~/nrs_act/behavior_ws
+colcon build
+source install/setup.bash
 ```
 
-The previous 4-step pipeline was:
+If you modify `nrs_imitation` only:
 
-```text
-1. vr_demo_hdf5_recorder.py
-2. vr_demo_hdf5_episode_pusher.py
-3. robot_playback_act_hdf5_recorder.py
-4. demo_data_act_form.py
-```
-
-The current pipeline skips robot playback during dataset generation:
-
-```text
-1. vr_demo_hdf5_recorder.py
-2. demo_data_act_form_single_cam.py
-3. train_act.py
+```bash
+cd ~/nrs_act/behavior_ws
+colcon build --packages-select nrs_imitation
+source install/setup.bash
 ```
 
 ---
 
-## A. Run the joystick controller
+## 0-2. Run the joystick controller
 
-The joystick controller converts Logitech F710 / Xbox-style joystick input into discrete recorder commands.
+This launch file starts both:
+
+- `joy_node`
+- `vr_demo_joy_controller`
 
 ```bash
 cd ~/nrs_act/behavior_ws
@@ -56,20 +52,19 @@ source install/setup.bash
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ```
 
-This launch file runs both:
+If D-pad left/right is reversed:
 
-```text
-joy_node
-vr_demo_joy_controller
+```bash
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py dpad_left_positive:=false
 ```
 
-The command topic published by the joystick controller is:
+You can check the command topic:
 
-```text
-/vr_demo_recorder/command
+```bash
+ros2 topic echo /vr_demo_recorder/command
 ```
 
-Default joystick mapping:
+Joystick mapping:
 
 ```text
 A             -> start_recording
@@ -80,38 +75,17 @@ D-pad left    -> prev_episode
 D-pad right   -> next_episode
 ```
 
-If D-pad left/right is reversed:
-
-```bash
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py dpad_left_positive:=false
-```
-
-To verify joystick commands:
-
-```bash
-ros2 topic echo /vr_demo_recorder/command
-```
-
 ---
 
-## B. Run the recording node
+## 0-3. Run the recorder
 
-The recorder directly records:
+The recorder saves:
 
-```text
-position + force + camera
-```
+- position
+- force
+- camera (`cam0`)
 
-Input topics:
-
-```text
-/calibrated_pose                 Float64MultiArray [x, y, z, wx, wy, wz]
-/ftsensor/measured_Cvalue         geometry_msgs/Wrench
-/realsense/vr/color/image_raw     sensor_msgs/Image
-/vr_demo_recorder/command         std_msgs/String
-```
-
-Run:
+into one merged HDF5.
 
 ```bash
 cd ~/nrs_act/behavior_ws
@@ -120,440 +94,268 @@ source install/setup.bash
 ros2 run nrs_imitation vr_demo_hdf5_recorder
 ```
 
-The recorder saves a merged HDF5 file under:
+Recorder input topics:
+
+```text
+/calibrated_pose                  Float64MultiArray [x, y, z, wx, wy, wz]
+/ftsensor/measured_Cvalue         geometry_msgs/Wrench or compatible 3-axis extraction
+/realsense/vr/color/image_raw     sensor_msgs/Image
+/vr_demo_recorder/command         std_msgs/String
+```
+
+Current merged output path:
 
 ```text
 /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
 └── vr_demo_merged_YYYYMMDD_HHMM.hdf5
 ```
 
-Merged HDF5 structure:
-
-```text
-episodes/
-├── ep_0000/
-│   ├── position              # (T, 6)
-│   ├── ft                    # (T, 3)
-│   └── images/
-│       └── cam0              # (T, H, W, 3)
-├── ep_0001/
-│   ├── position
-│   ├── ft
-│   └── images/
-│       └── cam0
-...
-```
-
-Dataset meanings:
-
-```text
-position = [x, y, z, wx, wy, wz]
-ft       = [fx, fy, fz]
-cam0     = RGB image from /realsense/vr/color/image_raw
-```
-
-Notes:
-- Episode start/end is controlled only by joystick commands.
-- The previous force-threshold start/end trigger was removed from this workflow.
-- The recorder prints discrete recording state changes such as `IDLE`, `RECORDING`, `SAVED`, `ERASED`, and `SHUTDOWN`.
-
 ---
 
-## C. Convert merged HDF5 into ACT episode files
+## 0-4. Convert merged HDF5 into ACT / Diffusion training episodes
 
-The converter is a normal Python script, not a ROS 2 node.
+Converter is a normal Python script.
 
-Run:
+### A. Raw image version
 
 ```bash
 cd ~/nrs_act/source/custom
 
-python3 demo_data_act_form_single_cam.py
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess off
 ```
 
-By default, it automatically finds the latest merged HDF5 file under:
-
-```text
-/home/eunseop/nrs_act/datasets/ACT/*/merged_hdf5/*.hdf5
-```
-
-It creates:
+This creates:
 
 ```text
 /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft/
-├── episode_0.hdf5
-├── episode_1.hdf5
-├── episode_2.hdf5
-...
-└── manifest.json
 ```
 
-Final ACT episode structure:
-
-```text
-episode_0.hdf5
-├── action/
-│   ├── position              # (T_pad, 6)
-│   └── force                 # (T_pad, 3)
-├── observations/
-│   ├── position              # (T_pad, 6)
-│   ├── force                 # (T_pad, 3)
-│   ├── images/
-│   │   └── cam0              # (T_pad, H, W, 3)
-│   └── is_pad                # (T_pad,)
-└── meta/
-    ├── orig_len
-    ├── T_pad
-    ├── pad_starts_at
-    ├── truncated
-    └── camera_name
-```
-
-After successful conversion, the merged HDF5 file is deleted by default to save disk space.
-
-To keep the merged HDF5 file for debugging:
+### B. Camera-preprocessed version (recommended if hand jitter is visible)
 
 ```bash
-python3 demo_data_act_form_single_cam.py --keep-merged
+cd ~/nrs_act/source/custom
+
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256
 ```
 
-To convert a specific merged file:
+This creates:
+
+```text
+/home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc/
+```
+
+By default, after successful conversion the merged HDF5 is deleted to save disk space.
+
+If you want to keep the merged HDF5 for debugging:
 
 ```bash
 python3 demo_data_act_form_single_cam.py \
-  -i /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/vr_demo_merged_YYYYMMDD_HHMM.hdf5
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256 \
+  --keep-merged
 ```
 
 ---
 
-## D. Train ACT
+## 0-5. Train ACT
 
-The current `scripts/act/train_act.py` is configured so that running it without arguments starts training with the default current settings.
-
-Run:
+### A. Raw image dataset
 
 ```bash
 cd ~/nrs_act/scripts/act
-
-python3 train_act.py
+python3 train_act.py --cam_preprocess off
 ```
 
-Default training settings:
-
-```text
-ckpt_dir        = /home/eunseop/nrs_act/checkpoints/ur10e_swing
-policy_class    = ACT
-task_name       = ur10e_swing
-batch_size      = 6
-seed            = 0
-num_epochs      = 500
-lr              = 1e-4
-kl_weight       = 10
-chunk_size      = 200
-train_seq_len   = 200
-val_seq_len     = 200
-hidden_dim      = 512
-dim_feedforward = 3200
-camera_names    = ["cam0"]
-```
-
-If `--dataset_dir` is not provided, `train_act.py` automatically finds the latest `episodes_ft` directory under:
-
-```text
-/home/eunseop/nrs_act/datasets/ACT/*/episodes_ft
-```
-
-Expected startup log:
-
-```text
-[INFO] dataset_dir       = /home/eunseop/nrs_act/datasets/ACT/<LATEST_RUN_ID>/episodes_ft
-[INFO] num_episodes      = <auto-counted episode count>
-[INFO] camera_names      = ['cam0']
-[INFO] chunk_size        = 200
-[INFO] train_seq_len     = 200
-[INFO] val_seq_len       = 200
-```
-
-To train on a specific dataset:
+### B. Camera-preprocessed dataset
 
 ```bash
 cd ~/nrs_act/scripts/act
-
-python3 train_act.py \
-  --dataset_dir /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft
+python3 train_act.py --cam_preprocess stabilize_crop
 ```
 
-To enable force history:
+Default behavior:
+- latest dataset directory is found automatically
+- `camera_names = ["cam0"]`
+- `use_force_history = True`
+- `force_history_len = 10`
+- periodic checkpoint every 100 epochs
+
+---
+
+## 0-6. Train Diffusion
+
+### A. Raw image dataset
 
 ```bash
-python3 train_act.py \
-  --use_force_history \
-  --force_history_len 10
+cd ~/nrs_act
+python3 scripts/diffusion/train_diffusion.py --cam_preprocess off
 ```
 
-To print normalization debug output:
+### B. Camera-preprocessed dataset
 
 ```bash
-python3 train_act.py --debug_norm
+cd ~/nrs_act
+python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 ```
 
 ---
 
-## E. Minimal full workflow
+## 0-7. Evaluate checkpoint loading
+
+### ACT
 
 ```bash
-# Terminal 1: joystick command node
+cd ~/nrs_act/scripts/act
+python3 train_act.py --eval
+```
+
+### Diffusion
+
+```bash
+cd ~/nrs_act
+python3 scripts/diffusion/train_diffusion.py --eval
+```
+
+---
+
+## 0-8. Run inference node
+
+The inference node now supports both **ACT** and **DIFFUSION** through a parameter.
+
+### ACT
+
+```bash
 cd ~/nrs_act/behavior_ws
 source install/setup.bash
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
+
+ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+  -p policy_class:=ACT \
+  -p act_root:=/home/eunseop/nrs_act \
+  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/20260423_1549 \
+  -p image_topic:=/realsense/robot/color/image_raw \
+  -p chunk_size:=200 \
+  -p use_force_history:=true \
+  -p force_history_len:=10
 ```
 
+### Diffusion
+
 ```bash
-# Terminal 2: recorder
 cd ~/nrs_act/behavior_ws
 source install/setup.bash
-ros2 run nrs_imitation vr_demo_hdf5_recorder
-```
 
-```bash
-# After recording: convert merged HDF5 into ACT episode files
-cd ~/nrs_act/source/custom
-python3 demo_data_act_form_single_cam.py
-```
-
-```bash
-# Train
-cd ~/nrs_act/scripts/act
-python3 train_act.py
+ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+  -p policy_class:=DIFFUSION \
+  -p act_root:=/home/eunseop/nrs_act \
+  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/20260424_1301 \
+  -p image_topic:=/realsense/robot/color/image_raw \
+  -p chunk_size:=200 \
+  -p use_force_history:=true \
+  -p force_history_len:=10 \
+  -p diffusion_infer_steps:=10
 ```
 
 ---
 
-# Repository Documentation
+# 1. Current End-to-End Pipeline
 
-## 0. What each top-level folder does
+## Previous pipeline
 
-Before looking into the ACT model internals, the easiest way to understand this repository is to separate it into **training-side folders** and **robot/behavior-side folders**.
+The older workflow used robot playback to generate image data:
 
 ```text
-nrs_act/
-├── behavior_ws/
-├── checkpoints/
-├── datasets/
-├── LICENSE
-├── README.md
-├── scripts/
-└── source/
+1. vr_demo_hdf5_recorder.py
+   -> save position / force demonstration
+
+2. vr_demo_hdf5_episode_pusher.py
+   -> send one episode to robot
+
+3. robot_playback_act_hdf5_recorder.py
+   -> record robot playback with position + force + image
+
+4. demo_data_act_form.py
+   -> split merged HDF5 into episode_*.hdf5
 ```
 
-### `behavior_ws/`
-ROS 2 workspace for the real experiment pipeline around ACT.
+## Current pipeline
 
-Main role:
-- Vive tracker communication
-- tracker interface definitions
-- VR-to-robot frame calibration
-- gravity-compensated force/torque sensor communication
-- RealSense camera recording
-- joystick-based recording control
-- demonstration recording as merged `.hdf5`
-- ACT inference node execution
-
-Contained packages:
-- `nrs_ft_aq2`
-- `nrs_imitation`
-- `vive_tracker_interfaces`
-- `vive_tracker_ros2`
-- `vr_calibration`
-
-In short, `behavior_ws` is the **data acquisition / deployment side** of the project.
-
----
-
-### `datasets/`
-Stores ACT training datasets.
-
-Typical role:
-- episode-based imitation-learning datasets
-- merged HDF5 files from demonstration recording
-- final `episode_*.hdf5` files used by the dataloader
-- task-specific dataset directories
-
-Current generated layout:
+The current workflow records **position + force + image directly during teaching**:
 
 ```text
-datasets/ACT/
-└── YYYYMMDD_HHMM/
-    ├── merged_hdf5/
-    │   └── vr_demo_merged_YYYYMMDD_HHMM.hdf5
-    └── episodes_ft/
-        ├── episode_0.hdf5
-        ├── episode_1.hdf5
-        └── manifest.json
+1. joystick + vr_demo_hdf5_recorder.py
+   -> record position + force + cam0 into merged_hdf5
+
+2. demo_data_act_form_single_cam.py
+   -> convert merged_hdf5 into episode_*.hdf5
+   -> raw or camera-preprocessed variant
+
+3. train_act.py
+   -> ACT training
+
+4. scripts/diffusion/train_diffusion.py
+   -> Diffusion Policy-style training
+
+5. node_act_cmdmotion_infer.py
+   -> ACT / DIFFUSION inference
 ```
 
-This is the main location for recorded episodes that will be consumed by `source/data/`.
-
 ---
 
-### `checkpoints/`
-Stores training outputs and saved models.
-
-Typical contents:
-- timestamped training result directories
-- `policy_best.ckpt`
-- `policy_last.ckpt`
-- `dataset_stats.pkl`
-- plots or debug outputs generated during training/evaluation
-
-This is the main location for experiment results and reusable trained weights.
-
----
-
-### `scripts/`
-Thin entrypoint scripts for training or evaluation.
-
-Most important file:
-- `scripts/act/train_act.py`
-
-Main role:
-- CLI parsing
-- default training argument setup
-- automatic latest dataset discovery
-- experiment setup
-- calling the actual loader / model / training code in `source/`
-
-Design philosophy:
-- keep scripts light
-- move most algorithmic logic into `source/`
-
----
-
-### `source/`
-Core ACT codebase after refactoring.
-
-Main role:
-- reusable project modules
-- dataset loading and normalization
-- ACT model and encoder definitions
-- training / validation loop
-- debug and plotting utilities
-- custom dataset conversion utilities
-
-This is the main folder to patch when modifying model behavior, data handling, losses, or training flow.
-
----
-
-## 1. Repository role split
-
-At a high level, the repository is divided like this:
-
-### Training / research side
-- `datasets/`
-- `checkpoints/`
-- `scripts/`
-- `source/`
-
-### Real-world robot / behavior side
-- `behavior_ws/`
-
-So the current overall pipeline is:
-1. use `behavior_ws` to capture demonstrations directly as position / force / camera merged HDF5
-2. convert merged HDF5 into ACT episode files under `datasets/`
-3. train and evaluate with `scripts/act/train_act.py`
-4. save outputs under `checkpoints/`
-5. patch reusable logic mainly in `source/`
-
----
-
-## 2. Overview
-
-`nrs_act` is an imitation learning project built on a customized ACT codebase and later refactored for maintainability and future research patches.
-
-Current baseline characteristics:
-- ACT-based behavior cloning / imitation learning
-- Observation = **position/orientation + force + single-camera RGB**
-- Action = **position/orientation + force**
-- Camera name = `cam0`
-- Modular structure: `common / data / models / training`
-- Main entrypoint kept at `scripts/act/train_act.py`
-- `train_act.py` can start training with default arguments and automatic latest dataset discovery
-- Force-history-aware encoder support added without changing raw `.hdf5` demo files
-- ROS 2 real-world behavior workspace included under `behavior_ws/`
-- Joystick-based demonstration recording is supported through `joy_node` and `vr_demo_joy_controller`
-
-This project is designed so that future patches can be added mainly under `source/` while keeping `scripts/act/train_act.py` as an orchestration entrypoint. The original README described the modular ACT structure and force-history-aware encoder design, which are preserved here.
-
----
-
-## 3. Credits / Origin / Upstream
-
-This repository is **not a from-scratch implementation**. It is a refactored research codebase derived from a customized ACT implementation and upstream ACT/DETR components.
-
-### Original customized ACT codebase
-- **Chemin Ahn**
-- Homepage: `https://chemx3937.github.io/`
-- GitHub: `https://github.com/Chemx3937`
-
-### Upstream references
-1. **ACT: Action Chunking with Transformers**
-   - Tony Z. Zhao
-   - Project page: `https://tonyzhaozh.github.io/aloha/`
-
-2. **DETR**
-   - Facebook Research
-   - GitHub: `https://github.com/facebookresearch/detr`
-
-### Attribution rule
-When sharing, patching, or redistributing this repository:
-- keep credit to **Chemin Ahn**
-- keep attribution to **ACT**
-- keep attribution to **DETR**
-- do not remove license / attribution files
-
----
-
-## 4. License
-
-The root `LICENSE` keeps integrated upstream notices.
-
-Included upstream licenses:
-- **ACT**: MIT License  
-  Copyright (c) 2023 Tony Z. Zhao
-- **DETR**: Apache License 2.0  
-  Copyright 2020-present, Facebook, Inc.
-
-Notes:
-- root `LICENSE` must be preserved
-- `README.md` and attribution notes should continue to mention the original customized code origin
-- if new external code is added later, its license notice must also be preserved
-
----
-
-## 5. Current Project Structure
+# 2. Repository Structure
 
 ```text
 nrs_act/
 ├── LICENSE
 ├── README.md
 ├── behavior_ws/
+│   ├── build/
+│   ├── install/
+│   ├── log/
 │   └── src/
-│       ├── nrs_ft_aq2
-│       ├── nrs_imitation
-│       ├── vive_tracker_interfaces
-│       ├── vive_tracker_ros2
-│       └── vr_calibration
+│       ├── nrs_ft_aq2/
+│       ├── nrs_imitation/
+│       │   ├── launch/
+│       │   │   └── vr_demo_joy_controller.launch.py
+│       │   ├── nrs_imitation/
+│       │   │   ├── vr_demo_hdf5_recorder.py
+│       │   │   ├── vr_demo_joy_controller.py
+│       │   │   ├── node_act_cmdmotion_infer.py
+│       │   │   └── ...
+│       │   ├── package.xml
+│       │   └── setup.py
+│       ├── vive_tracker_interfaces/
+│       ├── vive_tracker_ros2/
+│       └── vr_calibration/
 ├── checkpoints/
+│   ├── act/
+│   │   └── ur10e_swing/
+│   │       └── YYYYMMDD_HHMM/
+│   └── diffusion/
+│       └── ur10e_swing/
+│           └── YYYYMMDD_HHMM/
 ├── datasets/
+│   └── ACT/
+│       └── YYYYMMDD_HHMM/
+│           ├── merged_hdf5/
+│           ├── episodes_ft/
+│           └── episodes_ft_camproc/
 ├── scripts/
-│   └── act/
-│       └── train_act.py
+│   ├── act/
+│   │   └── train_act.py
+│   └── diffusion/
+│       └── train_diffusion.py
 └── source/
     ├── common/
     │   ├── fs.py
     │   └── utils.py
     ├── custom/
-    │   ├── check_cam_serial.py
     │   ├── custom_constants.py
     │   ├── custom_real_env.py
     │   ├── custom_robot_utils.py
@@ -564,9 +366,9 @@ nrs_act/
     │   ├── loader.py
     │   └── normalization.py
     ├── models/
-    │   ├── __init__.py
     │   ├── act_core.py
     │   ├── backbone.py
+    │   ├── diffusion_core.py
     │   ├── encoder.py
     │   ├── policy.py
     │   └── transformer.py
@@ -576,786 +378,835 @@ nrs_act/
         └── plotting.py
 ```
 
-### Key idea of the refactor
-Previous monolithic logic was split by responsibility:
-- `data/` → dataset / normalization / dataloader
-- `models/` → ACT core / policy / encoder / backbone / transformer
-- `training/` → train loop / debug / plotting
-- `common/` → general shared utilities
-- `behavior_ws/` → ROS 2 runtime pipeline for demonstration capture, calibration, recording, and inference
-
 ---
 
-## 6. What Each Folder Does
+# 3. What Each Folder Does
 
-### `scripts/act/`
-Training / evaluation entrypoint.
-
-Main file:
-- `train_act.py`
-
-Responsibilities:
-- parse CLI arguments
-- provide default training arguments
-- automatically find the latest `episodes_ft` dataset directory if `--dataset_dir` is not provided
-- auto-count `episode_*.hdf5` files if `--num_episodes` is not provided
-- set `camera_names = ["cam0"]` by default
-- assemble policy config
-- call `load_data(...)`
-- call `train_bc(...)`
-- handle evaluation mode
-- save checkpoint directory and dataset stats
-
-Design rule:
-- keep this file as thin as possible
-- future algorithmic patches should mostly go into `source/`
-
----
-
-### `source/common/`
-General utilities.
-
-Files:
-- `fs.py` → checkpoint folder lookup helpers such as latest timestamped subdir search
-- `utils.py` → common helpers like seeding and dictionary utilities
-
----
-
-### `source/data/`
-Dataset and dataloader logic.
-
-Files:
-- `dataset.py`
-- `loader.py`
-- `normalization.py`
-
-Responsibilities:
-- read `episode_*.hdf5`
-- read single-camera image stream `observations/images/cam0`
-- sample episode start timesteps
-- build current observation and action chunk
-- normalize qpos/action with per-dimension min-max
-- optionally build **force history** on-the-fly from raw episode force trajectory
-- create train / val `DataLoader`
-
-This folder is the main patch point for:
-- contact labels
-- phase labels
-- onset weighting
-- previous-action history
-- force-history generation
-- normalization changes
-
----
-
-### `source/models/`
-Model definition and wrappers.
-
-Files:
-- `encoder.py` → split observation encoders
-- `act_core.py` → ACT / CNNMLP core model builders
-- `backbone.py` → CNN image backbone + positional encoding
-- `transformer.py` → transformer encoder/decoder
-- `policy.py` → training-facing policy wrapper and losses
-- `__init__.py` → package import convenience
-
-This folder is the main patch point for:
-- encoder changes
-- auxiliary heads
-- force/contact prediction heads
-- loss weighting
-- fusion changes
-- model architecture extensions
-
----
-
-### `source/training/`
-Training loop and debugging.
-
-Files:
-- `engine.py` → training / validation loop
-- `debug.py` → normalization debug and AMP helpers
-- `plotting.py` → training history plotting
-
-Responsibilities:
-- batch forward pass
-- support 4-item and 5-item batch formats
-- validation / checkpoint save
-- normalization debug print
-- optional AMP handling
-
----
-
-### `source/custom/`
-Custom environment / task-specific helpers kept from the original research workflow.
-
-Important current files:
-- `demo_data_act_form_single_cam.py`
+## `behavior_ws/`
+ROS 2 workspace for the real experiment pipeline.
 
 Main role:
-- convert merged HDF5 files from the recording node into ACT `episode_*.hdf5` files
-- write `observations/images/cam0`
-- write action as next-step hold
-- write padding metadata
-- delete merged HDF5 after successful conversion unless `--keep-merged` is used
+- Vive tracker communication
+- calibration
+- force/torque acquisition
+- image acquisition
+- joystick command mapping
+- demonstration recording
+- online inference
+
+This is the **real-world behavior side** of the repository.
 
 ---
 
-### `behavior_ws/`
-ROS 2 workspace for behavior capture and deployment.
+## `datasets/`
+Stores:
+- merged HDF5 files from direct teaching
+- final episode files used by dataloaders
 
-Responsibilities:
-- bring up Vive tracker communication
-- provide tracker-related interfaces
-- calibrate VR-frame pose into UR10e base frame
-- read gravity-compensated force/torque data
-- read RealSense camera images
-- run joystick command mapping
-- record human demonstrations directly as ACT merged HDF5
-- run online ACT inference nodes
-
-Current important nodes in `nrs_imitation`:
-- `vr_demo_hdf5_recorder`
-- `vr_demo_joy_controller`
-- `vr_demo_txt_recorder`
-- `vr_demo_hdf5_episode_pusher`
-- `robot_playback_act_hdf5_recorder`
-- ACT inference nodes
-
----
-
-## 7. Current Dataset Recording Pipeline
-
-### Previous dataset pipeline
-The older dataset generation flow used robot playback:
+Typical layout:
 
 ```text
-1. vr_demo_hdf5_recorder.py
-   -> save position/force trajectory only
-
-2. vr_demo_hdf5_episode_pusher.py
-   -> send one episode trajectory to robot
-
-3. robot_playback_act_hdf5_recorder.py
-   -> record robot playback with position + force + two cameras
-
-4. demo_data_act_form.py
-   -> split merged HDF5 into episode_*.hdf5
+datasets/ACT/
+└── YYYYMMDD_HHMM/
+    ├── merged_hdf5/
+    │   └── vr_demo_merged_YYYYMMDD_HHMM.hdf5
+    ├── episodes_ft/
+    │   ├── episode_0.hdf5
+    │   └── ...
+    └── episodes_ft_camproc/
+        ├── episode_0.hdf5
+        └── ...
 ```
-
-### Current dataset pipeline
-The current pipeline records everything at the human demonstration stage:
-
-```text
-1. vr_demo_hdf5_recorder.py
-   -> record position + force + cam0 directly
-
-2. demo_data_act_form_single_cam.py
-   -> split merged HDF5 into episode_*.hdf5
-
-3. train_act.py
-   -> train ACT using latest dataset by default
-```
-
-This reduces the data generation loop and avoids the intermediate robot playback recording stage.
 
 ---
 
-## 8. Observation / Action Definition
+## `checkpoints/`
+Now split by policy family:
 
-### Current action definition
-The model still predicts the same 9D action as before:
+```text
+checkpoints/
+├── act/
+│   └── ur10e_swing/
+│       └── YYYYMMDD_HHMM/
+└── diffusion/
+    └── ur10e_swing/
+        └── YYYYMMDD_HHMM/
+```
+
+Each timestamp directory typically contains:
+
+```text
+policy_best.ckpt
+policy_last.ckpt
+dataset_stats.pkl
+policy_epoch_0_seed_0.ckpt
+policy_epoch_100_seed_0.ckpt
+policy_epoch_200_seed_0.ckpt
+...
+train_val_loss_seed_0.png
+train_val_l1_seed_0.png
+train_val_kl_seed_0.png      # ACT
+train_val_diffusion_seed_0.png   # Diffusion if applicable
+```
+
+---
+
+## `scripts/`
+Thin training / evaluation entrypoints.
+
+- `scripts/act/train_act.py`
+- `scripts/diffusion/train_diffusion.py`
+
+These scripts:
+- parse CLI args
+- resolve latest dataset automatically
+- construct policy config
+- call shared dataloader / engine code
+
+---
+
+## `source/`
+Core reusable modules.
+
+### `source/data/`
+- episode HDF5 reading
+- normalization
+- force history generation
+- dataloaders
+
+### `source/models/`
+- ACT model
+- Diffusion Policy-style model
+- observation encoders
+- image backbones
+
+### `source/training/`
+- common training loop
+- checkpoint save
+- debug print
+- plot save
+
+### `source/custom/`
+- task-specific utilities
+- merged-HDF5 to episode conversion
+
+---
+
+# 4. Recorder and Joystick Details
+
+## 4-1. Recorder node
+
+Run:
+
+```bash
+cd ~/nrs_act/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation vr_demo_hdf5_recorder
+```
+
+This node records:
+- position
+- force
+- image
+
+into merged HDF5.
+
+Merged structure:
+
+```text
+episodes/
+├── ep_0000/
+│   ├── position
+│   ├── ft
+│   └── images/
+│       └── cam0
+├── ep_0001/
+│   ├── position
+│   ├── ft
+│   └── images/
+│       └── cam0
+...
+```
+
+Semantic meaning:
+
+```text
+position = [x, y, z, wx, wy, wz]
+ft       = [fx, fy, fz]
+cam0     = RGB image
+```
+
+---
+
+## 4-2. Joystick commands
+
+The recorder is controlled through `/vr_demo_recorder/command`.
+
+Commands:
+
+```text
+start_recording
+end_recording
+erase_current_episode
+terminate_node
+prev_episode
+next_episode
+```
+
+Joystick mapping:
+
+```text
+A  -> start_recording
+B  -> end_recording
+X  -> erase_current_episode
+Y  -> terminate_node
+←  -> prev_episode
+→  -> next_episode
+```
+
+---
+
+# 5. Converter: Raw vs Camera-Preprocessed Dataset
+
+## 5-1. Raw conversion
+
+```bash
+cd ~/nrs_act/source/custom
+
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess off
+```
+
+Output:
+
+```text
+.../episodes_ft/
+```
+
+---
+
+## 5-2. Camera-preprocessed conversion
+
+Recommended when:
+- hand jitter is visible
+- camera shake is large
+- raw teaching image is too noisy
+
+```bash
+cd ~/nrs_act/source/custom
+
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256
+```
+
+Output:
+
+```text
+.../episodes_ft_camproc/
+```
+
+---
+
+## 5-3. What `stabilize_crop` means
+
+The camera-preprocessed converter performs:
+
+```text
+raw cam0
+→ episode-wise global stabilization
+→ crop
+→ resize
+→ final episode_*.hdf5
+```
+
+This is meant to reduce camera shake from direct tracker teaching.
+
+---
+
+## 5-4. Keep merged HDF5 for debugging
+
+```bash
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256 \
+  --keep-merged
+```
+
+---
+
+# 6. Final Episode Format
+
+Each final episode file contains:
+
+```text
+episode_0.hdf5
+├── action/
+│   ├── position
+│   └── force
+├── observations/
+│   ├── position
+│   ├── force
+│   ├── images/
+│   │   └── cam0
+│   └── is_pad
+└── meta/
+    ├── orig_len
+    ├── T_pad
+    ├── pad_starts_at
+    ├── truncated
+    └── camera_name
+```
+
+Current dimensionality:
+
+```text
+observation qpos = position(6) + force(3) = 9D
+action          = position(6) + force(3) = 9D
+image           = cam0
+```
+
+So the current action definition is still:
 
 \[
 a_t = [x, y, z, w_x, w_y, w_z, f_x, f_y, f_z]
 \]
 
-So **the action space has not changed**.
+---
 
-### Current observation definition
-The current observation is based on:
-- pose/orientation: `x y z wx wy wz`
-- force: `fx fy fz`
-- single-camera RGB image: `cam0`
+# 7. Shared Observation Encoding
 
-The observation state vector is:
+Both ACT and Diffusion reuse the same observation-side modular design as much as possible.
+
+## Position / force state
 
 \[
 q_t = [x, y, z, w_x, w_y, w_z, f_x, f_y, f_z]
 \]
 
----
-
-## 9. Old Encoder Structure vs New Encoder Structure
-
-## Before
-A single shared state encoder processed the current 9D state directly:
-
-\[
-q_t = [x,y,z,w_x,w_y,w_z,f_x,f_y,f_z]
-\]
-
-\[
-e_t = \phi_{shared}(q_t)
-\]
-
-Characteristics:
-- position/orientation and force were mixed immediately
-- force used only the current timestep
-- no temporal force context
-
----
-
-## After
-The observation is now encoded in a split manner.
-
-### 1) Position encoder
-Current pose/orientation is encoded separately:
-
-\[
-p_t = [x,y,z,w_x,w_y,w_z]
-\]
-
-\[
-e_t^{pos} = \phi_{pos}(p_t)
-\]
-
-### 2) Force encoder (GRU)
-A short force history window is encoded when `--use_force_history` is enabled:
-
-\[
-H_t = [f_{t-L+1}, \dots, f_t], \quad f_t = [f_x,f_y,f_z]
-\]
-
-\[
-e_t^{force} = \phi_{force}(H_t)
-\]
-
-Here `phi_force` is a **GRU-based force-history encoder**.
-
-### 3) Fusion encoder
-Position and force embeddings are fused into one observation embedding:
-
-\[
-e_t = \phi_{fuse}([e_t^{pos}; e_t^{force}])
-\]
-
-### 4) Image encoder
-RGB observations from `cam0` are encoded by the image backbone:
-
-\[
-e_t^{img} = \phi_{img}(I_t^{cam0})
-\]
-
-These are then used by ACT / CNNMLP policy logic.
-
----
-
-## 10. Why the New Structure Matters
-
-The new structure improves the state representation in two ways.
-
-### A. Position / force disentangling
-Before, pose and force were forced into the same encoder.  
-Now they are represented separately first, which reduces early entanglement.
-
-### B. Temporal force modeling
-Before, the model only saw current force:
-
-\[
-f_t
-\]
-
-Now it can see force trend:
-
-\[
-f_{t-L+1}, \dots, f_t
-\]
-
-This is especially important for:
-- non-contact → contact transition
-- pressing phase detection
-- force continuity
-- contact-aware action generation
-
----
-
-## 11. Force History: How It Is Added Without Changing Raw `.hdf5`
-
-Raw demo files are **not rewritten**.
-
-Instead, `source/data/dataset.py` builds force history on-the-fly from the episode’s full force trajectory.
-
-If the current sampled timestep is `t`, dataset constructs:
+## Optional force history
 
 \[
 H_t = [f_{t-L+1}, \dots, f_t]
 \]
 
-using `/observations/force` inside the same episode file.
+The codebase uses:
+- position encoder
+- force-history GRU encoder
+- fusion encoder
+- image encoder for `cam0`
 
-### Episode start padding
-If `t < L-1`, the left side is padded by repeating the first available force value.
-
-Example:
-
-\[
-[f_0, f_0, \dots, f_0, f_1, \dots, f_t]
-\]
-
-### Normalization of force history
-`force_history` uses the same min-max statistics as the force part of `qpos`.
-
-So the raw `.hdf5` stays the same, while the dataset becomes history-aware.
+This allows ACT and Diffusion to share:
+- dataset format
+- force-history generation
+- observation encoders
+- image backbone modules
 
 ---
 
-## 12. Files Changed for the Current Pipeline
+# 8. ACT Training
 
-### Newly added / important
-- `source/models/encoder.py`
-- `source/custom/demo_data_act_form_single_cam.py`
-- `behavior_ws/src/nrs_imitation/nrs_imitation/vr_demo_joy_controller.py`
-- `behavior_ws/src/nrs_imitation/launch/vr_demo_joy_controller.launch.py`
-
-### Main modified files
-- `scripts/act/train_act.py`
-- `source/models/act_core.py`
-- `source/models/policy.py`
-- `source/data/dataset.py`
-- `source/data/loader.py`
-- `source/training/engine.py`
-- `source/training/debug.py`
-- `behavior_ws/src/nrs_imitation/nrs_imitation/vr_demo_hdf5_recorder.py`
-
-### Roles of these changes
-- `vr_demo_hdf5_recorder.py` → joystick-controlled position / force / cam0 merged HDF5 recorder
-- `vr_demo_joy_controller.py` → converts F710 joystick input into recorder command strings
-- `demo_data_act_form_single_cam.py` → converts merged HDF5 into single-camera ACT episode files
-- `train_act.py` → default cam0 training, auto latest dataset discovery, default chunk-200 training config
-- `encoder.py` → position encoder / force GRU encoder / image encoder definitions
-- `dataset.py` → reads ACT episode files and builds optional `force_history`
-- `loader.py` → enables force-history dataset mode
-- `engine.py` → supports both 4-item and 5-item batches
-- `debug.py` → prints `force_history` stats when enabled
-
----
-
-## 13. Encoder Components in `source/models/encoder.py`
-
-### `PositionStateEncoder`
-Encodes:
-
-\[
-[x,y,z,w_x,w_y,w_z]
-\]
-
-into a learned embedding.
-
-### `ForceHistoryGRUEncoder`
-Encodes:
-
-\[
-[f_{t-L+1}, \dots, f_t]
-\]
-
-with a GRU and uses the last hidden state as force embedding.
-
-### `PositionForceFusionEncoder`
-Takes concatenated position and force embeddings and maps them to one fused embedding.
-
-Currently implemented as shallow fusion:
-
-\[
-\text{Linear} + \text{Activation}
-\]
-
-### `ImageObservationEncoder`
-Used for ACT image features.
-
-### `CNNMLPImageEncoder`
-Used for the CNNMLP baseline path.
-
----
-
-## 14. Current Data Format Assumption
-
-Each dataset directory should contain:
-
-```text
-episode_0.hdf5
-episode_1.hdf5
-...
-manifest.json
-```
-
-Expected keys:
-- `/observations/position`
-- `/observations/force`
-- `/observations/images/cam0`
-- `/observations/is_pad`
-- `/action/position`
-- `/action/force`
-- `/meta/orig_len`
-- `/meta/T_pad`
-
-Current dimensionality:
-- observation qpos: `position(6) + force(3) = 9D`
-- action: `position(6) + force(3) = 9D`
-- image: `cam0`
-- force history: `(L, 3)` when enabled
-
-Camera names used by default:
-- `cam0`
-
-Expected image tensor shape during training:
-
-```text
-(B, 1, 3, H, W)
-```
-
----
-
-## 15. Normalization
-
-### qpos / action
-Per-dimension min-max normalization to `[0, 1]`.
-
-For each dimension independently:
-- x
-- y
-- z
-- wx
-- wy
-- wz
-- fx
-- fy
-- fz
-
-### images
-- uint8 → float `[0,1]`
-- ImageNet normalization is still applied inside `source/models/policy.py`
-
-### force history
-When enabled, `force_history` is normalized using the same min/max used for the force portion of qpos.
-
----
-
-## 16. Training Flow
-
-Training entrypoint:
+## 8-1. Default training
 
 ```bash
-python3 scripts/act/train_act.py
-```
-
-Flow:
-1. parse CLI args
-2. automatically resolve latest dataset dir if `--dataset_dir` is not provided
-3. auto-count `episode_*.hdf5` files if `--num_episodes` is not provided
-4. build `policy_config`
-5. call `load_data(...)`
-6. create train / val loaders
-7. optionally print normalization debug
-8. build policy
-9. train / validate / save checkpoints
-
----
-
-## 17. Main Training Command
-
-### Default training
-
-```bash
-cd /home/eunseop/nrs_act/scripts/act
+cd ~/nrs_act/scripts/act
 python3 train_act.py
 ```
 
-This is equivalent to the current default setup:
-
-```bash
-cd /home/eunseop/nrs_act && python3 scripts/act/train_act.py \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/ur10e_swing \
-  --policy_class ACT \
-  --task_name ur10e_swing \
-  --batch_size 6 \
-  --seed 0 \
-  --num_epochs 500 \
-  --lr 1e-4 \
-  --kl_weight 10 \
-  --chunk_size 200 \
-  --train_seq_len 200 \
-  --val_seq_len 200 \
-  --hidden_dim 512 \
-  --dim_feedforward 3200
-```
-
-### Default training with force history
-
-```bash
-cd /home/eunseop/nrs_act/scripts/act
-python3 train_act.py \
-  --use_force_history \
-  --force_history_len 10
-```
-
-### Debug normalization
-
-```bash
-cd /home/eunseop/nrs_act/scripts/act
-python3 train_act.py --debug_norm
-```
-
-### Specific dataset
-
-```bash
-cd /home/eunseop/nrs_act/scripts/act
-python3 train_act.py \
-  --dataset_dir /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft
-```
-
-### Specific checkpoint root
-
-```bash
-cd /home/eunseop/nrs_act/scripts/act
-python3 train_act.py \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/my_experiment
-```
+This will automatically use the latest `episodes_ft` dataset.
 
 ---
 
-## 18. Important CLI Flags for the Current Structure
-
-### Dataset flags
-- `--dataset_dir`  
-  manually sets the ACT episode directory. If omitted, the latest `episodes_ft` directory is selected automatically.
-
-- `--num_episodes`  
-  manually sets the number of episodes. If omitted, the number of `episode_*.hdf5` files is counted automatically.
-
-- `--camera_names cam0`  
-  camera names used by the dataloader and model. Default is `cam0`.
-
-### Sequence length flags
-- `--chunk_size`  
-  number of ACT action queries.
-
-- `--train_seq_len` / `--val_seq_len`  
-  action sequence lengths used by the dataset. If omitted, they follow `chunk_size`.
-
-### Force history flags
-- `--use_force_history`  
-  enables dataset-side force history generation and passes it to the model.
-
-- `--force_history_len 10`  
-  sets the GRU history window length.
-
-### Split encoder hyperparameters
-- `--position_dim`
-- `--force_dim`
-- `--position_encoder_hidden_dim`
-- `--force_encoder_hidden_dim`
-- `--force_encoder_num_layers`
-- `--force_encoder_dropout`
-- `--observation_encoder_activation`
-- `--cnnmlp_observation_embed_dim`
-
----
-
-## 19. Inference / Evaluation Notes
-
-Evaluation command:
+## 8-2. Camera-preprocessed training
 
 ```bash
-cd /home/eunseop/nrs_act/scripts/act
-python3 train_act.py \
-  --eval \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/ur10e_swing
+cd ~/nrs_act/scripts/act
+python3 train_act.py --cam_preprocess stabilize_crop
 ```
 
-If `--eval` is used and `policy_best.ckpt` is not directly inside `--ckpt_dir`, the script searches the latest timestamped checkpoint subdirectory.
-
-### Important
-If the model was trained with force history, online inference should also maintain a recent force buffer:
-
-\[
-[f_{t-L+1}, \dots, f_t]
-\]
-
-Otherwise train-time and inference-time input structures do not match.
+This will automatically use the latest `episodes_ft_camproc` dataset.
 
 ---
 
-## 20. Checkpoints and Saved Files
+## 8-3. Important ACT defaults
 
-Training creates a timestamped directory under `checkpoints/<task_name>/...` or the user-specified `--ckpt_dir`.
-
-Typical contents:
-- `policy_best.ckpt`
-- `policy_last.ckpt`
-- `dataset_stats.pkl`
-- optional plot outputs
-
-`dataset_stats.pkl` stores normalization statistics for later denormalization / deployment.
-
----
-
-## 21. Debug Output
-
-When `--debug_norm` is enabled, training prints normalized statistics before training begins.
-
-Current debug output includes:
-- image shape
-- qpos shape
-- action shape
-- is_pad shape
-- force_history shape if enabled
-- qpos per-dimension mean/std
-- action per-dimension mean/std
-- image RGB mean/std
-- force_history mean/std if enabled
-- range checks for normalized values
-
-For single-camera training, expected image shape is:
+Current practical defaults:
 
 ```text
-(B, 1, 3, H, W)
+ckpt_dir        = /home/eunseop/nrs_act/checkpoints/act/ur10e_swing
+policy_class    = ACT
+task_name       = ur10e_swing
+camera_names    = ["cam0"]
+batch_size      = 6
+num_epochs      = 500
+lr              = 1e-4
+chunk_size      = 200
+train_seq_len   = 200
+val_seq_len     = 200
+hidden_dim      = 512
+dim_feedforward = 3200
+use_force_history = True
+force_history_len = 10
+save_every      = 100
 ```
 
-This is useful to verify:
-- normalization correctness
-- force-history value scale
-- dataset pipeline integrity
-- train/val split sanity
-- single-camera loading through `cam0`
+---
+
+## 8-4. ACT specific dataset selection
+
+Raw:
+
+```bash
+python3 train_act.py --cam_preprocess off
+```
+
+Camera-preprocessed:
+
+```bash
+python3 train_act.py --cam_preprocess stabilize_crop
+```
+
+Specific dataset:
+
+```bash
+python3 train_act.py \
+  --dataset_dir /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc
+```
 
 ---
 
-## 22. What Did *Not* Change
+## 8-5. ACT eval
 
-Even after the current recorder / converter / training updates:
-- final action dimension is still **9D**
-- output action remains:
+```bash
+cd ~/nrs_act/scripts/act
+python3 train_act.py --eval
+```
 
-\[
-[x, y, z, w_x, w_y, w_z, f_x, f_y, f_z]
-\]
+Specific checkpoint root:
 
-So the current pipeline changes the **data acquisition and image stream structure**, not the final action definition.
-
----
-
-## 23. Expected Effect of the New Structure
-
-### Before
-- robot playback was required to generate camera-based ACT data
-- two-camera dataset assumption: `cam_top`, `cam_ee`
-- current force only unless force history was enabled
-- pose and force immediately entangled in the basic encoder
-
-### After
-- direct human demonstration recording with position + force + camera
-- joystick-controlled episode recording
-- single-camera dataset assumption: `cam0`
-- automatic latest dataset selection in `train_act.py`
-- separate position encoder
-- optional GRU-based force-history encoder
-- fused observation representation
-- better opportunity to model:
-  - force transition
-  - contact onset
-  - contact maintenance
-  - force-aware action chunk prediction
-
-Expected inference-side benefits:
-- simpler dataset creation loop
-- less dependency on intermediate playback recording
-- cleaner camera input shape
-- more context-aware force prediction when force history is enabled
-- better non-contact → contact transition handling
-- more consistent force-conditioned action chunks
-- cleaner separation between geometry and force representation
+```bash
+python3 train_act.py \
+  --eval \
+  --ckpt_dir /home/eunseop/nrs_act/checkpoints/act/ur10e_swing
+```
 
 ---
 
-## 24. Current Limitations
+# 9. Diffusion Training
 
-This patch improves the dataset-generation loop and representation, but does **not** automatically solve all force prediction issues.
+## 9-1. What this branch is
 
-Still likely future patch targets:
-- force dimension loss weighting
-- contact auxiliary loss
-- phase label / phase loss
-- onset weighting
-- auxiliary heads from latent / hidden state
-- inference-side force history buffer verification
-- camera mounting / view consistency checks
-- force edge-zero duration tuning during recording
+This repository now includes a **Diffusion Policy-style** branch.
 
-Most likely future files to patch:
-- `source/data/dataset.py`
-- `source/models/encoder.py`
-- `source/models/act_core.py`
-- `source/models/policy.py`
-- `source/training/engine.py`
-- `behavior_ws/src/nrs_imitation/nrs_imitation/vr_demo_hdf5_recorder.py`
+The added diffusion class is inspired by the core idea of **Diffusion Policy**:
+- condition on current observation
+- model a future action chunk through diffusion
+- train by predicting noise
+- infer by iterative denoising
 
----
+In this repository, the diffusion branch:
+- keeps the same HDF5 dataset format
+- keeps the same observation encoders when possible
+- adds a diffusion denoiser model and a separate training script
 
-## 25. Recommended Patch Rules Going Forward
+Important note:
 
-1. keep `scripts/act/train_act.py` thin
-2. keep folder responsibilities separated
-3. do not mix dataset logic into model files unnecessarily
-4. preserve attribution and license files
-5. preserve import stability with `__init__.py` where needed
-6. prefer modifying `source/` rather than rewriting the training script
-7. keep recording / conversion / training responsibilities separated:
-   - recorder: merged HDF5
-   - converter: ACT episode files
-   - trainer: model training
-8. keep camera names explicit and consistent:
-   - current default: `cam0`
+```text
+This is a Diffusion Policy-style implementation integrated into this repository.
+It is not an official upstream port of the original authors' code.
+```
 
 ---
 
-## 26. Summary
+## 9-2. Why diffusion was added
 
-`nrs_act` is now in a stronger baseline state for force-aware, camera-conditioned imitation learning.
+ACT remains a strong baseline for action chunk prediction.
 
-Current baseline status:
-- refactored modular structure completed
-- ACT training runs successfully
-- position / force encoder separation added
-- optional force-history GRU path added
-- single-camera input path standardized as `cam0`
-- joystick-controlled recording added
-- direct VR demonstration recording with position + force + camera added
-- merged HDF5 to ACT episode conversion added
-- automatic latest dataset discovery added to `train_act.py`
-- debug pipeline updated to show normalization and force-history statistics
-- ROS 2 `behavior_ws` maintained for real-world behavior capture and deployment
+Diffusion was added because diffusion-based visuomotor policies are widely used as very strong modern baselines for manipulation / imitation learning, especially for multi-modal action distributions and long-horizon chunk generation.
 
-In short, the project has evolved from:
+---
 
-\[
-\text{shared current-state encoder}
-\]
+## 9-3. Default Diffusion training
 
-into:
+```bash
+cd ~/nrs_act
+python3 scripts/diffusion/train_diffusion.py
+```
 
-\[
-\text{position encoder} + \text{optional force-history GRU encoder} + \text{fusion encoder}
-\]
+This automatically uses the latest `episodes_ft` dataset.
 
-and the data-generation pipeline has evolved from:
+---
 
-\[
-\text{human demo} \rightarrow \text{robot playback} \rightarrow \text{ACT dataset}
-\]
+## 9-4. Camera-preprocessed Diffusion training
 
-into:
+```bash
+cd ~/nrs_act
+python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
+```
 
-\[
-\text{human demo with position/force/cam0} \rightarrow \text{ACT dataset}
-\]
+This automatically uses the latest `episodes_ft_camproc` dataset.
+
+---
+
+## 9-5. Important Diffusion defaults
+
+```text
+ckpt_dir              = /home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing
+camera_names          = ["cam0"]
+chunk_size            = 200
+train_seq_len         = 200
+val_seq_len           = 200
+use_force_history     = True
+force_history_len     = 10
+diffusion_train_steps = 100
+diffusion_infer_steps = 10
+diffusion_beta_start  = 1e-4
+diffusion_beta_end    = 2e-2
+save_every            = 100
+```
+
+---
+
+## 9-6. Diffusion eval
+
+```bash
+cd ~/nrs_act
+python3 scripts/diffusion/train_diffusion.py --eval
+```
+
+Specific checkpoint root:
+
+```bash
+python3 scripts/diffusion/train_diffusion.py \
+  --eval \
+  --ckpt_dir /home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing
+```
+
+---
+
+# 10. Inference Node
+
+The current inference node supports both ACT and DIFFUSION:
+
+```text
+policy_class = ACT | DIFFUSION
+```
+
+Common required topics:
+
+```text
+pose_topic   = /ur10skku/currentP
+force_topic  = /ur10skku/currentF
+image_topic  = /realsense/robot/color/image_raw
+cmd_topic    = /ur10skku/cmdMotion
+```
+
+---
+
+## 10-1. ACT inference example
+
+```bash
+cd ~/nrs_act/behavior_ws
+source install/setup.bash
+
+ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+  -p policy_class:=ACT \
+  -p act_root:=/home/eunseop/nrs_act \
+  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/20260423_1549 \
+  -p image_topic:=/realsense/robot/color/image_raw \
+  -p chunk_size:=200 \
+  -p use_force_history:=true \
+  -p force_history_len:=10
+```
+
+---
+
+## 10-2. Diffusion inference example
+
+```bash
+cd ~/nrs_act/behavior_ws
+source install/setup.bash
+
+ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+  -p policy_class:=DIFFUSION \
+  -p act_root:=/home/eunseop/nrs_act \
+  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/20260424_1301 \
+  -p image_topic:=/realsense/robot/color/image_raw \
+  -p chunk_size:=200 \
+  -p use_force_history:=true \
+  -p force_history_len:=10 \
+  -p diffusion_infer_steps:=10
+```
+
+---
+
+## 10-3. Important inference notes
+
+- current node is **single-camera only**
+- `cam0` / `image_topic` are used
+- force history is built online from the current force stream
+- current no-recover style control is kept for simpler debugging
+
+If checkpoint load prints a large mismatch such as:
+
+```text
+missing=364, unexpected=364
+```
+
+then the training config and inference config do not match and policy output should not be trusted.
+
+---
+
+# 11. Checkpoint Layout
+
+## ACT
+
+```text
+/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/YYYYMMDD_HHMM/
+├── dataset_stats.pkl
+├── policy_best.ckpt
+├── policy_last.ckpt
+├── policy_epoch_0_seed_0.ckpt
+├── policy_epoch_100_seed_0.ckpt
+├── policy_epoch_200_seed_0.ckpt
+└── train_val_*.png
+```
+
+## Diffusion
+
+```text
+/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/YYYYMMDD_HHMM/
+├── dataset_stats.pkl
+├── policy_best.ckpt
+├── policy_last.ckpt
+├── policy_epoch_0_seed_0.ckpt
+├── policy_epoch_100_seed_0.ckpt
+├── policy_epoch_200_seed_0.ckpt
+└── train_val_*.png
+```
+
+---
+
+# 12. Useful Commands
+
+## Latest recorder command topic
+
+```bash
+ros2 topic echo /vr_demo_recorder/command
+```
+
+## Verify image topic
+
+```bash
+ros2 topic hz /realsense/robot/color/image_raw
+ros2 topic echo --once /realsense/robot/color/camera_info
+```
+
+## Verify pose / force topics
+
+```bash
+ros2 topic echo --once /ur10skku/currentP
+ros2 topic echo --once /ur10skku/currentF
+```
+
+## Check final episode structure
+
+```bash
+python3 - <<'PY'
+import glob, h5py
+files = sorted(glob.glob('/home/eunseop/nrs_act/datasets/ACT/*/episodes_ft/episode_0.hdf5'))
+if not files:
+    raise RuntimeError("No episode file found")
+path = files[-1]
+print("file:", path)
+with h5py.File(path, 'r') as f:
+    def visit(name, obj):
+        if isinstance(obj, h5py.Dataset):
+            print(name, obj.shape, obj.dtype)
+    f.visititems(visit)
+PY
+```
+
+## Check camera-preprocessed dataset
+
+```bash
+python3 - <<'PY'
+import glob, h5py
+files = sorted(glob.glob('/home/eunseop/nrs_act/datasets/ACT/*/episodes_ft_camproc/episode_0.hdf5'))
+if not files:
+    raise RuntimeError("No camproc episode file found")
+path = files[-1]
+print("file:", path)
+with h5py.File(path, 'r') as f:
+    print(f['observations/images/cam0'].shape)
+PY
+```
+
+---
+
+# 13. Troubleshooting
+
+## A. `ros2 launch ... vr_demo_joy_controller.launch.py` works but recorder does not react
+Check:
+
+```bash
+ros2 topic echo /vr_demo_recorder/command
+```
+
+If no commands appear, verify:
+- joystick is recognized
+- `joy_node` is running
+- button mapping is correct
+
+---
+
+## B. Converter ran but no episode files were created
+Check:
+- merged HDF5 exists
+- input path is correct
+- selected `--cam_preprocess` is correct
+- converter did not delete merged file before debugging (`--keep-merged`)
+
+---
+
+## C. Training starts but dataset count is wrong
+Both training scripts auto-count `episode_*.hdf5`.
+If you want to force a subset:
+
+```bash
+python3 train_act.py --num_episodes 20
+```
+
+or
+
+```bash
+python3 scripts/diffusion/train_diffusion.py --num_episodes 20
+```
+
+---
+
+## D. Inference loads checkpoint but output is poor
+First check checkpoint match.
+
+If the node prints many missing / unexpected keys, fix config mismatch first.
+
+Typical mismatch sources:
+- wrong `policy_class`
+- wrong `chunk_size`
+- wrong checkpoint root
+- wrong camera config
+- wrong force-history setting
+
+---
+
+## E. Contact logic is unstable
+Check:
+- force sign
+- force axis order
+- force offset / zeroing
+- whether the force signal distribution matches the training dataset
+
+---
+
+## F. Camera shake is harming direct-teaching performance
+Use:
+
+```bash
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256
+```
+
+and train on:
+
+```bash
+python3 train_act.py --cam_preprocess stabilize_crop
+```
+
+or
+
+```bash
+python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
+```
+
+---
+
+# 14. Practical Recommended Workflow
+
+If you want the current recommended practical workflow:
+
+## Raw baseline
+```bash
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
+ros2 run nrs_imitation vr_demo_hdf5_recorder
+
+cd ~/nrs_act/source/custom
+python3 demo_data_act_form_single_cam.py --cam_preprocess off
+
+cd ~/nrs_act/scripts/act
+python3 train_act.py --cam_preprocess off
+```
+
+## Recommended camera-preprocessed workflow
+```bash
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
+ros2 run nrs_imitation vr_demo_hdf5_recorder
+
+cd ~/nrs_act/source/custom
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256
+
+cd ~/nrs_act/scripts/act
+python3 train_act.py --cam_preprocess stabilize_crop
+```
+
+## Diffusion camera-preprocessed workflow
+```bash
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
+ros2 run nrs_imitation vr_demo_hdf5_recorder
+
+cd ~/nrs_act/source/custom
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256
+
+cd ~/nrs_act
+python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
+```
+
+---
+
+# 15. Summary
+
+Current repository status:
+
+- single-camera direct-teaching dataset pipeline
+- joystick-controlled recording
+- merged HDF5 to episode conversion
+- raw and stabilized camera dataset variants
+- ACT training branch
+- Diffusion Policy-style training branch
+- separate checkpoint trees for ACT and Diffusion
+- one inference node with `policy_class` switch
+- shared dataset / encoder / backbone pipeline
+
+So the current full path is:
+
+```text
+teaching (position + force + cam0)
+→ merged_hdf5
+→ episode_*.hdf5
+→ ACT or Diffusion training
+→ policy_class-selected inference
+```

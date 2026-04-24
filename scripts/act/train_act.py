@@ -337,7 +337,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
 
     p.add_argument("--eval", action="store_true", help="run inference instead of training")
-    p.add_argument("--ckpt_dir", type=str, default="/home/eunseop/nrs_act/checkpoints/ur10e_swing", help="root checkpoint directory")
+    p.add_argument("--ckpt_dir", type=str, default="/home/eunseop/nrs_act/checkpoints/act/ur10e_swing", help="root checkpoint directory")
     p.add_argument("--policy_class", type=str, default="ACT", choices=["ACT", "CNNMLP"])
     p.add_argument("--task_name", type=str, default="ur10e_swing")
 
