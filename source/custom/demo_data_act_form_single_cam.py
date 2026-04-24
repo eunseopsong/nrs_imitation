@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-demo_data_act_form.py
+demo_data_act_form_single_cam.py
 
-Single-camera ACT dataset converter for the new VR demo pipeline.
+Single-camera ACT dataset converter for the current VR demo pipeline.
 
 Input merged HDF5 format:
   <ACT_ROOT>/<RUN_ID>/merged_hdf5/vr_demo_merged_<RUN_ID>.hdf5
@@ -13,7 +13,7 @@ Input merged HDF5 format:
     /episodes/ep_xxxx/images/cam0     (T, H, W, 3), uint8 RGB
 
 Output ACT episode format:
-  <ACT_ROOT>/<RUN_ID>/episodes_ft/episode_0.hdf5
+  <ACT_ROOT>/<RUN_ID>/<episodes_subdir>/episode_0.hdf5
     /observations/position            (T_pad, 6)
     /observations/force               (T_pad, 3)
     /observations/images/cam0         (T_pad, H, W, 3), uint8 RGB
@@ -25,9 +25,13 @@ Output ACT episode format:
     /meta/pad_starts_at
     /meta/truncated
     /meta/camera_name
+    /meta/cam_preprocess_mode
 
 After successful conversion, the input merged HDF5 file is deleted by default
 to save disk space. Use --keep-merged to preserve it.
+
+Recommended camera preprocessing mode:
+  --cam_preprocess stabilize_crop
 """
 
 import os
@@ -40,26 +44,24 @@ from typing import List, Optional, Tuple
 import h5py
 import numpy as np
 
+try:
+    import cv2
+except Exception:
+    cv2 = None
+
 
 ROOT_DEFAULT = "/home/eunseop/nrs_act/datasets/ACT"
 MERGED_SUBDIR = "merged_hdf5"
-EPISODES_SUBDIR = "episodes_ft"
+EPISODES_SUBDIR_RAW = "episodes_ft"
+EPISODES_SUBDIR_CAMPROC = "episodes_ft_camproc"
 
 
 # ============================================================
 # Path utilities
 # ============================================================
 def _is_probably_timestamp_name(name: str) -> bool:
-    """
-    Accept common run/file timestamp patterns.
-      20260421_1509
-      202604211509
-      0421_1509
-      vr_demo_merged_20260421_1509.hdf5
-    """
     stem = Path(name).stem
     candidates = [name, stem]
-
     if stem.startswith("vr_demo_merged_"):
         candidates.append(stem.replace("vr_demo_merged_", "", 1))
 
@@ -102,18 +104,6 @@ def _pick_latest_file(files: List[str]) -> str:
 
 
 def resolve_input_path(user_input: Optional[str], root_dir: str) -> str:
-    """
-    Resolve merged HDF5 input path.
-
-    Supports:
-      1) --input /path/to/file.hdf5
-      2) --input /path/to/merged_hdf5/
-      3) --input /path/to/run_dir/
-      4) no --input:
-         search latest under:
-           root/*/merged_hdf5/*.hdf5
-           root/merged_hdf5/*.hdf5   legacy fallback
-    """
     root_dir = os.path.expanduser(root_dir)
 
     if user_input is not None and str(user_input).strip() != "":
@@ -140,7 +130,6 @@ def resolve_input_path(user_input: Optional[str], root_dir: str) -> str:
     candidates: List[str] = []
 
     if root.exists():
-        # New layout: ACT/<RUN_ID>/merged_hdf5/*.hdf5
         for run_dir in root.iterdir():
             if not run_dir.is_dir():
                 continue
@@ -148,7 +137,6 @@ def resolve_input_path(user_input: Optional[str], root_dir: str) -> str:
             if merged_dir.is_dir():
                 candidates.extend(_find_hdf5_files_under(str(merged_dir), recursive=False))
 
-        # Legacy fallback: ACT/merged_hdf5/*.hdf5
         legacy_merged = root / MERGED_SUBDIR
         if legacy_merged.is_dir():
             candidates.extend(_find_hdf5_files_under(str(legacy_merged), recursive=False))
@@ -165,11 +153,6 @@ def resolve_input_path(user_input: Optional[str], root_dir: str) -> str:
 
 
 def infer_run_dir_from_input(input_path: str, root_dir: str, run_dir_arg: Optional[str]) -> str:
-    """
-    For new layout:
-      input = root/RUN_ID/merged_hdf5/file.hdf5
-      run_dir = root/RUN_ID
-    """
     root_dir = os.path.expanduser(root_dir)
 
     if run_dir_arg is not None and str(run_dir_arg).strip() != "":
@@ -189,17 +172,24 @@ def infer_run_dir_from_input(input_path: str, root_dir: str, run_dir_arg: Option
     return run_dir
 
 
+def _default_output_subdir(cam_preprocess: str) -> str:
+    if str(cam_preprocess).strip().lower() == "stabilize_crop":
+        return EPISODES_SUBDIR_CAMPROC
+    return EPISODES_SUBDIR_RAW
+
+
 def resolve_output_dir(input_path: str,
                        root_dir: str,
                        output_arg: Optional[str],
-                       run_dir_arg: Optional[str]) -> str:
+                       run_dir_arg: Optional[str],
+                       cam_preprocess: str) -> str:
     if output_arg is not None and str(output_arg).strip() != "":
         out = os.path.expanduser(output_arg)
         os.makedirs(out, exist_ok=True)
         return out
 
     run_dir = infer_run_dir_from_input(input_path, root_dir, run_dir_arg)
-    out = os.path.join(run_dir, EPISODES_SUBDIR)
+    out = os.path.join(run_dir, _default_output_subdir(cam_preprocess))
     os.makedirs(out, exist_ok=True)
     return out
 
@@ -208,7 +198,6 @@ def resolve_output_dir(input_path: str,
 # Array utilities
 # ============================================================
 def pad_repeat_last_small(arr: np.ndarray, target_len: int) -> np.ndarray:
-    """Pad/truncate small arrays such as position or force by repeating last row."""
     T = int(arr.shape[0])
     if T == target_len:
         return arr
@@ -224,33 +213,191 @@ def pad_repeat_last_small(arr: np.ndarray, target_len: int) -> np.ndarray:
 
 
 def shift_next_hold(x: np.ndarray) -> np.ndarray:
-    """action(t) = observation(t+1), final action holds final observation."""
     T = int(x.shape[0])
     if T <= 1:
         return x.copy()
     return np.concatenate([x[1:], x[-1:]], axis=0)
 
 
-def copy_images_streaming(in_ds: h5py.Dataset,
-                          out_ds: h5py.Dataset,
-                          T_orig: int,
-                          T_pad: int,
-                          block: int = 8):
-    """Stream-copy image dataset (T,H,W,3) with repeat-last padding."""
+# ============================================================
+# Camera preprocessing
+# ============================================================
+def _moving_average_1d(x: np.ndarray, radius: int) -> np.ndarray:
+    if radius <= 0:
+        return x.copy()
+    kernel = np.ones((2 * radius + 1,), dtype=np.float32) / float(2 * radius + 1)
+    x_pad = np.pad(x.astype(np.float32), (radius, radius), mode="edge")
+    y = np.convolve(x_pad, kernel, mode="same")
+    return y[radius:-radius]
+
+
+def _estimate_pair_transform(prev_gray: np.ndarray, curr_gray: np.ndarray) -> Tuple[float, float, float]:
+    if cv2 is None:
+        return 0.0, 0.0, 0.0
+
+    prev_pts = cv2.goodFeaturesToTrack(
+        prev_gray,
+        maxCorners=200,
+        qualityLevel=0.01,
+        minDistance=20,
+        blockSize=3,
+    )
+    if prev_pts is None or len(prev_pts) < 8:
+        return 0.0, 0.0, 0.0
+
+    curr_pts, status, _ = cv2.calcOpticalFlowPyrLK(prev_gray, curr_gray, prev_pts, None)
+    if curr_pts is None or status is None:
+        return 0.0, 0.0, 0.0
+
+    good_prev = prev_pts[status.flatten() == 1]
+    good_curr = curr_pts[status.flatten() == 1]
+    if len(good_prev) < 8 or len(good_curr) < 8:
+        return 0.0, 0.0, 0.0
+
+    m, _ = cv2.estimateAffinePartial2D(good_prev, good_curr, method=cv2.RANSAC)
+    if m is None:
+        return 0.0, 0.0, 0.0
+
+    dx = float(m[0, 2])
+    dy = float(m[1, 2])
+    da = float(np.arctan2(m[1, 0], m[0, 0]))
+    return dx, dy, da
+
+
+def stabilize_image_sequence(images: np.ndarray,
+                             smoothing_radius: int = 15,
+                             border_mode: str = "reflect") -> np.ndarray:
+    """
+    images: (T,H,W,3) uint8 RGB
+    returns stabilized images with the same shape.
+    """
+    if cv2 is None:
+        print("[WARN] OpenCV is not available. camera preprocessing falls back to raw images.")
+        return images.copy()
+
+    imgs = np.asarray(images)
+    T = int(imgs.shape[0])
+    if T <= 1:
+        return imgs.copy()
+
+    prev_gray = cv2.cvtColor(imgs[0], cv2.COLOR_RGB2GRAY)
+    transforms = np.zeros((T - 1, 3), dtype=np.float32)
+
+    for i in range(T - 1):
+        curr_gray = cv2.cvtColor(imgs[i + 1], cv2.COLOR_RGB2GRAY)
+        transforms[i] = np.asarray(_estimate_pair_transform(prev_gray, curr_gray), dtype=np.float32)
+        prev_gray = curr_gray
+
+    trajectory = np.cumsum(transforms, axis=0)
+    smoothed = np.zeros_like(trajectory)
+    for j in range(3):
+        smoothed[:, j] = _moving_average_1d(trajectory[:, j], smoothing_radius)
+
+    diff = smoothed - trajectory
+    transforms_smooth = transforms.copy()
+    transforms_smooth[:, 0] += diff[:, 0]
+    transforms_smooth[:, 1] += diff[:, 1]
+    transforms_smooth[:, 2] += diff[:, 2]
+
+    H, W = imgs.shape[1], imgs.shape[2]
+    out = np.empty_like(imgs)
+    out[0] = imgs[0]
+
+    if str(border_mode).lower() == "constant":
+        border_flag = cv2.BORDER_CONSTANT
+    elif str(border_mode).lower() == "replicate":
+        border_flag = cv2.BORDER_REPLICATE
+    else:
+        border_flag = cv2.BORDER_REFLECT
+
+    for i in range(1, T):
+        dx, dy, da = [float(x) for x in transforms_smooth[i - 1]]
+        c = float(np.cos(da))
+        s = float(np.sin(da))
+        m = np.array([[c, -s, dx], [s, c, dy]], dtype=np.float32)
+        out[i] = cv2.warpAffine(
+            imgs[i],
+            m,
+            (W, H),
+            flags=cv2.INTER_LINEAR,
+            borderMode=border_flag,
+        )
+
+    return out
+
+
+def center_crop_images(images: np.ndarray, crop_h: int, crop_w: int) -> np.ndarray:
+    imgs = np.asarray(images)
+    H, W = imgs.shape[1], imgs.shape[2]
+    ch = int(min(max(1, crop_h), H))
+    cw = int(min(max(1, crop_w), W))
+    y0 = max(0, (H - ch) // 2)
+    x0 = max(0, (W - cw) // 2)
+    return imgs[:, y0:y0 + ch, x0:x0 + cw, :]
+
+
+def resize_images(images: np.ndarray, resize_hw: int) -> np.ndarray:
+    if resize_hw <= 0:
+        return images.copy()
+    if cv2 is None:
+        print("[WARN] OpenCV is not available. resize is skipped.")
+        return images.copy()
+
+    out = []
+    for img in images:
+        out.append(cv2.resize(img, (resize_hw, resize_hw), interpolation=cv2.INTER_LINEAR))
+    return np.stack(out, axis=0).astype(np.uint8)
+
+
+def preprocess_cam_sequence(images: np.ndarray,
+                            mode: str = "off",
+                            crop_h: int = 384,
+                            crop_w: int = 384,
+                            resize_hw: int = 256,
+                            stab_smoothing_radius: int = 15,
+                            stab_border_mode: str = "reflect") -> np.ndarray:
+    mode = str(mode).strip().lower()
+    imgs = np.asarray(images, dtype=np.uint8)
+
+    if mode == "off":
+        return imgs.copy()
+    if mode != "stabilize_crop":
+        raise ValueError(f"Unsupported cam_preprocess mode: {mode}")
+
+    imgs = stabilize_image_sequence(
+        imgs,
+        smoothing_radius=int(stab_smoothing_radius),
+        border_mode=stab_border_mode,
+    )
+    imgs = center_crop_images(imgs, crop_h=int(crop_h), crop_w=int(crop_w))
+    imgs = resize_images(imgs, resize_hw=int(resize_hw))
+    return imgs.astype(np.uint8)
+
+
+def copy_or_write_images_streaming(img_source,
+                                   out_ds: h5py.Dataset,
+                                   T_orig: int,
+                                   T_pad: int,
+                                   block: int = 8):
+    """
+    img_source may be either:
+      - h5py dataset-like object
+      - numpy array (T,H,W,3)
+    """
     if T_orig <= 0:
         raise ValueError("T_orig must be > 0")
 
     t = 0
     while t < T_orig:
         n = min(block, T_orig - t)
-        out_ds[t:t + n, ...] = in_ds[t:t + n, ...]
+        out_ds[t:t + n, ...] = img_source[t:t + n, ...]
         t += n
 
     remain = T_pad - T_orig
     if remain <= 0:
         return
 
-    last = in_ds[T_orig - 1, ...]
+    last = img_source[T_orig - 1, ...]
     t = T_orig
     while remain > 0:
         n = min(block, remain)
@@ -288,12 +435,6 @@ def pick_img_key(img_grp: h5py.Group, candidates: List[str]) -> str:
 
 def read_episode_single_camera(grp: h5py.Group,
                                camera_name: str = "cam0") -> Tuple[np.ndarray, np.ndarray, h5py.Dataset, int, str]:
-    """
-    Expected new input:
-      grp['position']              : (T,6)
-      grp['ft']                    : (T,3)
-      grp['images'][camera_name]   : (T,H,W,3)
-    """
     if "position" not in grp:
         raise KeyError(f"Missing 'position' in episode. available={list(grp.keys())}")
     if "ft" not in grp:
@@ -343,12 +484,13 @@ def read_episode_single_camera(grp: h5py.Group,
 def write_episode_clean_single_camera(out_path: str,
                                       obs_pos: np.ndarray,
                                       obs_force: np.ndarray,
-                                      img_ds: h5py.Dataset,
+                                      img_source,
                                       T_orig: int,
                                       T_pad: int,
                                       out_camera_name: str = "cam0",
                                       image_compression: str = "lzf",
-                                      image_copy_block: int = 8):
+                                      image_copy_block: int = 8,
+                                      cam_preprocess_mode: str = "off"):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
     act_pos_next = shift_next_hold(obs_pos)
@@ -365,9 +507,8 @@ def write_episode_clean_single_camera(out_path: str,
         is_pad[T_orig:] = True
         pad_starts_at = int(T_orig)
 
-    H, W, C = int(img_ds.shape[1]), int(img_ds.shape[2]), int(img_ds.shape[3])
+    H, W, C = int(img_source.shape[1]), int(img_source.shape[2]), int(img_source.shape[3])
     chunks = (1, H, W, C)
-
     compression_arg = None if str(image_compression).lower() == "none" else image_compression
 
     with h5py.File(out_path, "w") as h:
@@ -383,7 +524,6 @@ def write_episode_clean_single_camera(out_path: str,
             chunks=chunks,
             compression=compression_arg,
         )
-
         obs_grp.create_dataset("is_pad", data=is_pad, dtype="bool")
 
         act_grp = h.create_group("action")
@@ -396,9 +536,9 @@ def write_episode_clean_single_camera(out_path: str,
         meta.create_dataset("pad_starts_at", data=np.array(int(pad_starts_at), dtype=np.int64))
         meta.create_dataset("truncated", data=np.array(bool(T_orig > T_pad), dtype=np.bool_))
         meta.create_dataset("camera_name", data=np.bytes_(out_camera_name))
+        meta.create_dataset("cam_preprocess_mode", data=np.bytes_(str(cam_preprocess_mode)))
 
-        T_img = int(min(T_orig, img_ds.shape[0]))
-        copy_images_streaming(img_ds, out_img, T_orig=T_img, T_pad=T_pad, block=image_copy_block)
+        copy_or_write_images_streaming(img_source, out_img, T_orig=T_orig, T_pad=T_pad, block=image_copy_block)
 
 
 # ============================================================
@@ -412,7 +552,13 @@ def convert_merged_hdf5(input_path: str,
                         input_camera_name: str = "cam0",
                         output_camera_name: str = "cam0",
                         image_compression: str = "lzf",
-                        image_copy_block: int = 8) -> dict:
+                        image_copy_block: int = 8,
+                        cam_preprocess: str = "off",
+                        cam_crop_h: int = 384,
+                        cam_crop_w: int = 384,
+                        cam_resize_hw: int = 256,
+                        cam_stab_smoothing_radius: int = 15,
+                        cam_stab_border_mode: str = "reflect") -> dict:
     os.makedirs(output_dir, exist_ok=True)
 
     manifest = {
@@ -422,18 +568,22 @@ def convert_merged_hdf5(input_path: str,
         "camera": {
             "input_camera_name": input_camera_name,
             "output_camera_name": output_camera_name,
+            "cam_preprocess": cam_preprocess,
+            "cam_crop_h": int(cam_crop_h),
+            "cam_crop_w": int(cam_crop_w),
+            "cam_resize_hw": int(cam_resize_hw),
+            "cam_stab_smoothing_radius": int(cam_stab_smoothing_radius),
+            "cam_stab_border_mode": str(cam_stab_border_mode),
         },
         "pad_mode": "repeat_last",
         "truncate": bool(truncate),
         "episodes": [],
     }
 
-    with h5py.File(input_path, "r") as f:
-        fmt = detect_format(f)
-        if fmt != "episodes_group":
-            raise RuntimeError("Unexpected format.")
+    cam_mode = str(cam_preprocess).strip().lower()
 
-        ep_grp = f["episodes"]
+    with h5py.File(input_path, "r") as f:
+        ep_grp = f["episodes"] if detect_format(f) == "episodes_group" else None
         ep_keys = list_episode_keys(ep_grp)
         print(f"[INFO] episodes found = {len(ep_keys)}")
 
@@ -453,11 +603,7 @@ def convert_merged_hdf5(input_path: str,
             raise ValueError("All episodes unreadable.")
 
         T_max = int(max(lengths))
-        if target_len is None:
-            T_pad = int(T_max)
-        else:
-            T_pad = int(target_len if truncate else max(T_max, target_len))
-
+        T_pad = int(T_max if target_len is None else (target_len if truncate else max(T_max, target_len)))
         manifest["T_pad"] = int(T_pad)
 
         out_idx = 0
@@ -478,20 +624,35 @@ def convert_merged_hdf5(input_path: str,
                 ft_use = ft
                 T_orig_use = T_orig
 
+            if cam_mode == "off":
+                img_source = img_ds
+            else:
+                raw_imgs = np.asarray(img_ds[:T_orig_use], dtype=np.uint8)
+                img_source = preprocess_cam_sequence(
+                    raw_imgs,
+                    mode=cam_mode,
+                    crop_h=int(cam_crop_h),
+                    crop_w=int(cam_crop_w),
+                    resize_hw=int(cam_resize_hw),
+                    stab_smoothing_radius=int(cam_stab_smoothing_radius),
+                    stab_border_mode=str(cam_stab_border_mode),
+                )
+
             out_path = os.path.join(output_dir, f"{ep_prefix}_{out_idx}.hdf5")
             write_episode_clean_single_camera(
                 out_path=out_path,
                 obs_pos=pos_use[:T_orig_use],
                 obs_force=ft_use[:T_orig_use],
-                img_ds=img_ds,
+                img_source=img_source,
                 T_orig=T_orig_use,
                 T_pad=T_pad,
                 out_camera_name=output_camera_name,
                 image_compression=image_compression,
                 image_copy_block=image_copy_block,
+                cam_preprocess_mode=cam_mode,
             )
 
-            print(f"[OK] {k} -> {out_path} (orig={T_orig}, final={T_pad}, image_key={img_key})")
+            print(f"[OK] {k} -> {out_path} (orig={T_orig}, final={T_pad}, image_key={img_key}, cam_preprocess={cam_mode})")
             manifest["episodes"].append({
                 "episode_key": k,
                 "episode_file": out_path,
@@ -500,6 +661,7 @@ def convert_merged_hdf5(input_path: str,
                 "T_pad": int(T_pad),
                 "input_image_key": img_key,
                 "output_image_key": output_camera_name,
+                "cam_preprocess": cam_mode,
             })
             out_idx += 1
 
@@ -543,7 +705,7 @@ def main():
     parser.add_argument("--input", "-i", default=None,
                         help="Merged HDF5 file, merged_hdf5 directory, or run directory. If omitted, latest is selected.")
     parser.add_argument("--output", "-o", default=None,
-                        help="Output episodes_ft directory. If omitted, use <run_dir>/episodes_ft.")
+                        help="Output episode directory. If omitted, use <run_dir>/<episodes_subdir>.")
     parser.add_argument("--run-dir", default=None,
                         help="Output run folder name under root. Usually not needed when input is under a run folder.")
     parser.add_argument("--ep-prefix", default="episode")
@@ -554,10 +716,24 @@ def main():
                         help="Camera dataset name to read under episodes/ep_xxxx/images/.")
     parser.add_argument("--output-camera-name", default="cam0",
                         help="Camera dataset name to write under observations/images/.")
-    parser.add_argument("--image-compression", default="lzf", choices=["lzf", "gzip", "none"],
+    parser.add_argument("--image-compression", default="lzf",
+                        choices=["lzf", "gzip", "none"],
                         help="HDF5 compression for output image datasets.")
     parser.add_argument("--image-copy-block", type=int, default=8,
-                        help="Block size for streaming image copy.")
+                        help="Block size for image copy/pad.")
+
+    parser.add_argument("--cam_preprocess", default="off", choices=["off", "stabilize_crop"],
+                        help="Camera preprocessing mode applied in the converter.")
+    parser.add_argument("--cam_crop_h", type=int, default=384,
+                        help="Crop height after stabilization.")
+    parser.add_argument("--cam_crop_w", type=int, default=384,
+                        help="Crop width after stabilization.")
+    parser.add_argument("--cam_resize_hw", type=int, default=256,
+                        help="Final square resize after crop. <=0 disables resize.")
+    parser.add_argument("--cam_stab_smoothing_radius", type=int, default=15,
+                        help="Smoothing radius for global camera stabilization.")
+    parser.add_argument("--cam_stab_border_mode", default="reflect", choices=["reflect", "replicate", "constant"],
+                        help="Border mode for warpAffine during stabilization.")
 
     parser.add_argument("--keep-merged", action="store_true",
                         help="Do not delete merged HDF5 after successful conversion.")
@@ -567,10 +743,11 @@ def main():
     args = parser.parse_args()
 
     input_path = resolve_input_path(args.input, args.root)
-    output_dir = resolve_output_dir(input_path, args.root, args.output, args.run_dir)
+    output_dir = resolve_output_dir(input_path, args.root, args.output, args.run_dir, args.cam_preprocess)
 
     print(f"[INFO] input  = {input_path}")
     print(f"[INFO] output = {output_dir}")
+    print(f"[INFO] cam_preprocess = {args.cam_preprocess}")
 
     manifest = convert_merged_hdf5(
         input_path=input_path,
@@ -582,6 +759,12 @@ def main():
         output_camera_name=args.output_camera_name,
         image_compression=args.image_compression,
         image_copy_block=max(1, int(args.image_copy_block)),
+        cam_preprocess=args.cam_preprocess,
+        cam_crop_h=args.cam_crop_h,
+        cam_crop_w=args.cam_crop_w,
+        cam_resize_hw=args.cam_resize_hw,
+        cam_stab_smoothing_radius=max(0, int(args.cam_stab_smoothing_radius)),
+        cam_stab_border_mode=args.cam_stab_border_mode,
     )
 
     if not args.keep_merged:
