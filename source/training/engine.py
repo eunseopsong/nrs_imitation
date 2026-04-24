@@ -8,7 +8,7 @@ import torch
 from tqdm import tqdm
 
 from common.utils import set_seed
-from models.policy import ACTPolicy, CNNMLPPolicy
+from models.policy import ACTPolicy, CNNMLPPolicy, DiffusionPolicy
 from training.debug import debug_norm_once, make_grad_scaler, autocast_context
 
 try:
@@ -45,6 +45,8 @@ def make_policy(policy_class: str, policy_config: Dict):
         return ACTPolicy(policy_config)
     if policy_class == "CNNMLP":
         return CNNMLPPolicy(policy_config)
+    if policy_class == "DIFFUSION":
+        return DiffusionPolicy(policy_config)
 
     raise ValueError(f"Unsupported policy_class: {policy_class}")
 
@@ -156,23 +158,16 @@ def train_bc(train_loader, val_loader, config):
     debug_norm = bool(config.get("debug_norm", False))
     debug_norm_batches = int(config.get("debug_norm_batches", 1))
     debug_batches = int(config.get("debug_batches", 3))
-    save_every = int(config.get("save_every", 0))
+    save_every = int(config.get("save_every", 100))
 
     os.makedirs(ckpt_dir, exist_ok=True)
     set_seed(seed)
 
-    # --------------------------------------------------
-    # normalization debug (restore original behavior)
-    # --------------------------------------------------
     if debug_norm:
         print("[INFO] debug_norm enabled: printing post-normalization stats for TRAIN and VAL.")
         debug_norm_once(train_loader, tag="TRAIN", max_batches=debug_norm_batches)
         debug_norm_once(val_loader, tag="VAL", max_batches=debug_norm_batches)
 
-    # --------------------------------------------------
-    # build policy after debug print
-    # (keeps previous visible log order similar)
-    # --------------------------------------------------
     policy = make_policy(policy_class, policy_config).to(device)
     optimizer = policy.configure_optimizers()
     scaler = make_grad_scaler(amp_enabled, device)
@@ -193,9 +188,6 @@ def train_bc(train_loader, val_loader, config):
     for epoch in epoch_pbar:
         print(f"Epoch {epoch}")
 
-        # --------------------------------------------------
-        # Validation first
-        # --------------------------------------------------
         val_summary = _run_validation(
             val_loader=val_loader,
             policy=policy,
@@ -222,9 +214,6 @@ def train_bc(train_loader, val_loader, config):
                     config=config,
                 )
 
-        # --------------------------------------------------
-        # Train
-        # --------------------------------------------------
         policy.train()
         train_dicts = []
 
@@ -254,8 +243,7 @@ def train_bc(train_loader, val_loader, config):
         train_summary = _mean_dict(train_dicts)
         train_history.append(dict(train_summary))
 
-        # optional periodic checkpoint (restored old-style behavior)
-        # save at epoch 0, 100, 200, ... with seed in the filename
+        # old-style periodic checkpoint naming
         if save_every > 0 and (epoch % save_every == 0):
             periodic_ckpt = os.path.join(ckpt_dir, f"policy_epoch_{epoch}_seed_{seed}.ckpt")
             _save_checkpoint(
@@ -268,7 +256,6 @@ def train_bc(train_loader, val_loader, config):
                 config=config,
             )
 
-        # tqdm postfix
         postfix = {}
         if "loss" in train_summary:
             postfix["train_loss"] = f"{train_summary['loss']:.4f}"
@@ -277,7 +264,6 @@ def train_bc(train_loader, val_loader, config):
         if len(postfix) > 0:
             epoch_pbar.set_postfix(postfix)
 
-        # save last checkpoint every epoch
         _save_checkpoint(
             ckpt_path=last_ckpt_path,
             epoch=epoch,
@@ -288,7 +274,6 @@ def train_bc(train_loader, val_loader, config):
             config=config,
         )
 
-    # optional history plot (restored old signature / filenames)
     if plot_history is not None:
         try:
             plot_history(train_history, validation_history, num_epochs, ckpt_dir, seed)

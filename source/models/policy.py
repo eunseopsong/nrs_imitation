@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import torch
 import torch.nn as nn
 from torch.nn import functional as F
 import torchvision.transforms as transforms
@@ -9,6 +10,7 @@ from .act_core import (
     build_ACT_model_and_optimizer,
     build_CNNMLP_model_and_optimizer,
 )
+from .diffusion_core import build_Diffusion_model_and_optimizer
 
 
 class ACTPolicy(nn.Module):
@@ -107,6 +109,73 @@ class CNNMLPPolicy(nn.Module):
             image=image,
             env_state=env_state,
             force_history=force_history,
+        )
+        return a_hat
+
+    def configure_optimizers(self):
+        return self.optimizer
+
+
+class DiffusionPolicy(nn.Module):
+    """
+    Diffusion-policy style visuomotor policy.
+
+    Training:
+      noisy action chunk -> predict Gaussian noise
+    Inference:
+      iterative denoising -> action chunk sample
+    """
+
+    def __init__(self, args_override):
+        super().__init__()
+        model, optimizer = build_Diffusion_model_and_optimizer(args_override)
+        self.model = model
+        self.optimizer = optimizer
+
+        self._normalize = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406],
+            std=[0.229, 0.224, 0.225],
+        )
+
+        self.loss_type = str(args_override.get("diffusion_loss_type", "mse")).lower()
+        self.inference_steps = int(args_override.get("diffusion_infer_steps", 10))
+        print(f"[DiffusionPolicy] loss_type={self.loss_type} infer_steps={self.inference_steps}")
+
+    def forward(self, qpos, image, actions=None, is_pad=None, force_history=None):
+        image = self._normalize(image)
+
+        if actions is not None:
+            actions = actions[:, : self.model.horizon]
+            if is_pad is not None:
+                is_pad = is_pad[:, : self.model.horizon]
+
+            pred_noise, target_noise, valid_mask = self.model.diffusion_loss(
+                qpos=qpos,
+                image=image,
+                actions=actions,
+                force_history=force_history,
+                is_pad=is_pad,
+            )
+
+            if self.loss_type == "l1":
+                per_elem = F.l1_loss(pred_noise, target_noise, reduction="none")
+            else:
+                per_elem = F.mse_loss(pred_noise, target_noise, reduction="none")
+
+            valid_count = valid_mask.sum().clamp_min(1.0) * actions.shape[-1]
+            diff_loss = (per_elem * valid_mask).sum() / valid_count
+
+            return {
+                "diffusion": diff_loss,
+                "loss": diff_loss,
+            }
+
+        a_hat = self.model.sample_actions(
+            qpos=qpos,
+            image=image,
+            force_history=force_history,
+            horizon=self.model.horizon,
+            inference_steps=self.inference_steps,
         )
         return a_hat
 
