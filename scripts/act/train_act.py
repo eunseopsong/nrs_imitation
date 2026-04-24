@@ -377,6 +377,7 @@ def main(args):
         "debug_norm": args.debug_norm,
         "debug_norm_batches": 1,
         "temporal_agg": args.temporal_agg,
+        "save_every": args.save_every,
 
         # logging / reproducibility
         "use_force_history": args.use_force_history,
@@ -427,6 +428,12 @@ if __name__ == "__main__":
 
     # IMPORTANT: restore epoch steps
     p.add_argument("--samples_per_episode", type=int, default=50)
+    p.add_argument(
+        "--save_every",
+        type=int,
+        default=100,
+        help="save periodic checkpoint every N epochs (old behavior: 100)",
+    )
 
     # ACT params
     p.add_argument("--kl_weight", type=float, default=10)

@@ -185,10 +185,8 @@ def train_bc(train_loader, val_loader, config):
     best_ckpt_path = os.path.join(ckpt_dir, "policy_best.ckpt")
     last_ckpt_path = os.path.join(ckpt_dir, "policy_last.ckpt")
 
-    history = {
-        "train": [],
-        "val": [],
-    }
+    train_history = []
+    validation_history = []
 
     epoch_pbar = tqdm(range(num_epochs))
 
@@ -204,7 +202,7 @@ def train_bc(train_loader, val_loader, config):
             device=device,
             amp_enabled=amp_enabled,
         )
-        history["val"].append({"epoch": epoch, **val_summary})
+        validation_history.append(dict(val_summary))
 
         if len(val_summary) > 0:
             val_msg = " | ".join(f"{k}:{v:.6f}" for k, v in sorted(val_summary.items()))
@@ -254,11 +252,12 @@ def train_bc(train_loader, val_loader, config):
                 )
 
         train_summary = _mean_dict(train_dicts)
-        history["train"].append({"epoch": epoch, **train_summary})
+        train_history.append(dict(train_summary))
 
-        # optional periodic checkpoint
-        if save_every > 0 and ((epoch + 1) % save_every == 0):
-            periodic_ckpt = os.path.join(ckpt_dir, f"policy_epoch_{epoch:04d}.ckpt")
+        # optional periodic checkpoint (restored old-style behavior)
+        # save at epoch 0, 100, 200, ... with seed in the filename
+        if save_every > 0 and (epoch % save_every == 0):
+            periodic_ckpt = os.path.join(ckpt_dir, f"policy_epoch_{epoch}_seed_{seed}.ckpt")
             _save_checkpoint(
                 ckpt_path=periodic_ckpt,
                 epoch=epoch,
@@ -289,10 +288,10 @@ def train_bc(train_loader, val_loader, config):
             config=config,
         )
 
-    # optional history plot
+    # optional history plot (restored old signature / filenames)
     if plot_history is not None:
         try:
-            plot_history(history, ckpt_dir)
+            plot_history(train_history, validation_history, num_epochs, ckpt_dir, seed)
         except Exception as e:
             print(f"[WARN] plot_history failed: {e}")
 
@@ -301,6 +300,9 @@ def train_bc(train_loader, val_loader, config):
         "best_val_loss": best_val_loss,
         "best_ckpt_path": best_ckpt_path,
         "last_ckpt_path": last_ckpt_path,
-        "history": history,
+        "history": {
+            "train": train_history,
+            "val": validation_history,
+        },
     }
     return best_ckpt_info
