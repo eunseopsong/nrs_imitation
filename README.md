@@ -100,7 +100,7 @@ Run:
 vive
 ```
 
-This is expected to provide the calibrated pose stream used by the recorder.
+This provides the calibrated pose stream used by the recorder in tracker mode.
 
 ---
 
@@ -160,15 +160,10 @@ Run:
 rsr
 ```
 
-For direct-teaching dataset recording with `vr_demo_hdf5_recorder`, the expected image topic is usually the VR-side camera:
+Typical image topics:
 
 ```text
 /realsense/vr/color/image_raw
-```
-
-For online robot inference, the expected image topic is usually the robot-side camera:
-
-```text
 /realsense/robot/color/image_raw
 ```
 
@@ -204,36 +199,77 @@ rs_view_robot
 
 ## 0-4. Run the recorder
 
-The recorder saves:
+The recorder now supports **two recording modes** selected by ROS parameter.
 
-- position
-- force
-- camera (`cam0`)
-
-into one merged HDF5.
+### A. Tracker recording mode
 
 ```bash
 cd ~/nrs_act/behavior_ws
 source install/setup.bash
 
-ros2 run nrs_imitation vr_demo_hdf5_recorder
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=tracker
 ```
 
-Recorder input topics:
+This mode records from:
 
 ```text
-/calibrated_pose                  Float64MultiArray [x, y, z, wx, wy, wz]
-/ftsensor/measured_Cvalue         geometry_msgs/Wrench or compatible 3-axis extraction
-/realsense/vr/color/image_raw     sensor_msgs/Image
-/vr_demo_recorder/command         std_msgs/String
+position : /calibrated_pose
+force    : /ftsensor/measured_Cvalue
+image    : /realsense/vr/color/image_raw
+command  : /vr_demo_recorder/command
 ```
 
-Current merged output path:
+### B. Robot recording mode
+
+```bash
+cd ~/nrs_act/behavior_ws
+source install/setup.bash
+
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=robot
+```
+
+This mode records from:
+
+```text
+position : /ur10skku/currentP
+force    : /ur10skku/currentF
+image    : /realsense/robot/color/image_raw
+command  : /vr_demo_recorder/command
+```
+
+### C. Optional manual topic override
+
+If needed, topic names can still be overridden manually:
+
+```bash
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=robot   -p image_topic:=/realsense/vr/color/image_raw
+```
+
+Recorder output path:
 
 ```text
 /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
 └── vr_demo_merged_YYYYMMDD_HHMM.hdf5
 ```
+
+Merged HDF5 layout:
+
+```text
+episodes/
+├── ep_0000/
+│   ├── position
+│   ├── ft
+│   └── images/
+│       └── cam0
+├── ep_0001/
+│   ├── position
+│   ├── ft
+│   └── images/
+│       └── cam0
+...
+```
+
+All joystick behavior and episode-management logic are shared across both modes.
 
 ---
 
@@ -416,6 +452,7 @@ The current workflow records **position + force + image directly during teaching
 ```text
 1. joystick + vr_demo_hdf5_recorder.py
    -> record position + force + cam0 into merged_hdf5
+   -> supports tracker mode and robot mode
 
 2. demo_data_act_form_single_cam.py
    -> convert merged_hdf5 into episode_*.hdf5
@@ -663,6 +700,38 @@ cam0     = RGB image
 
 ---
 
+## 4-2. Recording modes
+
+The recorder supports two source modes.
+
+### Tracker recording mode
+
+```text
+position : /calibrated_pose
+force    : /ftsensor/measured_Cvalue
+image    : /realsense/vr/color/image_raw
+```
+
+This is the default direct-teaching mode.
+
+### Robot recording mode
+
+```text
+position : /ur10skku/currentP
+force    : /ur10skku/currentF
+image    : /realsense/robot/color/image_raw
+```
+
+This is useful when you want to record robot-side playback / execution data while keeping the same HDF5 format.
+
+Run examples:
+
+```bash
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
+```
+
+---
 ## 4-2. Joystick commands
 
 The recorder is controlled through `/vr_demo_recorder/command`.
@@ -1138,6 +1207,23 @@ ros2 topic echo --once /ur10skku/currentP
 ros2 topic echo --once /ur10skku/currentF
 ```
 
+
+## Run recorder in tracker mode
+
+```bash
+cd ~/nrs_act/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
+```
+
+## Run recorder in robot mode
+
+```bash
+cd ~/nrs_act/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
+```
+
 ## Check final episode structure
 
 ```bash
@@ -1272,7 +1358,7 @@ vive
 ft              # or ftget
 rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 
 cd ~/nrs_act/source/custom
 python3 demo_data_act_form_single_cam.py --cam_preprocess off
@@ -1287,7 +1373,7 @@ vive
 ft              # or ftget
 rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 
 cd ~/nrs_act/source/custom
 python3 demo_data_act_form_single_cam.py \
@@ -1306,7 +1392,7 @@ vive
 ft              # or ftget
 rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 
 cd ~/nrs_act/source/custom
 python3 demo_data_act_form_single_cam.py \
@@ -1318,6 +1404,24 @@ python3 demo_data_act_form_single_cam.py \
 cd ~/nrs_act
 python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 ```
+
+---
+
+
+## Robot-side recording workflow
+
+If you want to record robot-side position / force / image into the same merged HDF5 format:
+
+```bash
+rsr
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
+
+cd ~/nrs_act/source/custom
+python3 demo_data_act_form_single_cam.py --cam_preprocess off
+```
+
+This creates the same final episode format as tracker mode, but with robot-side topics as the source.
 
 ---
 

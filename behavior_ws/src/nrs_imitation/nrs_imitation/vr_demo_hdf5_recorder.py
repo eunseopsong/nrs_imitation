@@ -5,10 +5,18 @@ vr_demo_hdf5_recorder.py
 
 Joystick-controlled single-camera ACT merged-HDF5 recorder.
 
-This node records:
-  - VR tracker pose    : /calibrated_pose              Float64MultiArray [x y z wx wy wz]
-  - F/T sensor force   : /ftsensor/measured_Cvalue     geometry_msgs/Wrench
-  - RGB camera image   : /realsense/vr/color/image_raw sensor_msgs/Image
+This node supports two recording modes selected by ROS parameter:
+
+  1) tracker mode
+     - pose   : /calibrated_pose               Float64MultiArray [x y z wx wy wz]
+     - force  : /ftsensor/measured_Cvalue      geometry_msgs/Wrench
+     - image  : /realsense/vr/color/image_raw  sensor_msgs/Image
+
+  2) robot mode
+     - pose   : /ur10skku/currentP             Float64MultiArray [x y z wx wy wz]
+     - force  : /ur10skku/currentF             Float64MultiArray [fx fy fz ...]
+     - image  : /realsense/robot/color/image_raw sensor_msgs/Image
+
   - joystick commands  : /vr_demo_recorder/command     std_msgs/String
 
 The old force-threshold start/end trigger has been removed.
@@ -318,9 +326,21 @@ class VRDemoHDF5Recorder(Node):
         # -------------------------
         # Topic parameters
         # -------------------------
-        self.declare_parameter("pose_topic", "/calibrated_pose")
-        self.declare_parameter("force_topic", "/ftsensor/measured_Cvalue")
-        self.declare_parameter("image_topic", "/realsense/vr/color/image_raw")
+        self.declare_parameter("recording_mode", "tracker")  # tracker | robot
+
+        # Per-mode default topics
+        self.declare_parameter("tracker_pose_topic", "/calibrated_pose")
+        self.declare_parameter("tracker_force_topic", "/ftsensor/measured_Cvalue")
+        self.declare_parameter("tracker_image_topic", "/realsense/vr/color/image_raw")
+
+        self.declare_parameter("robot_pose_topic", "/ur10skku/currentP")
+        self.declare_parameter("robot_force_topic", "/ur10skku/currentF")
+        self.declare_parameter("robot_image_topic", "/realsense/robot/color/image_raw")
+
+        # Optional manual override. If empty, mode defaults above are used.
+        self.declare_parameter("pose_topic", "")
+        self.declare_parameter("force_topic", "")
+        self.declare_parameter("image_topic", "")
         self.declare_parameter("command_topic", "/vr_demo_recorder/command")
 
         # -------------------------
@@ -373,10 +393,33 @@ class VRDemoHDF5Recorder(Node):
         self.min_samples = int(self.get_parameter("min_samples").value)
         self.quit_key = str(self.get_parameter("quit_key").value)
 
-        self.pose_topic = str(self.get_parameter("pose_topic").value)
-        self.force_topic = str(self.get_parameter("force_topic").value)
-        self.image_topic = str(self.get_parameter("image_topic").value)
+        self.recording_mode = str(self.get_parameter("recording_mode").value).strip().lower()
+
+        self.tracker_pose_topic = str(self.get_parameter("tracker_pose_topic").value)
+        self.tracker_force_topic = str(self.get_parameter("tracker_force_topic").value)
+        self.tracker_image_topic = str(self.get_parameter("tracker_image_topic").value)
+
+        self.robot_pose_topic = str(self.get_parameter("robot_pose_topic").value)
+        self.robot_force_topic = str(self.get_parameter("robot_force_topic").value)
+        self.robot_image_topic = str(self.get_parameter("robot_image_topic").value)
+
+        pose_topic_override = str(self.get_parameter("pose_topic").value).strip()
+        force_topic_override = str(self.get_parameter("force_topic").value).strip()
+        image_topic_override = str(self.get_parameter("image_topic").value).strip()
         self.command_topic = str(self.get_parameter("command_topic").value)
+
+        if self.recording_mode not in ("tracker", "robot"):
+            raise RuntimeError(
+                f"recording_mode must be 'tracker' or 'robot', got: {self.recording_mode}"
+            )
+
+        default_pose_topic = self.tracker_pose_topic if self.recording_mode == "tracker" else self.robot_pose_topic
+        default_force_topic = self.tracker_force_topic if self.recording_mode == "tracker" else self.robot_force_topic
+        default_image_topic = self.tracker_image_topic if self.recording_mode == "tracker" else self.robot_image_topic
+
+        self.pose_topic = pose_topic_override if pose_topic_override else default_pose_topic
+        self.force_topic = force_topic_override if force_topic_override else default_force_topic
+        self.image_topic = image_topic_override if image_topic_override else default_image_topic
 
         self.sample_hz = float(self.get_parameter("sample_hz").value)
         self.dt = 1.0 / max(1e-9, self.sample_hz)
@@ -445,7 +488,14 @@ class VRDemoHDF5Recorder(Node):
         # ROS IO
         # -------------------------
         self.create_subscription(Float64MultiArray, self.pose_topic, self.cb_pose, 100)
-        self.create_subscription(Wrench, self.force_topic, self.cb_force, 200)
+
+        if self.recording_mode == "tracker":
+            self.create_subscription(Wrench, self.force_topic, self.cb_force_wrench, 200)
+            self.force_msg_type = "geometry_msgs/Wrench"
+        else:
+            self.create_subscription(Float64MultiArray, self.force_topic, self.cb_force_array, 200)
+            self.force_msg_type = "std_msgs/Float64MultiArray"
+
         self.create_subscription(Image, self.image_topic, self.cb_image, 10)
         self.create_subscription(String, self.command_topic, self.cb_command, 20)
 
@@ -465,12 +515,13 @@ class VRDemoHDF5Recorder(Node):
         # -------------------------
         self.get_logger().info("============================================================")
         self.get_logger().info("VRDemoHDF5Recorder initialized (joystick-controlled single-camera ACT recorder)")
+        self.get_logger().info(f"  recording_mode: {self.recording_mode}")
         self.get_logger().info("HDF5 file is created lazily when the first episode is saved.")
         self.get_logger().info(f"  ACT root      : {self.act_root_dir}")
         self.get_logger().info(f"  merged dir    : <ACT root>/<YYYYMMDD_HHMM>/{self.merged_subdir}")
         self.get_logger().info(f"  filename      : {self.file_prefix}_YYYYMMDD_HHMM.hdf5")
         self.get_logger().info(f"  pose_topic    : {self.pose_topic}")
-        self.get_logger().info(f"  force_topic   : {self.force_topic}")
+        self.get_logger().info(f"  force_topic   : {self.force_topic} [{self.force_msg_type}]")
         self.get_logger().info(f"  image_topic   : {self.image_topic}")
         self.get_logger().info(f"  command_topic : {self.command_topic}")
         self.get_logger().info(f"  image key     : images/{self.image_dataset_name}")
@@ -602,7 +653,9 @@ class VRDemoHDF5Recorder(Node):
         self.h5.attrs["sample_hz"] = float(self.sample_hz)
         self.h5.attrs["dt"] = float(self.dt)
         self.h5.attrs["pose_topic"] = np.string_(self.pose_topic)
+        self.h5.attrs["recording_mode"] = np.string_(self.recording_mode)
         self.h5.attrs["force_topic"] = np.string_(self.force_topic)
+        self.h5.attrs["force_msg_type"] = np.string_(self.force_msg_type)
         self.h5.attrs["image_topic"] = np.string_(self.image_topic)
         self.h5.attrs["command_topic"] = np.string_(self.command_topic)
         self.h5.attrs["episode_control"] = np.string_(
@@ -828,9 +881,21 @@ class VRDemoHDF5Recorder(Node):
             self.latest_pose6 = pose
             self.latest_pose_t = now
 
-    def cb_force(self, msg: Wrench):
+    def cb_force_wrench(self, msg: Wrench):
         F = np.array(
             [float(msg.force.x), float(msg.force.y), float(msg.force.z)],
+            dtype=np.float64,
+        )
+        now = time.time()
+        with self.state_lock:
+            self.latest_force3 = F
+            self.latest_force_t = now
+
+    def cb_force_array(self, msg: Float64MultiArray):
+        if len(msg.data) < 3:
+            return
+        F = np.array(
+            [float(msg.data[0]), float(msg.data[1]), float(msg.data[2])],
             dtype=np.float64,
         )
         now = time.time()
