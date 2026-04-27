@@ -77,7 +77,132 @@ D-pad right   -> next_episode
 
 ---
 
-## 0-3. Run the recorder
+## 0-3. Run the required sensor / input nodes before the recorder
+
+Before running `vr_demo_hdf5_recorder`, make sure the following producer nodes are already running:
+
+- Vive tracker node for position
+- force/torque sensor node
+- camera node
+- optional image visualization node
+
+### A. Vive tracker node
+
+Alias:
+
+```bash
+alias vive='ros2 launch vive_tracker_ros2 vive_bringup.launch.py'
+```
+
+Run:
+
+```bash
+vive
+```
+
+This is expected to provide the calibrated pose stream used by the recorder.
+
+---
+
+### B. Force/torque sensor node
+
+You currently use either one of the following:
+
+```bash
+alias ft='ros2 launch nrs_ft_aq2 nrsvr_ft_aq.launch.py'
+```
+
+Run:
+
+```bash
+ft
+```
+
+or:
+
+```bash
+alias ftget='ros2 run Y2FT_AQ FTGetMain'
+```
+
+Run:
+
+```bash
+ftget
+```
+
+Use whichever force node matches your current setup.
+
+---
+
+### C. Camera node
+
+For the VR teaching camera:
+
+```bash
+alias rsv='rs_vr'
+```
+
+Run:
+
+```bash
+rsv
+```
+
+For the robot camera:
+
+```bash
+alias rsr='rs_robot'
+```
+
+Run:
+
+```bash
+rsr
+```
+
+For direct-teaching dataset recording with `vr_demo_hdf5_recorder`, the expected image topic is usually the VR-side camera:
+
+```text
+/realsense/vr/color/image_raw
+```
+
+For online robot inference, the expected image topic is usually the robot-side camera:
+
+```text
+/realsense/robot/color/image_raw
+```
+
+---
+
+### D. Optional camera visualization
+
+VR camera viewer:
+
+```bash
+rs_view_vr(){ ros2 run image_tools showimage --ros-args -r image:=/${RS_NS}/vr/color/image_raw; }
+```
+
+Run:
+
+```bash
+rs_view_vr
+```
+
+Robot camera viewer:
+
+```bash
+rs_view_robot() { ros2 run image_tools showimage --ros-args -r image:=/${RS_NS}/robot/color/image_raw; }
+```
+
+Run:
+
+```bash
+rs_view_robot
+```
+
+---
+
+## 0-4. Run the recorder
 
 The recorder saves:
 
@@ -112,7 +237,7 @@ Current merged output path:
 
 ---
 
-## 0-4. Convert merged HDF5 into ACT / Diffusion training episodes
+## 0-5. Convert merged HDF5 into ACT / Diffusion training episodes
 
 Converter is a normal Python script.
 
@@ -164,7 +289,7 @@ python3 demo_data_act_form_single_cam.py \
 
 ---
 
-## 0-5. Train ACT
+## 0-6. Train ACT
 
 ### A. Raw image dataset
 
@@ -189,7 +314,7 @@ Default behavior:
 
 ---
 
-## 0-6. Train Diffusion
+## 0-7. Train Diffusion
 
 ### A. Raw image dataset
 
@@ -207,7 +332,7 @@ python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 
 ---
 
-## 0-7. Evaluate checkpoint loading
+## 0-8. Evaluate checkpoint loading
 
 ### ACT
 
@@ -225,7 +350,7 @@ python3 scripts/diffusion/train_diffusion.py --eval
 
 ---
 
-## 0-8. Run inference node
+## 0-9. Run inference node
 
 The inference node now supports both **ACT** and **DIFFUSION** through a parameter.
 
@@ -1143,6 +1268,9 @@ If you want the current recommended practical workflow:
 
 ## Raw baseline
 ```bash
+vive
+ft              # or ftget
+rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder
 
@@ -1155,6 +1283,9 @@ python3 train_act.py --cam_preprocess off
 
 ## Recommended camera-preprocessed workflow
 ```bash
+vive
+ft              # or ftget
+rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder
 
@@ -1171,6 +1302,9 @@ python3 train_act.py --cam_preprocess stabilize_crop
 
 ## Diffusion camera-preprocessed workflow
 ```bash
+vive
+ft              # or ftget
+rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder
 
