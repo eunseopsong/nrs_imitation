@@ -28,6 +28,14 @@ Episode control is done by the joystick command node:
   D-left -> prev_episode
   D-right-> next_episode
 
+Important:
+  - The recorder NO LONGER auto-stops when num_episodes is reached.
+  - It keeps recording beyond 50 episodes if needed.
+  - Shutdown happens only when:
+      * joystick terminate_node command is received
+      * backup keyboard quit key is pressed
+      * Ctrl+C / explicit stop is requested
+
 Output merged HDF5 layout:
   /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
     vr_demo_merged_YYYYMMDD_HHMM.hdf5
@@ -532,6 +540,7 @@ class VRDemoHDF5Recorder(Node):
         )
         self.get_logger().info("  trigger       : joystick command only; old Fx/Fy start/end trigger removed")
         self.get_logger().info("  joystick cmds : A=start, B=end/save, X=erase selected/current, Y=terminate, D-pad=select ep")
+        self.get_logger().info("  stop policy   : terminate_node / backup quit key / Ctrl+C only (no auto-stop at num_episodes)")
         self.get_logger().info(
             f"  force proc    : zero_xy={self.zero_xy_forces}, "
             f"fz_ema_alpha={self.fz_ema_alpha}, edge_zero_sec={self.force_edge_zero_sec}"
@@ -543,7 +552,9 @@ class VRDemoHDF5Recorder(Node):
         self.get_logger().info(
             f"  image save    : compression={self.image_compression}, gzip_level={self.image_gzip_level}"
         )
-        self.get_logger().info(f"  target eps    : {self.num_episodes}")
+        self.get_logger().info(
+            f"  target eps    : {self.num_episodes} (informational only; no auto-stop)"
+        )
         if kb_enabled:
             self.get_logger().info(f"  Backup: press '{self.quit_key}' to stop gracefully. Ctrl+C also works.")
         else:
@@ -1214,10 +1225,9 @@ class VRDemoHDF5Recorder(Node):
 
             self._print_status("SAVED")
 
-            with self.h5_lock:
-                saved_count = self._existing_episode_count_locked() if self.grp_eps is not None else 0
-            if saved_count >= self.num_episodes:
-                self.request_stop(reason="reached_num_episodes")
+            # No auto-stop on num_episodes anymore.
+            # The recorder keeps running until an explicit termination request arrives
+            # (joystick terminate_node / backup keyboard quit / Ctrl+C).
 
         except Exception as e:
             self.get_logger().error(f"Episode processing failed: {repr(e)}")
