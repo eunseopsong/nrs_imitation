@@ -213,14 +213,21 @@ class ConditionalUnet1D(nn.Module):
             ConditionalResidualBlock1D(mid_dim, mid_dim, cond_dim, kernel_size, n_groups, cond_predict_scale),
         ])
 
-        rev_in_out = list(zip(reversed(all_dims[1:]), reversed(all_dims[:-1])))
+        # Up path:
+        # skips stored from down path have channel sizes [256, 512, 1024] for default down_dims.
+        # After the bottleneck, x has 1024 channels. The first up block therefore receives
+        # concat([x(1024), skip(1024)]) = 2048 channels and should output 512.
+        # The second up block receives concat([x(512), skip(512)]) = 1024 channels and should output 256.
+        up_pairs = list(reversed(list(zip(down_dims[:-1], down_dims[1:]))))  # [(512,1024), (256,512)]
         self.up_modules = nn.ModuleList()
-        for ind, (dim_in, dim_out) in enumerate(rev_in_out[1:]):
-            is_last = ind >= (len(rev_in_out[1:]) - 1)
+        for dim_out, dim_in in up_pairs:
+            # Need two upsampling steps for default down_dims=[256,512,1024]:
+            # 200 -> 100 -> 50  on the way down, then 50 -> 100 -> 200 on the way up.
+            # So every up block here must upsample.
             self.up_modules.append(nn.ModuleList([
                 ConditionalResidualBlock1D(dim_in * 2, dim_out, cond_dim, kernel_size, n_groups, cond_predict_scale),
                 ConditionalResidualBlock1D(dim_out, dim_out, cond_dim, kernel_size, n_groups, cond_predict_scale),
-                Upsample1d(dim_out) if not is_last else nn.Identity(),
+                Upsample1d(dim_out),
             ]))
 
         self.final_conv = nn.Sequential(
