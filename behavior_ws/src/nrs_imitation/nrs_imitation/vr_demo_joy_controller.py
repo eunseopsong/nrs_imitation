@@ -10,7 +10,7 @@ Requires:
   ros2 run joy joy_node
 
 This node subscribes:
-  /joy                      sensor_msgs/Joy
+  /joy_il                      sensor_msgs/Joy
 
 This node publishes:
   /vr_demo_recorder/command std_msgs/String
