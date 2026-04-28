@@ -10,6 +10,7 @@ Current training-side architecture:
   - fusion encoder
   - image encoder + ACT
 
+  
 This node keeps the ROS topic interface mostly unchanged, but updates inference-side
 preprocessing to match the new single-camera training structure:
 
