@@ -28,7 +28,7 @@ setup(
     zip_safe=True,
     maintainer='eunseop',
     maintainer_email='lexondms1@g.skku.edu',
-    description='ROS2 node for ACT policy inference with Isaac Sim UR10e',
+    description='ROS2 nodes for ACT / Diffusion policy inference and demonstration tools',
     license='MIT',
     extras_require={
         'test': ['pytest'],
@@ -44,11 +44,9 @@ setup(
             'act_keyboard_infer_node = nrs_imitation.act_keyboard_infer_node:main',
             'act_txt_postprocessor = nrs_imitation.act_txt_postprocessor:main',
             'vr_demo_txt_wo_filter = nrs_imitation.vr_demo_txt_wo_filter:main',
-            'node_act_cmdmotion_infer = nrs_imitation.node_act_cmdmotion_infer:main',
+            'node_cmdmotion_infer = nrs_imitation.node_cmdmotion_infer:main',
             'node_check_inference = nrs_imitation.node_check_inference:main',
             'ur10_keyboard_recorder = nrs_imitation.ur10_keyboard_recorder:main',
-
-            # Joystick command node for VR demo recorder
             'vr_demo_joy_controller = nrs_imitation.vr_demo_joy_controller:main',
         ],
     },
