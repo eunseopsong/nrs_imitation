@@ -2,6 +2,7 @@ behavior_ws/build/
 behavior_ws/install/
 behavior_ws/log/
 behavior_ws/.vscode/
+analysis_logs/
 datasets/
 checkpoints/
 __pycache__
