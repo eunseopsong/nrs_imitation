@@ -1,76 +1,154 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+source/data/normalization.py
 
-from typing import Dict, List
+Normalization utilities for nrs_act.
 
-import h5py
+Supported modes
+---------------
+minmax_01:
+    x_norm = (x - x_min) / (x_max - x_min)          -> [0, 1]
+
+minmax_m11:
+    x_norm = 2 * (x - x_min) / (x_max - x_min) - 1  -> [-1, 1]
+
+zscore:
+    x_norm = (x - mean) / std
+
+Notes
+-----
+- HDF5 raw data is never modified.
+- The normalization mode is stored inside dataset_stats.pkl so that inference
+  can denormalize policy output correctly.
+- Backward compatibility:
+    old mode names such as "minmax" and missing mode keys are treated as
+    "minmax_01".
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 
 
-def compute_norm_stats_all(episode_files: List[str]) -> Dict[str, np.ndarray]:
-    q_min = q_max = None
-    a_min = a_max = None
+EPS = 1e-6
 
-    for p in episode_files:
-        with h5py.File(p, "r") as h:
-            pos = np.asarray(h["/observations/position"][()], dtype=np.float32)  # (T,6)
-            frc = np.asarray(h["/observations/force"][()], dtype=np.float32)     # (T,3)
-            q = np.concatenate([pos, frc], axis=-1)                              # (T,9)
 
-            a_pos = np.asarray(h["/action/position"][()], dtype=np.float32)      # (T,6)
-            a_frc = np.asarray(h["/action/force"][()], dtype=np.float32)         # (T,3)
-            a = np.concatenate([a_pos, a_frc], axis=-1)                          # (T,9)
+def canonical_norm_mode(mode: Any, default: str = "minmax_01") -> str:
+    if mode is None:
+        mode = default
 
-            is_pad = np.asarray(h["/observations/is_pad"][()], dtype=np.bool_)
-            valid = ~is_pad
-            if valid.sum() == 0:
-                continue
+    m = str(mode).strip().lower()
 
-            qv = q[valid]
-            av = a[valid]
-
-            qv_min = np.min(qv, axis=0)
-            qv_max = np.max(qv, axis=0)
-            av_min = np.min(av, axis=0)
-            av_max = np.max(av, axis=0)
-
-            if q_min is None:
-                q_min = qv_min
-                q_max = qv_max
-                a_min = av_min
-                a_max = av_max
-            else:
-                q_min = np.minimum(q_min, qv_min)
-                q_max = np.maximum(q_max, qv_max)
-                a_min = np.minimum(a_min, av_min)
-                a_max = np.maximum(a_max, av_max)
-
-    if q_min is None:
-        q_min = np.zeros((9,), dtype=np.float32)
-        q_max = np.ones((9,), dtype=np.float32)
-        a_min = np.zeros((9,), dtype=np.float32)
-        a_max = np.ones((9,), dtype=np.float32)
-
-    eps = 1e-6
-    q_rng = np.maximum(q_max - q_min, eps)
-    a_rng = np.maximum(a_max - a_min, eps)
-    q_max = q_min + q_rng
-    a_max = a_min + a_rng
-
-    return {
-        "qpos_min": q_min.astype(np.float32),
-        "qpos_max": q_max.astype(np.float32),
-        "action_min": a_min.astype(np.float32),
-        "action_max": a_max.astype(np.float32),
+    aliases_01 = {
+        "minmax",
+        "minmax_01",
+        "01",
+        "0_1",
+        "[0,1]",
+        "0to1",
+        "zero_one",
+    }
+    aliases_m11 = {
+        "minmax_m11",
+        "m11",
+        "-1_1",
+        "[-1,1]",
+        "minus1_1",
+        "minus_one_one",
+        "neg1_pos1",
+    }
+    aliases_z = {
+        "zscore",
+        "standard",
+        "standardize",
+        "meanstd",
+        "mean_std",
     }
 
+    if m in aliases_01:
+        return "minmax_01"
+    if m in aliases_m11:
+        return "minmax_m11"
+    if m in aliases_z:
+        return "zscore"
 
-def denormalize_action(action_norm: np.ndarray, stats: Dict[str, np.ndarray]) -> np.ndarray:
-    if "action_min" in stats and "action_max" in stats:
-        mn = stats["action_min"].reshape((1,) * (action_norm.ndim - 1) + (9,))
-        mx = stats["action_max"].reshape((1,) * (action_norm.ndim - 1) + (9,))
-        return action_norm * (mx - mn) + mn
+    raise ValueError(f"Unknown normalization mode: {mode}")
 
-    mu = stats["action_mean"].reshape((1,) * (action_norm.ndim - 1) + (9,))
-    sd = stats["action_std"].reshape((1,) * (action_norm.ndim - 1) + (9,))
-    return action_norm * sd + mus
+
+def sanitize_minmax(vmin, vmax, eps: float = EPS):
+    vmin = np.asarray(vmin, dtype=np.float32)
+    vmax = np.asarray(vmax, dtype=np.float32)
+    rng = np.maximum(vmax - vmin, eps)
+    return vmin.astype(np.float32), (vmin + rng).astype(np.float32)
+
+
+def sanitize_std(std, eps: float = EPS):
+    std = np.asarray(std, dtype=np.float32)
+    return np.maximum(std, eps).astype(np.float32)
+
+
+def normalize_minmax_01(x, vmin, vmax, eps: float = EPS):
+    vmin, vmax = sanitize_minmax(vmin, vmax, eps=eps)
+    return ((np.asarray(x, dtype=np.float32) - vmin) / (vmax - vmin + eps)).astype(np.float32)
+
+
+def denormalize_minmax_01(x, vmin, vmax, eps: float = EPS):
+    vmin, vmax = sanitize_minmax(vmin, vmax, eps=eps)
+    return (np.asarray(x, dtype=np.float32) * (vmax - vmin) + vmin).astype(np.float32)
+
+
+def normalize_minmax_m11(x, vmin, vmax, eps: float = EPS):
+    x01 = normalize_minmax_01(x, vmin, vmax, eps=eps)
+    return (2.0 * x01 - 1.0).astype(np.float32)
+
+
+def denormalize_minmax_m11(x, vmin, vmax, eps: float = EPS):
+    x01 = 0.5 * (np.asarray(x, dtype=np.float32) + 1.0)
+    return denormalize_minmax_01(x01, vmin, vmax, eps=eps)
+
+
+def normalize_zscore(x, mean, std, eps: float = EPS):
+    mean = np.asarray(mean, dtype=np.float32)
+    std = sanitize_std(std, eps=eps)
+    return ((np.asarray(x, dtype=np.float32) - mean) / std).astype(np.float32)
+
+
+def denormalize_zscore(x, mean, std, eps: float = EPS):
+    mean = np.asarray(mean, dtype=np.float32)
+    std = sanitize_std(std, eps=eps)
+    return (np.asarray(x, dtype=np.float32) * std + mean).astype(np.float32)
+
+
+def normalize(x, a, b, mode: str = "minmax_01", eps: float = EPS):
+    mode = canonical_norm_mode(mode)
+    if mode == "minmax_01":
+        return normalize_minmax_01(x, a, b, eps=eps)
+    if mode == "minmax_m11":
+        return normalize_minmax_m11(x, a, b, eps=eps)
+    if mode == "zscore":
+        return normalize_zscore(x, a, b, eps=eps)
+    raise ValueError(mode)
+
+
+def denormalize(x, a, b, mode: str = "minmax_01", eps: float = EPS):
+    mode = canonical_norm_mode(mode)
+    if mode == "minmax_01":
+        return denormalize_minmax_01(x, a, b, eps=eps)
+    if mode == "minmax_m11":
+        return denormalize_minmax_m11(x, a, b, eps=eps)
+    if mode == "zscore":
+        return denormalize_zscore(x, a, b, eps=eps)
+    raise ValueError(mode)
+
+
+def norm_range_for_mode(mode: str):
+    mode = canonical_norm_mode(mode)
+    if mode == "minmax_01":
+        return [0.0, 1.0]
+    if mode == "minmax_m11":
+        return [-1.0, 1.0]
+    if mode == "zscore":
+        return None
+    raise ValueError(mode)

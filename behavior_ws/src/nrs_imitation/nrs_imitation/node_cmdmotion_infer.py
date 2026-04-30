@@ -153,12 +153,25 @@ def _to_tensor_image_stack(
 
 @dataclass
 class StatsPack:
-    qpos_mode: str   # "minmax" or "zscore"
-    act_mode: str
+    qpos_mode: str   # "minmax_01", "minmax_m11", or "zscore"
+    act_mode: str    # "minmax_01", "minmax_m11", or "zscore"
     qpos_a: np.ndarray   # min or mean
     qpos_b: np.ndarray   # max or std
     act_a: np.ndarray    # min or mean
     act_b: np.ndarray    # max or std
+
+
+def _canonical_norm_mode(mode: str) -> str:
+    if mode is None:
+        return "minmax_01"
+    m = str(mode).strip().lower()
+    if m in ["minmax", "minmax_01", "01", "0_1", "[0,1]", "zero_one"]:
+        return "minmax_01"
+    if m in ["minmax_m11", "m11", "-1_1", "[-1,1]", "minus1_1", "neg1_pos1"]:
+        return "minmax_m11"
+    if m in ["zscore", "standard", "meanstd", "mean_std"]:
+        return "zscore"
+    return m
 
 
 def _sanitize_std(x: np.ndarray, eps: float = 1e-6) -> np.ndarray:
@@ -179,8 +192,12 @@ def _sanitize_range_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6
 def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
     """
     Priority:
-      1) qpos_min/qpos_max/action_min/action_max  (current)
-      2) qpos_mean/qpos_std/action_mean/action_std (legacy)
+      1) qpos_min/qpos_max/action_min/action_max with explicit norm mode
+      2) qpos_mean/qpos_std/action_mean/action_std legacy zscore
+
+    Backward compatibility:
+      - old dataset_stats.pkl without qpos_norm_mode/action_norm_mode is treated as [0,1].
+      - old mode name "minmax" is treated as "minmax_01".
     """
     p = os.path.join(ckpt_dir, "dataset_stats.pkl")
     if not os.path.exists(p):
@@ -198,11 +215,26 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         qmin, qmax = _sanitize_range_minmax(qmin, qmax)
         amin, amax = _sanitize_range_minmax(amin, amax)
 
+        qmode = _canonical_norm_mode(
+            st.get("qpos_norm_mode", st.get("qpos_mode", "minmax_01"))
+        )
+        amode = _canonical_norm_mode(
+            st.get("action_norm_mode", st.get("act_mode", "minmax_01"))
+        )
+
+        # Legacy stats may store "minmax"; force it to [0,1].
+        if qmode == "minmax":
+            qmode = "minmax_01"
+        if amode == "minmax":
+            amode = "minmax_01"
+
         return StatsPack(
-            qpos_mode="minmax",
-            act_mode="minmax",
-            qpos_a=qmin, qpos_b=qmax,
-            act_a=amin, act_b=amax,
+            qpos_mode=qmode,
+            act_mode=amode,
+            qpos_a=qmin,
+            qpos_b=qmax,
+            act_a=amin,
+            act_b=amax,
         )
 
     if all(k in st for k in ["qpos_mean", "qpos_std", "action_mean", "action_std"]):
@@ -214,8 +246,10 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         return StatsPack(
             qpos_mode="zscore",
             act_mode="zscore",
-            qpos_a=qm, qpos_b=qs,
-            act_a=am, act_b=astd,
+            qpos_a=qm,
+            qpos_b=qs,
+            act_a=am,
+            act_b=astd,
         )
 
     return None
@@ -225,10 +259,12 @@ def _normalize_qpos(q: torch.Tensor, stats: StatsPack) -> torch.Tensor:
     qa = torch.tensor(stats.qpos_a, dtype=torch.float32, device=q.device).view(1, 9)
     qb = torch.tensor(stats.qpos_b, dtype=torch.float32, device=q.device).view(1, 9)
 
-    if stats.qpos_mode == "minmax":
+    if stats.qpos_mode in ["minmax_01", "minmax_m11"]:
         den = torch.clamp(qb - qa, min=1e-6)
-        qn = (q - qa) / den
-        return torch.clamp(qn, 0.0, 1.0)
+        q01 = (q - qa) / den
+        if stats.qpos_mode == "minmax_m11":
+            return torch.clamp(2.0 * q01 - 1.0, -1.0, 1.0)
+        return torch.clamp(q01, 0.0, 1.0)
 
     return (q - qa) / torch.clamp(qb, min=1e-6)
 
@@ -236,18 +272,20 @@ def _normalize_qpos(q: torch.Tensor, stats: StatsPack) -> torch.Tensor:
 def _normalize_force_history(force_hist: torch.Tensor, stats: StatsPack) -> torch.Tensor:
     """
     force_hist: (1,L,3)
-    Must use the same qpos force statistics as training dataset.py
-    force dims in qpos/action = indices [6:9]
+    Must use the same qpos force statistics as training dataset.py.
+    force dims in qpos/action = indices [6:9].
     """
     if force_hist.dim() != 3 or force_hist.shape[-1] != 3:
         raise RuntimeError(f"force_hist must be (B,L,3), got {tuple(force_hist.shape)}")
 
-    if stats.qpos_mode == "minmax":
+    if stats.qpos_mode in ["minmax_01", "minmax_m11"]:
         fmin = torch.tensor(stats.qpos_a[6:9], dtype=torch.float32, device=force_hist.device).view(1, 1, 3)
         fmax = torch.tensor(stats.qpos_b[6:9], dtype=torch.float32, device=force_hist.device).view(1, 1, 3)
         den = torch.clamp(fmax - fmin, min=1e-6)
-        out = (force_hist - fmin) / den
-        return torch.clamp(out, 0.0, 1.0)
+        f01 = (force_hist - fmin) / den
+        if stats.qpos_mode == "minmax_m11":
+            return torch.clamp(2.0 * f01 - 1.0, -1.0, 1.0)
+        return torch.clamp(f01, 0.0, 1.0)
 
     fmean = torch.tensor(stats.qpos_a[6:9], dtype=torch.float32, device=force_hist.device).view(1, 1, 3)
     fstd = torch.tensor(stats.qpos_b[6:9], dtype=torch.float32, device=force_hist.device).view(1, 1, 3)
@@ -264,12 +302,14 @@ def _denorm_action_seq(seq: torch.Tensor, stats: StatsPack) -> torch.Tensor:
     else:
         raise RuntimeError(f"unexpected seq dim: {seq.shape}")
 
-    if stats.act_mode == "minmax":
+    if stats.act_mode in ["minmax_01", "minmax_m11"]:
         den = torch.clamp(ab - aa, min=1e-6)
+        if stats.act_mode == "minmax_m11":
+            seq01 = 0.5 * (seq + 1.0)
+            return seq01 * den + aa
         return seq * den + aa
 
     return seq * torch.clamp(ab, min=1e-6) + aa
-
 
 # ============================================================
 # Helpers (Policy output shape)
@@ -415,7 +455,7 @@ class NodeCmdMotionInfer(Node):
         # -----------------------------
         self.declare_parameter("ckpt_dir", "")
         self.declare_parameter("act_root", "")   # e.g. /home/eunseop/nrs_act
-        self.declare_parameter("policy_class", "ACT")  # ACT | DIFFUSION | FLOW | FLOW | FLOW
+        self.declare_parameter("policy_class", "ACT")  # ACT | DIFFUSION
         self.declare_parameter("chunk_size", 200)
 
         self.declare_parameter("pose_topic", "/ur10skku/currentP")
@@ -517,20 +557,6 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("diffusion_beta_start", 1e-4)
         self.declare_parameter("diffusion_beta_end", 2e-2)
         self.declare_parameter("diffusion_loss_type", "mse")
-
-        # flow matching policy config
-        # These defaults must match scripts/flow/train_flow.py and source/models/flow_core.py.
-        self.declare_parameter("flow_infer_steps", 10)
-        self.declare_parameter("flow_train_eps", 1e-4)
-        self.declare_parameter("flow_loss_type", "mse")
-        self.declare_parameter("flow_obs_hidden_dim", 256)
-        self.declare_parameter("flow_image_feature_dim", 512)
-        self.declare_parameter("flow_global_cond_dim", 256)
-        self.declare_parameter("flow_time_embed_dim", 256)
-        self.declare_parameter("flow_down_dims", "256,512,1024")
-        self.declare_parameter("flow_kernel_size", 5)
-        self.declare_parameter("flow_n_groups", 8)
-        self.declare_parameter("flow_cond_predict_scale", False)
 
         # stall + recover
         self.declare_parameter("stall_sec", 1.2)
@@ -656,26 +682,6 @@ class NodeCmdMotionInfer(Node):
 
         self.fz_hard_limit = float(self.get_parameter("fz_hard_limit").value)
 
-        # diffusion config
-        self.diffusion_train_steps = int(self.get_parameter("diffusion_train_steps").value)
-        self.diffusion_infer_steps = int(self.get_parameter("diffusion_infer_steps").value)
-        self.diffusion_beta_start = float(self.get_parameter("diffusion_beta_start").value)
-        self.diffusion_beta_end = float(self.get_parameter("diffusion_beta_end").value)
-        self.diffusion_loss_type = str(self.get_parameter("diffusion_loss_type").value).strip().lower()
-
-        # flow matching config
-        self.flow_infer_steps = int(self.get_parameter("flow_infer_steps").value)
-        self.flow_train_eps = float(self.get_parameter("flow_train_eps").value)
-        self.flow_loss_type = str(self.get_parameter("flow_loss_type").value).strip().lower()
-        self.flow_obs_hidden_dim = int(self.get_parameter("flow_obs_hidden_dim").value)
-        self.flow_image_feature_dim = int(self.get_parameter("flow_image_feature_dim").value)
-        self.flow_global_cond_dim = int(self.get_parameter("flow_global_cond_dim").value)
-        self.flow_time_embed_dim = int(self.get_parameter("flow_time_embed_dim").value)
-        self.flow_down_dims = str(self.get_parameter("flow_down_dims").value)
-        self.flow_kernel_size = int(self.get_parameter("flow_kernel_size").value)
-        self.flow_n_groups = int(self.get_parameter("flow_n_groups").value)
-        self.flow_cond_predict_scale = bool(self.get_parameter("flow_cond_predict_scale").value)
-
         self.stall_sec = float(self.get_parameter("stall_sec").value)
         self.stall_min_after_start_sec = float(self.get_parameter("stall_min_after_start_sec").value)
         self.stall_lpf_tau_sec = float(self.get_parameter("stall_lpf_tau_sec").value)
@@ -727,8 +733,8 @@ class NodeCmdMotionInfer(Node):
             raise RuntimeError(f"ckpt_dir invalid: {self.ckpt_dir}")
         if not self.act_root or not os.path.isdir(self.act_root):
             raise RuntimeError(f"act_root invalid: {self.act_root}")
-        if self.policy_class not in ("ACT", "DIFFUSION", "FLOW"):
-            raise RuntimeError(f"policy_class must be ACT, DIFFUSION, or FLOW, got: {self.policy_class}")
+        if self.policy_class not in ("ACT", "DIFFUSION"):
+            raise RuntimeError(f"policy_class must be ACT or DIFFUSION, got: {self.policy_class}")
 
         # stats
         self.stats = _load_dataset_stats(self.ckpt_dir)
@@ -741,7 +747,7 @@ class NodeCmdMotionInfer(Node):
                 f"[STATS] Loaded dataset_stats.pkl from {self.ckpt_dir} | "
                 f"qpos_mode={self.stats.qpos_mode}, act_mode={self.stats.act_mode}"
             )
-            if self.stats.qpos_mode == "minmax":
+            if self.stats.qpos_mode in ["minmax_01", "minmax_m11"]:
                 self.get_logger().info(
                     f"[STATS] qpos_z_range=[{float(self.stats.qpos_a[2]):.3f},{float(self.stats.qpos_b[2]):.3f}] "
                     f"action_z_range=[{float(self.stats.act_a[2]):.3f},{float(self.stats.act_b[2]):.3f}] "
@@ -850,7 +856,7 @@ class NodeCmdMotionInfer(Node):
             f"  policy_class={self.policy_class}\n"
             f"  control_hz={self.control_hz} infer_hz={self.infer_hz}\n"
             f"  use_force_history={int(self.use_force_history)} force_history_len={self.force_history_len}\n"
-            f"  diffusion_infer_steps={self.diffusion_infer_steps} flow_infer_steps={self.flow_infer_steps}\n"
+            f"  diffusion_infer_steps={self.diffusion_infer_steps}\n"
             f"  tau_sec={self.tau_sec} startup_ramp_sec={self.startup_ramp_sec}\n"
             f"  step_caps(pos_mm={self.step_cap_pos_mm}, ang_rad={self.step_cap_ang_rad}, fz={self.step_cap_fz})\n"
             f"  temporal_agg={int(self.use_temporal_agg)} mode={self.temporal_agg_mode} tau_steps={self.temporal_agg_tau_steps} max_plans={self.max_plans}\n"
@@ -911,17 +917,8 @@ class NodeCmdMotionInfer(Node):
             from models.policy import ACTPolicy, DiffusionPolicy
         except Exception as e:
             raise RuntimeError(
-                f"Failed to import ACTPolicy/DiffusionPolicy from {act_source}/models/policy.py : {e}"
+                f"Failed to import policy classes from {act_source}/models/policy.py : {e}"
             )
-
-        try:
-            from models.flow_core import FlowRGBPolicy
-        except Exception as e:
-            FlowRGBPolicy = None
-            if str(self.policy_class).upper() == "FLOW":
-                raise RuntimeError(
-                    f"Failed to import FlowRGBPolicy from {act_source}/models/flow_core.py : {e}"
-                )
 
         args_override = {
             "kl_weight": float(self.get_parameter("kl_weight").value),
@@ -953,25 +950,12 @@ class NodeCmdMotionInfer(Node):
             "force_encoder_dropout": self.force_encoder_dropout,
             "observation_encoder_activation": self.observation_encoder_activation,
 
-            # diffusion config (ignored by ACTPolicy/FLOW)
+            # diffusion config (ignored by ACTPolicy)
             "diffusion_train_steps": self.diffusion_train_steps,
             "diffusion_infer_steps": self.diffusion_infer_steps,
             "diffusion_beta_start": self.diffusion_beta_start,
             "diffusion_beta_end": self.diffusion_beta_end,
             "diffusion_loss_type": self.diffusion_loss_type,
-
-            # flow matching config (ignored by ACTPolicy/DiffusionPolicy)
-            "flow_infer_steps": self.flow_infer_steps,
-            "flow_train_eps": self.flow_train_eps,
-            "flow_loss_type": self.flow_loss_type,
-            "flow_obs_hidden_dim": self.flow_obs_hidden_dim,
-            "flow_image_feature_dim": self.flow_image_feature_dim,
-            "flow_global_cond_dim": self.flow_global_cond_dim,
-            "flow_time_embed_dim": self.flow_time_embed_dim,
-            "flow_down_dims": self.flow_down_dims,
-            "flow_kernel_size": self.flow_kernel_size,
-            "flow_n_groups": self.flow_n_groups,
-            "flow_cond_predict_scale": self.flow_cond_predict_scale,
         }
 
         policy_class = str(self.policy_class).upper()
@@ -981,11 +965,6 @@ class NodeCmdMotionInfer(Node):
         elif policy_class == "DIFFUSION":
             self.get_logger().info("[INFO] Loading DiffusionPolicy from nrs_act/source/models/policy.py ...")
             policy = DiffusionPolicy(args_override).to(self.device)
-        elif policy_class == "FLOW":
-            self.get_logger().info("[INFO] Loading FlowRGBPolicy from nrs_act/source/models/flow_core.py ...")
-            if FlowRGBPolicy is None:
-                raise RuntimeError("FlowRGBPolicy import failed.")
-            policy = FlowRGBPolicy(args_override).to(self.device)
         else:
             raise RuntimeError(f"Unsupported policy_class: {self.policy_class}")
 
@@ -1069,7 +1048,7 @@ class NodeCmdMotionInfer(Node):
             if getattr(self.stats, "qpos_mode", "zscore") == "zscore":
                 mean_fz = float(self.stats.qpos_a[8])
                 tgt = abs(mean_fz) * float(self.preload_target_scale)
-            elif getattr(self.stats, "qpos_mode", "zscore") == "minmax":
+            elif getattr(self.stats, "qpos_mode", "zscore") in ["minmax_01", "minmax_m11"]:
                 qmin_fz = float(self.stats.qpos_a[8])
                 qmax_fz = float(self.stats.qpos_b[8])
                 mid_fz = 0.5 * (qmin_fz + qmax_fz)

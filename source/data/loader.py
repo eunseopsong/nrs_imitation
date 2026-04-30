@@ -1,244 +1,219 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+source/data/loader.py
 
-import glob
-import os
+DataLoader factory for ACT / FLOW / Diffusion branches.
+
+This version adds normalization mode support:
+    --norm_mode minmax_01   -> [0, 1]
+    --norm_mode minmax_m11  -> [-1, 1]
+
+The raw HDF5 dataset is unchanged. Only dataset-side qpos/action normalization
+and inference-side denormalization depend on dataset_stats.pkl.
+"""
+
+from __future__ import annotations
+
 import re
-from typing import Dict, List, Tuple, Optional
+from pathlib import Path
+from typing import Dict, List, Sequence, Tuple
 
-import h5py
 import numpy as np
 from torch.utils.data import DataLoader
 
-from .dataset import EpisodicStartDataset
+from .dataset import EpisodicDataset, read_qpos_action_arrays, natural_key
+from .normalization import canonical_norm_mode, norm_range_for_mode
 
 
-_EPISODE_RE = re.compile(r"episode_(\d+)\.hdf5$")
+def _episode_files(dataset_dir: str, num_episodes: int = 0) -> List[str]:
+    d = Path(dataset_dir).expanduser()
+    if not d.is_dir():
+        raise FileNotFoundError(f"dataset_dir does not exist: {d}")
 
+    files = sorted(d.glob("episode_*.hdf5"), key=natural_key)
+    if num_episodes and int(num_episodes) > 0:
+        files = files[: int(num_episodes)]
 
-def _episode_sort_key(path: str):
-    name = os.path.basename(path)
-    m = _EPISODE_RE.search(name)
-    if m is not None:
-        return int(m.group(1))
-    return name
-
-
-def _find_episode_files(dataset_dir: str) -> List[str]:
-    pattern = os.path.join(dataset_dir, "episode_*.hdf5")
-    files = glob.glob(pattern)
-    files = sorted(files, key=_episode_sort_key)
     if len(files) == 0:
-        raise FileNotFoundError(f"No episode_*.hdf5 found under: {dataset_dir}")
-    return files
+        raise FileNotFoundError(f"No episode_*.hdf5 files found in {d}")
+
+    return [str(p) for p in files]
 
 
-def _infer_is_sim_from_file(path: str) -> bool:
-    """
-    Backward-compatible helper.
-    If the file has '/observations/is_sim', use it.
-    Otherwise default to False.
-    """
-    try:
-        with h5py.File(path, "r") as h:
-            if "/observations/is_sim" in h:
-                val = np.asarray(h["/observations/is_sim"][()])
-                if np.ndim(val) == 0:
-                    return bool(val.item())
-                return bool(val[0])
-    except Exception:
-        pass
-    return False
+def compute_dataset_stats(
+    episode_files: Sequence[str],
+    qpos_norm_mode: str = "minmax_01",
+    action_norm_mode: str = "minmax_01",
+) -> Dict:
+    qpos_list = []
+    action_list = []
 
+    for p in episode_files:
+        qpos, action = read_qpos_action_arrays(p)
+        qpos_list.append(qpos.astype(np.float32))
+        action_list.append(action.astype(np.float32))
 
-def _get_valid_len(is_pad: np.ndarray) -> int:
-    idx = np.where(is_pad.astype(bool))[0]
-    return int(idx[0]) if len(idx) > 0 else int(is_pad.shape[0])
+    qpos_all = np.concatenate(qpos_list, axis=0)
+    action_all = np.concatenate(action_list, axis=0)
 
+    qpos_min = qpos_all.min(axis=0).astype(np.float32)
+    qpos_max = qpos_all.max(axis=0).astype(np.float32)
+    action_min = action_all.min(axis=0).astype(np.float32)
+    action_max = action_all.max(axis=0).astype(np.float32)
 
-def _compute_norm_stats_all(episode_files: List[str]) -> Dict[str, np.ndarray]:
-    """
-    Compute per-dimension min/max over all episodes.
-    Current baseline behavior is kept:
-    - qpos stats from observation position(6)+force(3)
-    - action stats from action position(6)+force(3)
-    """
-    all_qpos = []
-    all_action = []
+    # protect constant dims, especially fx/fy sometimes intentionally zeroed
+    eps = np.float32(1e-6)
+    qpos_max = np.maximum(qpos_max, qpos_min + eps).astype(np.float32)
+    action_max = np.maximum(action_max, action_min + eps).astype(np.float32)
 
-    for path in episode_files:
-        with h5py.File(path, "r") as h:
-            is_pad_full = np.asarray(h["/observations/is_pad"][()], dtype=np.bool_)
-            valid_len = _get_valid_len(is_pad_full)
-            if valid_len <= 0:
-                valid_len = int(is_pad_full.shape[0])
-
-            obs_pos = np.asarray(h["/observations/position"][:valid_len], dtype=np.float32)
-            obs_frc = np.asarray(h["/observations/force"][:valid_len], dtype=np.float32)
-            qpos = np.concatenate([obs_pos, obs_frc], axis=-1).astype(np.float32)
-            all_qpos.append(qpos)
-
-            act_pos = np.asarray(h["/action/position"][:valid_len], dtype=np.float32)
-            act_frc = np.asarray(h["/action/force"][:valid_len], dtype=np.float32)
-            action = np.concatenate([act_pos, act_frc], axis=-1).astype(np.float32)
-            all_action.append(action)
-
-    qpos_cat = np.concatenate(all_qpos, axis=0)
-    action_cat = np.concatenate(all_action, axis=0)
+    qpos_norm_mode = canonical_norm_mode(qpos_norm_mode)
+    action_norm_mode = canonical_norm_mode(action_norm_mode)
 
     stats = {
-        "qpos_min": qpos_cat.min(axis=0).astype(np.float32),
-        "qpos_max": qpos_cat.max(axis=0).astype(np.float32),
-        "action_min": action_cat.min(axis=0).astype(np.float32),
-        "action_max": action_cat.max(axis=0).astype(np.float32),
+        # current min-max stats
+        "qpos_min": qpos_min,
+        "qpos_max": qpos_max,
+        "action_min": action_min,
+        "action_max": action_max,
+
+        # also keep mean/std for debug/backward compatibility
+        "qpos_mean": qpos_all.mean(axis=0).astype(np.float32),
+        "qpos_std": np.maximum(qpos_all.std(axis=0).astype(np.float32), eps),
+        "action_mean": action_all.mean(axis=0).astype(np.float32),
+        "action_std": np.maximum(action_all.std(axis=0).astype(np.float32), eps),
+
+        # explicit modes for inference
+        "qpos_norm_mode": qpos_norm_mode,
+        "action_norm_mode": action_norm_mode,
+        "qpos_mode": qpos_norm_mode,
+        "act_mode": action_norm_mode,
+        "norm_range": norm_range_for_mode(action_norm_mode),
+
+        # useful metadata
+        "state_dim": 9,
+        "action_dim": 9,
     }
     return stats
 
 
-def _split_train_val(
-    episode_files: List[str],
-    seed: int = 0,
-    val_ratio: float = 0.2,
-) -> Tuple[List[str], List[str]]:
-    n = len(episode_files)
-    if n == 1:
-        return episode_files, episode_files
-
-    rng = np.random.RandomState(int(seed))
-    perm = rng.permutation(n)
-
-    n_val = max(1, int(round(n * float(val_ratio))))
-    n_val = min(n_val, n - 1)
-
-    val_idx = perm[:n_val]
-    train_idx = perm[n_val:]
-
-    train_files = [episode_files[i] for i in train_idx]
-    val_files = [episode_files[i] for i in val_idx]
-
-    train_files = sorted(train_files, key=_episode_sort_key)
-    val_files = sorted(val_files, key=_episode_sort_key)
-    return train_files, val_files
+def _make_loader(dataset, batch_size, shuffle, num_workers, pin_memory, persistent_workers, prefetch_factor):
+    kwargs = dict(
+        dataset=dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=int(num_workers),
+        pin_memory=bool(pin_memory),
+        drop_last=False,
+    )
+    if int(num_workers) > 0:
+        kwargs["persistent_workers"] = bool(persistent_workers)
+        kwargs["prefetch_factor"] = int(prefetch_factor)
+    return DataLoader(**kwargs)
 
 
 def load_data(
     dataset_dir: str,
-    camera_names: List[str],
-    batch_size_train: Optional[int] = None,
-    batch_size_val: Optional[int] = None,
-    batch_size: Optional[int] = None,
-    seq_len_train: Optional[int] = None,
-    seq_len_val: Optional[int] = None,
-    seq_len: Optional[int] = None,
-    samples_per_episode: int = 50,
+    num_episodes: int,
+    camera_names: Sequence[str],
+    batch_size_train: int,
+    batch_size_val: int,
+    seq_len_train: int,
+    seq_len_val: int,
     seed: int = 0,
-    val_ratio: float = 0.2,
-    is_sim: Optional[bool] = None,
+    samples_per_episode: int = 50,
     num_workers: int = 0,
-    pin_memory: bool = True,
+    pin_memory: bool = False,
     persistent_workers: bool = False,
-    drop_last_train: bool = True,
-    drop_last_val: bool = False,
-    force_history_len: int = 10,
+    prefetch_factor: int = 2,
+
+    # force history
     return_force_history: bool = False,
-    use_force_history: Optional[bool] = None,
-    **kwargs,
+    use_force_history: bool = False,
+    force_history_len: int = 10,
+
+    # normalization
+    qpos_norm_mode: str = "minmax_01",
+    action_norm_mode: str = "minmax_01",
 ):
-    """
-    Backward-compatible loader.
+    files = _episode_files(dataset_dir, num_episodes=num_episodes)
 
-    Force-history mode:
-      - set return_force_history=True
-      - or use_force_history=True
+    rng = np.random.default_rng(seed)
+    perm = np.arange(len(files))
+    rng.shuffle(perm)
 
-    Returns:
-      train_loader, val_loader, norm_stats, data_meta
-    """
-    if batch_size_train is None:
-        batch_size_train = batch_size if batch_size is not None else 8
-    if batch_size_val is None:
-        batch_size_val = batch_size if batch_size is not None else batch_size_train
+    n_val = max(1, int(round(0.2 * len(files)))) if len(files) > 1 else 1
+    n_train = max(1, len(files) - n_val)
 
-    if seq_len_train is None:
-        seq_len_train = seq_len if seq_len is not None else 100
-    if seq_len_val is None:
-        seq_len_val = seq_len if seq_len is not None else seq_len_train
+    train_idx = perm[:n_train]
+    val_idx = perm[n_train:]
+    if len(val_idx) == 0:
+        val_idx = perm[-1:]
 
-    if use_force_history is not None:
-        return_force_history = bool(use_force_history)
+    train_files = [files[i] for i in train_idx]
+    val_files = [files[i] for i in val_idx]
 
-    episode_files = _find_episode_files(dataset_dir)
-
-    if is_sim is None:
-        is_sim = _infer_is_sim_from_file(episode_files[0])
-
-    train_files, val_files = _split_train_val(
-        episode_files=episode_files,
-        seed=seed,
-        val_ratio=val_ratio,
+    stats = compute_dataset_stats(
+        files,
+        qpos_norm_mode=qpos_norm_mode,
+        action_norm_mode=action_norm_mode,
     )
 
-    # current baseline behavior: stats over all episodes
-    norm_stats = _compute_norm_stats_all(episode_files)
-
-    train_dataset = EpisodicStartDataset(
+    train_dataset = EpisodicDataset(
         episode_files=train_files,
         camera_names=camera_names,
-        norm_stats=norm_stats,
+        stats=stats,
         seq_len=seq_len_train,
         samples_per_episode=samples_per_episode,
         seed=seed,
-        is_sim=is_sim,
-        force_history_len=force_history_len,
         return_force_history=return_force_history,
+        use_force_history=use_force_history,
+        force_history_len=force_history_len,
     )
 
-    val_dataset = EpisodicStartDataset(
+    val_dataset = EpisodicDataset(
         episode_files=val_files,
         camera_names=camera_names,
-        norm_stats=norm_stats,
+        stats=stats,
         seq_len=seq_len_val,
         samples_per_episode=samples_per_episode,
-        seed=seed + 999,
-        is_sim=is_sim,
-        force_history_len=force_history_len,
+        seed=seed + 10000,
         return_force_history=return_force_history,
+        use_force_history=use_force_history,
+        force_history_len=force_history_len,
     )
 
-    train_loader_kwargs = dict(
-        batch_size=batch_size_train,
+    train_loader = _make_loader(
+        train_dataset,
+        batch_size_train,
         shuffle=True,
-        drop_last=drop_last_train,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
     )
-
-    val_loader_kwargs = dict(
-        batch_size=batch_size_val,
+    val_loader = _make_loader(
+        val_dataset,
+        batch_size_val,
         shuffle=False,
-        drop_last=drop_last_val,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
     )
 
-    if num_workers > 0:
-        train_loader_kwargs["persistent_workers"] = persistent_workers
-        val_loader_kwargs["persistent_workers"] = persistent_workers
-
-    train_loader = DataLoader(train_dataset, **train_loader_kwargs)
-    val_loader = DataLoader(val_dataset, **val_loader_kwargs)
-
-    data_meta = {
-        "N": len(episode_files),
-        "is_sim": bool(is_sim),
+    meta = {
+        "N": len(files),
+        "is_sim": False,
         "train_files": len(train_files),
         "val_files": len(val_files),
         "camera_names": list(camera_names),
         "samples_per_episode": int(samples_per_episode),
         "seq_len_train": int(seq_len_train),
         "seq_len_val": int(seq_len_val),
-        "return_force_history": bool(return_force_history),
+        "return_force_history": bool(return_force_history or use_force_history),
         "force_history_len": int(force_history_len),
+        "qpos_norm_mode": canonical_norm_mode(qpos_norm_mode),
+        "action_norm_mode": canonical_norm_mode(action_norm_mode),
     }
 
-    return train_loader, val_loader, norm_stats, data_meta
+    return train_loader, val_loader, stats, meta

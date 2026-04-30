@@ -396,6 +396,7 @@ def main(args):
     print(f"[INFO] task_name          = {task_name}")
     print(f"[INFO] dataset_dir        = {dataset_dir}")
     print(f"[INFO] cam_preprocess     = {args.cam_preprocess}")
+    print(f"[INFO] norm_mode          = {args.norm_mode}")
     print(f"[INFO] num_episodes       = {num_episodes}")
     print(f"[INFO] camera_names       = {camera_names}")
     print(f"[INFO] chunk_size         = {args.chunk_size}")
@@ -403,11 +404,16 @@ def main(args):
     print(f"[INFO] val_seq_len        = {args.val_seq_len}")
     print(f"[INFO] samples/ep         = {args.samples_per_episode}")
     print(f"[INFO] save_every         = {args.save_every}")
+    print(f"[INFO] batch_size         = {args.batch_size}")
     print(f"[INFO] AMP                = {args.amp}")
     print(f"[INFO] use_force_history  = {args.use_force_history}")
     print(f"[INFO] force_history_len  = {args.force_history_len}")
     print(f"[INFO] flow_infer_steps   = {args.flow_infer_steps}")
-    print("[INFO] NORM               = min-max per-dim -> [0,1] (qpos/action), image -> [0,1]")
+    if args.norm_mode == "minmax_m11":
+        print("[INFO] qpos/action norm  = min-max per-dim -> [-1,1]")
+    else:
+        print("[INFO] qpos/action norm  = min-max per-dim -> [0,1]")
+    print("[INFO] image norm        = raw RGB -> [0,1], then ImageNet normalization inside policy")
 
     policy_config = {
         "lr": args.lr,
@@ -442,6 +448,7 @@ def main(args):
         "flow_infer_steps": args.flow_infer_steps,
         "flow_train_eps": args.flow_train_eps,
         "flow_loss_type": args.flow_loss_type,
+        "norm_mode": args.norm_mode,
     }
 
     if args.eval:
@@ -506,6 +513,8 @@ def main(args):
         return_force_history=args.use_force_history,
         use_force_history=args.use_force_history,
         force_history_len=args.force_history_len,
+        qpos_norm_mode=args.norm_mode,
+        action_norm_mode=args.norm_mode,
     )
     print(f"[INFO] data meta: {meta}")
 
@@ -538,10 +547,11 @@ if __name__ == "__main__":
 
     parser.add_argument("--dataset_dir", type=str, default=None)
     parser.add_argument("--cam_preprocess", type=str, default="off", choices=["off", "stabilize_crop"])
+    parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
     parser.add_argument("--num_episodes", type=int, default=0)
     parser.add_argument("--camera_names", nargs="+", default=["cam0"])
 
-    parser.add_argument("--batch_size", type=int, default=6)
+    parser.add_argument("--batch_size", type=int, default=12)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-4)
