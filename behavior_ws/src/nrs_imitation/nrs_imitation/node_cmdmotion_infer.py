@@ -18,7 +18,7 @@ preprocessing to match the new single-camera training structure:
   force_history : recent L-step force history (online buffer), normalized using
                   the same qpos force statistics as training dataset.py
 
-Stages / safety logic are kept the same as the previous version. The image input is single-camera (cam0), and the node can optionally apply online camera vibration filtering before using the image as observation.
+Stages / safety logic are kept the same as the previous version. Only the image input is changed from two cameras to one camera (cam0).
 
 Usage:
 
@@ -44,11 +44,6 @@ from enum import Enum
 
 import numpy as np
 import torch
-
-try:
-    import cv2
-except Exception:
-    cv2 = None
 
 import rclpy
 from rclpy.node import Node
@@ -420,8 +415,7 @@ class NodeCmdMotionInfer(Node):
         # -----------------------------
         self.declare_parameter("ckpt_dir", "")
         self.declare_parameter("act_root", "")   # e.g. /home/eunseop/nrs_act
-        self.declare_parameter("policy_class", "ACT")  # ACT | DIFFUSION
-        self.declare_parameter("phase_mode", "lite")  # lite | none
+        self.declare_parameter("policy_class", "ACT")  # ACT | DIFFUSION | FLOW | FLOW | FLOW
         self.declare_parameter("chunk_size", 200)
 
         self.declare_parameter("pose_topic", "/ur10skku/currentP")
@@ -501,13 +495,6 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("resize_hw", 0)
         self.declare_parameter("debug_every_n", 30)
 
-        # online camera preprocessing for vibration mitigation
-        self.declare_parameter("camera_preprocess_mode", "raw")  # raw | stabilize
-        self.declare_parameter("camera_preprocess_downsample", 0.5)
-        self.declare_parameter("camera_preprocess_max_shift_px", 12.0)
-        self.declare_parameter("camera_preprocess_ema_alpha", 0.35)
-        self.declare_parameter("camera_preprocess_warmup_frames", 3)
-
         # force safety
         self.declare_parameter("fz_hard_limit", 25.0)
 
@@ -530,6 +517,20 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("diffusion_beta_start", 1e-4)
         self.declare_parameter("diffusion_beta_end", 2e-2)
         self.declare_parameter("diffusion_loss_type", "mse")
+
+        # flow matching policy config
+        # These defaults must match scripts/flow/train_flow.py and source/models/flow_core.py.
+        self.declare_parameter("flow_infer_steps", 10)
+        self.declare_parameter("flow_train_eps", 1e-4)
+        self.declare_parameter("flow_loss_type", "mse")
+        self.declare_parameter("flow_obs_hidden_dim", 256)
+        self.declare_parameter("flow_image_feature_dim", 512)
+        self.declare_parameter("flow_global_cond_dim", 256)
+        self.declare_parameter("flow_time_embed_dim", 256)
+        self.declare_parameter("flow_down_dims", "256,512,1024")
+        self.declare_parameter("flow_kernel_size", 5)
+        self.declare_parameter("flow_n_groups", 8)
+        self.declare_parameter("flow_cond_predict_scale", False)
 
         # stall + recover
         self.declare_parameter("stall_sec", 1.2)
@@ -583,7 +584,6 @@ class NodeCmdMotionInfer(Node):
         self.ckpt_dir = str(self.get_parameter("ckpt_dir").value)
         self.act_root = str(self.get_parameter("act_root").value)
         self.policy_class = str(self.get_parameter("policy_class").value).strip().upper()
-        self.phase_mode = str(self.get_parameter("phase_mode").value).strip().lower()
         self.chunk_size = int(self.get_parameter("chunk_size").value)
 
         self.pose_topic = str(self.get_parameter("pose_topic").value)
@@ -605,13 +605,6 @@ class NodeCmdMotionInfer(Node):
         self.force_encoder_num_layers = int(self.get_parameter("force_encoder_num_layers").value)
         self.force_encoder_dropout = float(self.get_parameter("force_encoder_dropout").value)
         self.observation_encoder_activation = str(self.get_parameter("observation_encoder_activation").value)
-
-        # diffusion policy params
-        self.diffusion_train_steps = int(self.get_parameter("diffusion_train_steps").value)
-        self.diffusion_infer_steps = int(self.get_parameter("diffusion_infer_steps").value)
-        self.diffusion_beta_start = float(self.get_parameter("diffusion_beta_start").value)
-        self.diffusion_beta_end = float(self.get_parameter("diffusion_beta_end").value)
-        self.diffusion_loss_type = str(self.get_parameter("diffusion_loss_type").value).strip().lower()
 
         self.tau_sec = float(self.get_parameter("tau_sec").value)
         self.startup_ramp_sec = float(self.get_parameter("startup_ramp_sec").value)
@@ -661,13 +654,27 @@ class NodeCmdMotionInfer(Node):
         self.resize_hw = int(self.get_parameter("resize_hw").value)
         self.debug_every_n = max(1, int(self.get_parameter("debug_every_n").value))
 
-        self.camera_preprocess_mode = str(self.get_parameter("camera_preprocess_mode").value).strip().lower()
-        self.camera_preprocess_downsample = float(self.get_parameter("camera_preprocess_downsample").value)
-        self.camera_preprocess_max_shift_px = float(self.get_parameter("camera_preprocess_max_shift_px").value)
-        self.camera_preprocess_ema_alpha = float(self.get_parameter("camera_preprocess_ema_alpha").value)
-        self.camera_preprocess_warmup_frames = int(self.get_parameter("camera_preprocess_warmup_frames").value)
-
         self.fz_hard_limit = float(self.get_parameter("fz_hard_limit").value)
+
+        # diffusion config
+        self.diffusion_train_steps = int(self.get_parameter("diffusion_train_steps").value)
+        self.diffusion_infer_steps = int(self.get_parameter("diffusion_infer_steps").value)
+        self.diffusion_beta_start = float(self.get_parameter("diffusion_beta_start").value)
+        self.diffusion_beta_end = float(self.get_parameter("diffusion_beta_end").value)
+        self.diffusion_loss_type = str(self.get_parameter("diffusion_loss_type").value).strip().lower()
+
+        # flow matching config
+        self.flow_infer_steps = int(self.get_parameter("flow_infer_steps").value)
+        self.flow_train_eps = float(self.get_parameter("flow_train_eps").value)
+        self.flow_loss_type = str(self.get_parameter("flow_loss_type").value).strip().lower()
+        self.flow_obs_hidden_dim = int(self.get_parameter("flow_obs_hidden_dim").value)
+        self.flow_image_feature_dim = int(self.get_parameter("flow_image_feature_dim").value)
+        self.flow_global_cond_dim = int(self.get_parameter("flow_global_cond_dim").value)
+        self.flow_time_embed_dim = int(self.get_parameter("flow_time_embed_dim").value)
+        self.flow_down_dims = str(self.get_parameter("flow_down_dims").value)
+        self.flow_kernel_size = int(self.get_parameter("flow_kernel_size").value)
+        self.flow_n_groups = int(self.get_parameter("flow_n_groups").value)
+        self.flow_cond_predict_scale = bool(self.get_parameter("flow_cond_predict_scale").value)
 
         self.stall_sec = float(self.get_parameter("stall_sec").value)
         self.stall_min_after_start_sec = float(self.get_parameter("stall_min_after_start_sec").value)
@@ -720,14 +727,8 @@ class NodeCmdMotionInfer(Node):
             raise RuntimeError(f"ckpt_dir invalid: {self.ckpt_dir}")
         if not self.act_root or not os.path.isdir(self.act_root):
             raise RuntimeError(f"act_root invalid: {self.act_root}")
-        if self.policy_class not in ("ACT", "DIFFUSION"):
-            raise RuntimeError(f"policy_class must be ACT or DIFFUSION, got: {self.policy_class}")
-        if self.phase_mode not in ("lite", "none"):
-            raise RuntimeError(f"phase_mode must be lite or none, got: {self.phase_mode}")
-        if self.camera_preprocess_mode not in ("raw", "stabilize"):
-            raise RuntimeError(
-                f"camera_preprocess_mode must be raw or stabilize, got: {self.camera_preprocess_mode}"
-            )
+        if self.policy_class not in ("ACT", "DIFFUSION", "FLOW"):
+            raise RuntimeError(f"policy_class must be ACT, DIFFUSION, or FLOW, got: {self.policy_class}")
 
         # stats
         self.stats = _load_dataset_stats(self.ckpt_dir)
@@ -758,11 +759,6 @@ class NodeCmdMotionInfer(Node):
         self._force: Optional[np.ndarray] = None
         self._img_cam0: Optional[np.ndarray] = None
 
-        # camera preprocess state
-        self._cam_prev_gray_small: Optional[np.ndarray] = None
-        self._cam_ema_rgb: Optional[np.ndarray] = None
-        self._cam_warmup_count: int = 0
-
         self._force_hist: Deque[np.ndarray] = deque(maxlen=max(1, self.force_history_len))
 
         # baseline state
@@ -777,7 +773,7 @@ class NodeCmdMotionInfer(Node):
         self._contact = False
         self._last_contact = False
 
-        self.stage = Stage.APPROACH if self.phase_mode == "lite" else Stage.TRACK
+        self.stage = Stage.APPROACH
 
         # anchor
         self._anchor_ready = False
@@ -851,18 +847,16 @@ class NodeCmdMotionInfer(Node):
             f"  image_topic={self.image_topic}\n"
             f"  cmd_topic={self.cmd_topic}\n"
             f"  image_qos={self.image_qos_str}\n"
-            f"  camera_preprocess_mode={self.camera_preprocess_mode}\n"
             f"  policy_class={self.policy_class}\n"
-            f"  phase_mode={self.phase_mode}\n"
             f"  control_hz={self.control_hz} infer_hz={self.infer_hz}\n"
             f"  use_force_history={int(self.use_force_history)} force_history_len={self.force_history_len}\n"
-            f"  diffusion_infer_steps={self.diffusion_infer_steps}\n"
+            f"  diffusion_infer_steps={self.diffusion_infer_steps} flow_infer_steps={self.flow_infer_steps}\n"
             f"  tau_sec={self.tau_sec} startup_ramp_sec={self.startup_ramp_sec}\n"
             f"  step_caps(pos_mm={self.step_cap_pos_mm}, ang_rad={self.step_cap_ang_rad}, fz={self.step_cap_fz})\n"
             f"  temporal_agg={int(self.use_temporal_agg)} mode={self.temporal_agg_mode} tau_steps={self.temporal_agg_tau_steps} max_plans={self.max_plans}\n"
             f"  contact_gate(on={self.contact_on_thr}, off={self.contact_off_thr}) clear_on_change={int(self.clear_plans_on_contact_change)}\n"
             f"  touch(delta={int(self.touch_use_delta)}, thr={self.touch_fz_thr}, ok={self.touch_ok_count}, min_after={self.touch_min_after_start_sec}s, base_tau={self.touch_baseline_tau_sec}s)\n"
-            f"  PRELOAD(removed in lite mode; pure mode disables phase split entirely, nominal_src={self.preload_target_source}, nominal_min={self.preload_min_N}N)\n"
+            f"  PRELOAD(removed: bypass APPROACH -> TRACK, nominal_src={self.preload_target_source}, nominal_min={self.preload_min_N}N)\n"
             f"  STALL(win_sec={self.stall_sec}, min_after={self.stall_min_after_start_sec}s, lpf_tau={self.stall_lpf_tau_sec}s, net_eps_pos={self.stall_window_net_pos_eps_mm}mm, net_eps_ang={self.stall_window_net_ang_eps_rad}rad)\n"
             f"  KICK(fz={self.fz_kick_N}N/{self.fz_kick_dur_sec}s, cooldown={self.fz_kick_cooldown_sec}s)\n"
             f"  RECOVER(removed)\n"
@@ -917,8 +911,17 @@ class NodeCmdMotionInfer(Node):
             from models.policy import ACTPolicy, DiffusionPolicy
         except Exception as e:
             raise RuntimeError(
-                f"Failed to import policy classes from {act_source}/models/policy.py : {e}"
+                f"Failed to import ACTPolicy/DiffusionPolicy from {act_source}/models/policy.py : {e}"
             )
+
+        try:
+            from models.flow_core import FlowRGBPolicy
+        except Exception as e:
+            FlowRGBPolicy = None
+            if str(self.policy_class).upper() == "FLOW":
+                raise RuntimeError(
+                    f"Failed to import FlowRGBPolicy from {act_source}/models/flow_core.py : {e}"
+                )
 
         args_override = {
             "kl_weight": float(self.get_parameter("kl_weight").value),
@@ -950,12 +953,25 @@ class NodeCmdMotionInfer(Node):
             "force_encoder_dropout": self.force_encoder_dropout,
             "observation_encoder_activation": self.observation_encoder_activation,
 
-            # diffusion config (ignored by ACTPolicy)
+            # diffusion config (ignored by ACTPolicy/FLOW)
             "diffusion_train_steps": self.diffusion_train_steps,
             "diffusion_infer_steps": self.diffusion_infer_steps,
             "diffusion_beta_start": self.diffusion_beta_start,
             "diffusion_beta_end": self.diffusion_beta_end,
             "diffusion_loss_type": self.diffusion_loss_type,
+
+            # flow matching config (ignored by ACTPolicy/DiffusionPolicy)
+            "flow_infer_steps": self.flow_infer_steps,
+            "flow_train_eps": self.flow_train_eps,
+            "flow_loss_type": self.flow_loss_type,
+            "flow_obs_hidden_dim": self.flow_obs_hidden_dim,
+            "flow_image_feature_dim": self.flow_image_feature_dim,
+            "flow_global_cond_dim": self.flow_global_cond_dim,
+            "flow_time_embed_dim": self.flow_time_embed_dim,
+            "flow_down_dims": self.flow_down_dims,
+            "flow_kernel_size": self.flow_kernel_size,
+            "flow_n_groups": self.flow_n_groups,
+            "flow_cond_predict_scale": self.flow_cond_predict_scale,
         }
 
         policy_class = str(self.policy_class).upper()
@@ -965,6 +981,11 @@ class NodeCmdMotionInfer(Node):
         elif policy_class == "DIFFUSION":
             self.get_logger().info("[INFO] Loading DiffusionPolicy from nrs_act/source/models/policy.py ...")
             policy = DiffusionPolicy(args_override).to(self.device)
+        elif policy_class == "FLOW":
+            self.get_logger().info("[INFO] Loading FlowRGBPolicy from nrs_act/source/models/flow_core.py ...")
+            if FlowRGBPolicy is None:
+                raise RuntimeError("FlowRGBPolicy import failed.")
+            policy = FlowRGBPolicy(args_override).to(self.device)
         else:
             raise RuntimeError(f"Unsupported policy_class: {self.policy_class}")
 
@@ -1006,75 +1027,6 @@ class NodeCmdMotionInfer(Node):
         )
         return policy
 
-
-    def _preprocess_cam0(self, rgb: np.ndarray) -> np.ndarray:
-        """
-        Online camera stabilization for inference.
-        raw       : use the subscribed image 그대로
-        stabilize : translation-only phase correlation + EMA smoothing
-        """
-        if self.camera_preprocess_mode == "raw":
-            return rgb
-
-        if cv2 is None:
-            if self._cam_warmup_count == 0:
-                self.get_logger().warn("[CAM PRE] cv2 unavailable -> fallback to raw")
-            return rgb
-
-        try:
-            ds = float(np.clip(self.camera_preprocess_downsample, 0.1, 1.0))
-            max_shift = float(max(0.0, self.camera_preprocess_max_shift_px))
-            ema_alpha = float(np.clip(self.camera_preprocess_ema_alpha, 0.0, 1.0))
-            warmup = int(max(0, self.camera_preprocess_warmup_frames))
-
-            gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
-
-            if ds < 0.999:
-                small = cv2.resize(gray, None, fx=ds, fy=ds, interpolation=cv2.INTER_AREA)
-            else:
-                small = gray
-
-            small_f = small.astype(np.float32)
-
-            if self._cam_prev_gray_small is None:
-                self._cam_prev_gray_small = small_f
-                self._cam_ema_rgb = rgb.astype(np.float32)
-                self._cam_warmup_count = 1
-                return rgb
-
-            shift, _ = cv2.phaseCorrelate(self._cam_prev_gray_small, small_f)
-            dx = float(np.clip(shift[0] / ds, -max_shift, max_shift))
-            dy = float(np.clip(shift[1] / ds, -max_shift, max_shift))
-
-            M = np.array([[1.0, 0.0, -dx],
-                          [0.0, 1.0, -dy]], dtype=np.float32)
-
-            stabilized = cv2.warpAffine(
-                rgb,
-                M,
-                (rgb.shape[1], rgb.shape[0]),
-                flags=cv2.INTER_LINEAR,
-                borderMode=cv2.BORDER_REPLICATE,
-            )
-
-            self._cam_prev_gray_small = small_f
-            self._cam_warmup_count += 1
-
-            if (self._cam_ema_rgb is None) or (self._cam_warmup_count <= warmup):
-                self._cam_ema_rgb = stabilized.astype(np.float32)
-                return stabilized
-
-            self._cam_ema_rgb = (
-                ema_alpha * stabilized.astype(np.float32) +
-                (1.0 - ema_alpha) * self._cam_ema_rgb
-            )
-            out = np.clip(self._cam_ema_rgb, 0.0, 255.0).astype(np.uint8)
-            return out
-
-        except Exception as e:
-            self.get_logger().warn(f"[CAM PRE] preprocessing failed -> raw fallback: {e}")
-            return rgb
-
     # ------------------------------------------------------------
     # ROS callbacks
     # ------------------------------------------------------------
@@ -1094,9 +1046,8 @@ class NodeCmdMotionInfer(Node):
     def _on_img(self, msg: Image):
         try:
             rgb = _img_to_rgb_numpy(msg)
-            rgb_obs = self._preprocess_cam0(rgb)
             with self._lock:
-                self._img_cam0 = rgb_obs
+                self._img_cam0 = rgb
         except Exception as e:
             self.get_logger().error(f"[CAM0 IMG] decode failed: {e}")
 
@@ -1180,8 +1131,7 @@ class NodeCmdMotionInfer(Node):
         )
 
     def _soft_reset_to_approach(self, reason: str):
-        next_stage = Stage.APPROACH if self.phase_mode == "lite" else Stage.TRACK
-        self.stage = next_stage
+        self.stage = Stage.APPROACH
         self.plans.clear()
         self._anchor_ready = False
         self._touch_ok = 0
@@ -1195,10 +1145,7 @@ class NodeCmdMotionInfer(Node):
         self._reset_dither()
         self._reset_kick_count()
 
-        if self.phase_mode == "lite":
-            self.get_logger().warn(f"[APPROACH-RESET] {reason} -> clear plans/anchor and continue APPROACH (RECOVER removed)")
-        else:
-            self.get_logger().warn(f"[TRACK-RESET] {reason} -> clear plans/anchor and continue TRACK (phase disabled)")
+        self.get_logger().warn(f"[APPROACH-RESET] {reason} -> clear plans/anchor and continue APPROACH (RECOVER removed)")
 
     # ------------------------------------------------------------
     # Infer timer
@@ -1507,7 +1454,7 @@ class NodeCmdMotionInfer(Node):
             self._t_first_pub = now_t
             self._t_start = now_t
 
-            self.stage = Stage.APPROACH if self.phase_mode == "lite" else Stage.TRACK
+            self.stage = Stage.APPROACH
             self._start_pose6 = pose6.astype(np.float32).copy()
 
             self._fz_base = max(0.0, meas_fz)
@@ -1527,10 +1474,7 @@ class NodeCmdMotionInfer(Node):
             self._reset_kick_count()
 
             self._publish_cmd(cmd0)
-            if self.phase_mode == "lite":
-                self.get_logger().info("[START] First publish = current pose. stage=APPROACH")
-            else:
-                self.get_logger().info("[START] First publish = current pose. stage=TRACK (phase disabled)")
+            self.get_logger().info("[START] First publish = current pose. stage=APPROACH")
             return
 
         if self.prev_cmd is None:
@@ -1603,15 +1547,12 @@ class NodeCmdMotionInfer(Node):
             if self.stage == Stage.RELEASE:
                 cmd_target = self._release_force(cmd_target)
                 if (_monotonic() - self._release_t0) >= max(1e-6, self.release_ramp_sec):
-                    self.stage = Stage.APPROACH if self.phase_mode == "lite" else Stage.TRACK
+                    self.stage = Stage.APPROACH
                     self.plans.clear()
                     self._anchor_ready = False
                     self._touch_ok = 0
                     self._reset_dither()
-                    if self.phase_mode == "lite":
-                        self.get_logger().warn("[STAGE] RELEASE done -> APPROACH")
-                    else:
-                        self.get_logger().warn("[STAGE] RELEASE done -> TRACK (phase disabled)")
+                    self.get_logger().warn("[STAGE] RELEASE done -> APPROACH")
 
         cmd_target[8] = float(np.clip(cmd_target[8], 0.0, self.fz_hard_limit))
 
