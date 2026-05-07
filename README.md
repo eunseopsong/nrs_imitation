@@ -1291,18 +1291,18 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p use_force_history:=true \
   -p force_history_len:=10 \
   -p flow_infer_steps:=10 \
-  -p tau_sec:=0.7 \
-  -p startup_ramp_sec:=2.0 \
-  -p step_cap_pos_mm:=0.06 \
+  -p tau_sec:=0.8 \
+  -p startup_ramp_sec:=3.0 \
+  -p step_cap_pos_mm:=0.05 \
   -p step_cap_ang_rad:=0.0001 \
-  -p step_cap_fz:=0.03 \
-  -p fz_hard_limit:=25.0 \
+  -p step_cap_fz:=0.05 \
+  -p fz_hard_limit:=30.0 \
   -p infer_hz:=5.0 \
   -p control_hz:=125.0 \
-  -p temporal_agg_tau_steps:=15.0 \
-  -p max_plans:=5 \
+  -p temporal_agg_tau_steps:=20.0 \
+  -p max_plans:=6 \
   -p contact_on_thr:=3.0 \
-  -p contact_off_thr:=1.5 \
+  -p contact_off_thr:=1.2 \
   -p clear_plans_on_contact_change:=false \
   -p dither_enable:=false
 ```
