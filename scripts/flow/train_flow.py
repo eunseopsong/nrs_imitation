@@ -47,6 +47,8 @@ for p in [_PROJECT_ROOT, _SOURCE_DIR]:
         sys.path.insert(0, p)
 
 import torch
+import numpy as np
+import h5py
 from tqdm import tqdm
 
 from data.loader import load_data
@@ -167,6 +169,168 @@ def parse_camera_names(camera_names_arg) -> List[str]:
             if s:
                 out.append(s)
     return out if out else ["cam0"]
+
+
+# =============================================================================
+# Demo-start pose statistics
+# =============================================================================
+
+def _read_first_dataset_row(f: h5py.File, candidate_keys: List[str]) -> Optional[np.ndarray]:
+    """
+    Read the first row of the first existing dataset among candidate_keys.
+
+    Supported final episode layouts:
+      - /observations/position, /observations/force
+      - /position, /ft  (fallback for merged-like files)
+    """
+    for key in candidate_keys:
+        if key not in f:
+            continue
+        arr = f[key]
+        if arr.shape[0] <= 0:
+            continue
+        row = np.asarray(arr[0], dtype=np.float32).reshape(-1)
+        return row.copy()
+    return None
+
+
+def collect_demo_start_pose_stats(
+    dataset_dir: str,
+    num_episodes: int = 0,
+    max_store_episodes: int = 10000,
+) -> Dict[str, object]:
+    """
+    Collect initial pose statistics from final ACT-format episode_*.hdf5 files.
+
+    This stores the average initial pose of all training episodes into dataset_stats.pkl,
+    so the inference node can later move the robot from its current pose to the
+    demonstration initial pose before starting policy inference.
+
+    Saved keys:
+      demo_start_pose_mean : (6,)  [x, y, z, wx, wy, wz]
+      demo_start_pose_std  : (6,)
+      demo_start_pose_min  : (6,)
+      demo_start_pose_max  : (6,)
+      demo_start_pose_all  : (N,6)
+
+      demo_start_qpos_mean : (9,)  [x, y, z, wx, wy, wz, fx, fy, fz]
+      demo_start_qpos_std  : (9,)
+      demo_start_qpos_min  : (9,)
+      demo_start_qpos_max  : (9,)
+      demo_start_qpos_all  : (N,9)
+
+      demo_start_num_episodes
+      demo_start_source_dataset_dir
+      demo_start_episode_files
+    """
+    files = _episode_files(dataset_dir)
+    if num_episodes is not None and int(num_episodes) > 0:
+        files = files[: int(num_episodes)]
+
+    poses: List[np.ndarray] = []
+    qposes: List[np.ndarray] = []
+    used_files: List[str] = []
+    skipped: List[Tuple[str, str]] = []
+
+    for path in files:
+        try:
+            with h5py.File(str(path), "r") as f:
+                p0 = _read_first_dataset_row(
+                    f,
+                    [
+                        "observations/position",
+                        "/observations/position",
+                        "position",
+                        "/position",
+                    ],
+                )
+                if p0 is None or p0.size < 6:
+                    skipped.append((str(path), "missing first position row"))
+                    continue
+
+                pose0 = p0[:6].astype(np.float32)
+
+                f0 = _read_first_dataset_row(
+                    f,
+                    [
+                        "observations/force",
+                        "/observations/force",
+                        "ft",
+                        "/ft",
+                        "force",
+                        "/force",
+                    ],
+                )
+                if f0 is None or f0.size < 3:
+                    force0 = np.zeros(3, dtype=np.float32)
+                else:
+                    force0 = f0[:3].astype(np.float32)
+
+                qpos0 = np.concatenate([pose0, force0], axis=0).astype(np.float32)
+
+                poses.append(pose0)
+                qposes.append(qpos0)
+                used_files.append(str(path))
+
+        except Exception as e:
+            skipped.append((str(path), repr(e)))
+
+    if not poses:
+        print("[WARN] demo-start stats: no valid episode initial poses were found.")
+        if skipped:
+            print("[WARN] demo-start stats: first skipped examples:")
+            for path, reason in skipped[:5]:
+                print(f"       - {path}: {reason}")
+        return {}
+
+    pose_all = np.stack(poses, axis=0).astype(np.float32)
+    qpos_all = np.stack(qposes, axis=0).astype(np.float32)
+
+    if max_store_episodes is not None and int(max_store_episodes) > 0:
+        pose_store = pose_all[: int(max_store_episodes)].copy()
+        qpos_store = qpos_all[: int(max_store_episodes)].copy()
+        file_store = used_files[: int(max_store_episodes)]
+    else:
+        pose_store = pose_all.copy()
+        qpos_store = qpos_all.copy()
+        file_store = used_files
+
+    out = {
+        "demo_start_pose_mean": pose_all.mean(axis=0).astype(np.float32),
+        "demo_start_pose_std": pose_all.std(axis=0).astype(np.float32),
+        "demo_start_pose_min": pose_all.min(axis=0).astype(np.float32),
+        "demo_start_pose_max": pose_all.max(axis=0).astype(np.float32),
+        "demo_start_pose_all": pose_store,
+
+        "demo_start_qpos_mean": qpos_all.mean(axis=0).astype(np.float32),
+        "demo_start_qpos_std": qpos_all.std(axis=0).astype(np.float32),
+        "demo_start_qpos_min": qpos_all.min(axis=0).astype(np.float32),
+        "demo_start_qpos_max": qpos_all.max(axis=0).astype(np.float32),
+        "demo_start_qpos_all": qpos_store,
+
+        "demo_start_num_episodes": int(pose_all.shape[0]),
+        "demo_start_source_dataset_dir": str(Path(dataset_dir).expanduser()),
+        "demo_start_episode_files": file_store,
+    }
+
+    print("[DEMO_START] collected initial pose statistics")
+    print(f"[DEMO_START] used episodes = {pose_all.shape[0]} / candidate files = {len(files)}")
+    if skipped:
+        print(f"[DEMO_START] skipped episodes = {len(skipped)}")
+    print(
+        "[DEMO_START] pose_mean [x y z wx wy wz] = "
+        + np.array2string(out["demo_start_pose_mean"], precision=4, separator=", ")
+    )
+    print(
+        "[DEMO_START] pose_std  [x y z wx wy wz] = "
+        + np.array2string(out["demo_start_pose_std"], precision=4, separator=", ")
+    )
+    print(
+        "[DEMO_START] qpos_mean [x y z wx wy wz fx fy fz] = "
+        + np.array2string(out["demo_start_qpos_mean"], precision=4, separator=", ")
+    )
+
+    return out
 
 
 # =============================================================================
@@ -517,6 +681,18 @@ def main(args):
         action_norm_mode=args.norm_mode,
     )
     print(f"[INFO] data meta: {meta}")
+
+    # ------------------------------------------------------------
+    # Demo-start pose statistics for inference-time auto alignment
+    # ------------------------------------------------------------
+    demo_start_stats = collect_demo_start_pose_stats(
+        dataset_dir=dataset_dir,
+        num_episodes=num_episodes,
+    )
+    if demo_start_stats:
+        stats.update(demo_start_stats)
+    else:
+        print("[WARN] dataset_stats.pkl will be saved without demo_start_pose_mean.")
 
     stats_path = os.path.join(ckpt_dir, "dataset_stats.pkl")
     with open(stats_path, "wb") as f:
