@@ -255,6 +255,40 @@ def _sanitize_range_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6
     return vmin.astype(np.float32), vmax_fix.astype(np.float32)
 
 
+
+def _load_demo_start_pose_from_stats(ckpt_dir: str) -> Optional[np.ndarray]:
+    """
+    Load demo_start_pose_mean from ckpt_dir/dataset_stats.pkl.
+
+    Expected key added by train_flow.py:
+      demo_start_pose_mean = [x, y, z, wx, wy, wz]
+
+    Fallback:
+      demo_start_qpos_mean = [x, y, z, wx, wy, wz, fx, fy, fz]
+
+    Return:
+      np.ndarray shape (6,), or None if unavailable.
+    """
+    p = os.path.join(ckpt_dir, "dataset_stats.pkl")
+    if not os.path.exists(p):
+        return None
+
+    try:
+        with open(p, "rb") as f:
+            st = pickle.load(f)
+    except Exception:
+        return None
+
+    for key in ("demo_start_pose_mean", "demo_start_qpos_mean"):
+        if key not in st:
+            continue
+        arr = np.asarray(st[key], dtype=np.float32).reshape(-1)
+        if arr.size >= 6 and np.all(np.isfinite(arr[:6])):
+            return arr[:6].astype(np.float32).copy()
+
+    return None
+
+
 def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
     """
     Priority:
@@ -613,6 +647,12 @@ class NodeCmdMotionInfer(Node):
         # force safety
         self.declare_parameter("fz_hard_limit", 25.0)
 
+        # Demo-start alignment.
+        # Default False preserves the previous inference behavior exactly.
+        self.declare_parameter("auto_move_to_demo_start", False)
+        self.declare_parameter("demo_start_move_sec", 3.0)
+        self.declare_parameter("demo_start_hold_sec", 0.5)
+
         # policy config
         self.declare_parameter("kl_weight", 10.0)
         self.declare_parameter("hidden_dim", 512)
@@ -778,6 +818,10 @@ class NodeCmdMotionInfer(Node):
 
         self.fz_hard_limit = float(self.get_parameter("fz_hard_limit").value)
 
+        self.auto_move_to_demo_start = bool(self.get_parameter("auto_move_to_demo_start").value)
+        self.demo_start_move_sec = float(self.get_parameter("demo_start_move_sec").value)
+        self.demo_start_hold_sec = float(self.get_parameter("demo_start_hold_sec").value)
+
         self.stall_sec = float(self.get_parameter("stall_sec").value)
         self.stall_min_after_start_sec = float(self.get_parameter("stall_min_after_start_sec").value)
         self.stall_lpf_tau_sec = float(self.get_parameter("stall_lpf_tau_sec").value)
@@ -875,6 +919,22 @@ class NodeCmdMotionInfer(Node):
                     f"action_fz_range=[{float(self.stats.act_a[8]):.3f},{float(self.stats.act_b[8]):.3f}]"
                 )
 
+        # demo-start pose for optional initial alignment
+        self.demo_start_pose6: Optional[np.ndarray] = None
+        if self.auto_move_to_demo_start:
+            self.demo_start_pose6 = _load_demo_start_pose_from_stats(self.ckpt_dir)
+            if self.demo_start_pose6 is None:
+                self.get_logger().warn(
+                    "[DEMO_START] auto_move_to_demo_start=True, but demo_start_pose_mean "
+                    "was not found in dataset_stats.pkl. Alignment will be skipped."
+                )
+                self.auto_move_to_demo_start = False
+            else:
+                self.get_logger().info(
+                    "[DEMO_START] loaded demo_start_pose_mean "
+                    f"[x y z wx wy wz]={np.array2string(self.demo_start_pose6, precision=4, separator=', ')}"
+                )
+
         # policy
         self.policy = self._load_policy_and_ckpt_from_act_root()
 
@@ -904,6 +964,13 @@ class NodeCmdMotionInfer(Node):
         self._t_first_pub = None
 
         self._start_pose6: Optional[np.ndarray] = None
+
+        # Optional demo-start alignment state.
+        # When auto_move_to_demo_start=False, these variables do not affect control.
+        self._demo_start_align_done = not self.auto_move_to_demo_start
+        self._demo_start_align_t0: Optional[float] = None
+        self._demo_start_hold_t0: Optional[float] = None
+        self._demo_start_from_pose6: Optional[np.ndarray] = None
 
         # contact state
         self._contact = False
@@ -998,6 +1065,7 @@ class NodeCmdMotionInfer(Node):
             f"  RECOVER(removed)\n"
             f"  DITHER(enable={int(self.dither_enable)}, only_track={int(self.dither_only_track)}, min_after={self.dither_min_after_start_sec}s, win={self.dither_win_sec}s, dur={self.dither_sec}s, net_pos_thr={self.dither_net_pos_thr_mm}mm, ratio_thr={self.dither_path_ratio_thr}, rms_pos_thr={self.dither_rms_pos_thr_mm}mm)\n"
             f"  RELEASE(enable={int(self.release_assist_enable)}, ramp_sec={self.release_ramp_sec})\n"
+            f"  DEMO_START(auto={int(self.auto_move_to_demo_start)}, move_sec={self.demo_start_move_sec}, hold_sec={self.demo_start_hold_sec})\n"
         )
 
     # ------------------------------------------------------------
@@ -1359,6 +1427,9 @@ class NodeCmdMotionInfer(Node):
     # Infer timer
     # ------------------------------------------------------------
     def _on_infer_timer(self):
+        if self.auto_move_to_demo_start and not self._demo_start_align_done:
+            return
+
         if self.stage == Stage.PRELOAD:
             return
 
@@ -1633,6 +1704,130 @@ class NodeCmdMotionInfer(Node):
         return True
 
     # ------------------------------------------------------------
+    # Optional demo-start alignment
+    # ------------------------------------------------------------
+    def _reset_after_demo_start_alignment(self, pose6_now: np.ndarray, cmd9: np.ndarray, now_t: float):
+        """
+        Reset only the buffers that can contaminate the policy start after the
+        initial move. This function is called only when auto_move_to_demo_start=True.
+        """
+        self.prev_cmd = cmd9.astype(np.float32).copy()
+        self._t_first_pub = now_t
+        self._t_start = now_t
+
+        self.stage = Stage.APPROACH
+        self._start_pose6 = pose6_now.astype(np.float32).copy()
+
+        self.plans.clear()
+        self._anchor_ready = False
+        self._anchor_offset6[:] = 0.0
+
+        self._contact = False
+        self._last_contact = False
+        self._touch_ok = 0
+
+        self._fz_base = 0.0
+        self._fz_base_init = False
+
+        self._stall_pose6_lpf = None
+        self._stall_win_pose6 = None
+        self._stall_win_t0 = now_t
+
+        self._fz_kick_active = False
+        self._fz_kick_last_end_t = -1e9
+        self._recover_last_end_t = -1e9
+        self._recover_pose6_lpf = None
+
+        self._reset_dither()
+        self._reset_kick_count()
+
+        # Start policy force history from a neutral value. This prevents the
+        # auto-alignment motion from being treated as part of the demonstration.
+        self._force_hist.clear()
+        for _ in range(max(1, self.force_history_len)):
+            self._force_hist.append(np.zeros(3, dtype=np.float32))
+
+    def _run_demo_start_alignment(self, pose6: np.ndarray, now_t: float):
+        """
+        Move current robot pose to demo_start_pose_mean before policy inference.
+
+        This path is active only when auto_move_to_demo_start=True.
+        If auto_move_to_demo_start=False, the original control path is untouched.
+        """
+        if self.demo_start_pose6 is None:
+            self.get_logger().warn("[DEMO_START] no demo_start_pose6. Skip alignment.")
+            self._demo_start_align_done = True
+            return
+
+        if self.prev_cmd is None:
+            return
+
+        if self._demo_start_align_t0 is None:
+            self._demo_start_align_t0 = now_t
+            self._demo_start_from_pose6 = pose6.astype(np.float32).copy()
+            self._demo_start_hold_t0 = None
+            self.plans.clear()
+            self._anchor_ready = False
+            self.get_logger().warn(
+                "[DEMO_START] auto alignment start: current pose -> demo_start_pose_mean "
+                f"over {self.demo_start_move_sec:.2f}s"
+            )
+            self.get_logger().info(
+                f"[DEMO_START] from={np.array2string(self._demo_start_from_pose6, precision=4, separator=', ')}"
+            )
+            self.get_logger().info(
+                f"[DEMO_START] to  ={np.array2string(self.demo_start_pose6, precision=4, separator=', ')}"
+            )
+
+        T = max(1e-6, float(self.demo_start_move_sec))
+        elapsed = max(0.0, now_t - float(self._demo_start_align_t0))
+        tau = float(np.clip(elapsed / T, 0.0, 1.0))
+        smooth = float(3.0 * tau * tau - 2.0 * tau * tau * tau)
+
+        start_pose = self._demo_start_from_pose6
+        if start_pose is None:
+            start_pose = pose6.astype(np.float32).copy()
+            self._demo_start_from_pose6 = start_pose
+
+        target_pose = self.demo_start_pose6.astype(np.float32)
+        pose_cmd = ((1.0 - smooth) * start_pose + smooth * target_pose).astype(np.float32)
+
+        cmd = np.zeros(9, dtype=np.float32)
+        cmd[0:6] = pose_cmd
+        cmd[6:9] = 0.0
+
+        self._publish_cmd(cmd)
+        self.prev_cmd = cmd.copy()
+
+        if tau < 1.0:
+            if (int(now_t * self.control_hz) % self.debug_every_n) == 0:
+                pos_err_cmd = float(np.linalg.norm(target_pose[0:3] - pose_cmd[0:3]))
+                rot_err_cmd = float(np.linalg.norm(target_pose[3:6] - pose_cmd[3:6]))
+                self.get_logger().info(
+                    f"[DEMO_START] moving tau={tau:.3f} "
+                    f"cmd_xyz=[{cmd[0]:.3f},{cmd[1]:.3f},{cmd[2]:.3f}] "
+                    f"pos_err_cmd={pos_err_cmd:.3f}mm rot_err_cmd={rot_err_cmd:.4f}rad"
+                )
+            return
+
+        # Hold the final target pose for a short time before policy starts.
+        if self._demo_start_hold_t0 is None:
+            self._demo_start_hold_t0 = now_t
+            pos_err_now = float(np.linalg.norm(pose6[0:3].astype(np.float32) - target_pose[0:3]))
+            rot_err_now = float(np.linalg.norm(pose6[3:6].astype(np.float32) - target_pose[3:6]))
+            self.get_logger().warn(
+                f"[DEMO_START] target command reached. hold {self.demo_start_hold_sec:.2f}s "
+                f"(current pos_err={pos_err_now:.3f}mm, rot_err={rot_err_now:.4f}rad)"
+            )
+
+        if (now_t - float(self._demo_start_hold_t0)) < max(0.0, float(self.demo_start_hold_sec)):
+            return
+
+        self._reset_after_demo_start_alignment(pose6_now=pose6, cmd9=cmd, now_t=now_t)
+        self._demo_start_align_done = True
+        self.get_logger().warn("[DEMO_START] alignment done -> start normal policy inference")
+
+    # ------------------------------------------------------------
     # Control timer
     # ------------------------------------------------------------
     def _on_control_timer(self):
@@ -1686,6 +1881,10 @@ class NodeCmdMotionInfer(Node):
             return
 
         if self.prev_cmd is None:
+            return
+
+        if self.auto_move_to_demo_start and not self._demo_start_align_done:
+            self._run_demo_start_alignment(pose6.astype(np.float32), now_t)
             return
 
         changed = self._update_contact(meas_fz)
