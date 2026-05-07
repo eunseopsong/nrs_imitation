@@ -2,17 +2,18 @@
 
 Refactored imitation-learning codebase for robotic polishing / manipulation experiments.
 
-This repository now supports **two parallel policy branches** on top of the same dataset pipeline:
+This repository now supports **three parallel policy branches** on top of the same dataset pipeline:
 
 - **ACT**
 - **Diffusion Policy-style branch**
+- **Flow Matching Policy-style branch**
 
-Both branches share the same demonstration format:
+All branches share the same demonstration format:
 
 - observation = `position(6) + force(3) + image(cam0)`
 - action = `position(6) + force(3)`
 
-The current workflow is designed so that you can go from **VR teaching / demonstration recording** all the way to **training / evaluation / inference** by following this README only.
+The current workflow is designed so that you can go from **VR teaching / demonstration recording** all the way to **ACT / Diffusion / Flow Matching training, evaluation, and inference** by following this README only.
 
 ---
 
@@ -397,6 +398,30 @@ python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 
 ---
 
+## 0-7-1. Train Flow Matching
+
+### A. Raw image dataset
+
+```bash
+cd ~/nrs_act
+python3 scripts/flow/train_flow.py --cam_preprocess off
+```
+
+### B. Camera-preprocessed dataset
+
+```bash
+cd ~/nrs_act
+python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
+```
+
+Default Flow checkpoint path:
+
+```text
+/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
+```
+
+---
+
 ## 0-8. Evaluate checkpoint loading
 
 ### ACT
@@ -413,6 +438,13 @@ cd ~/nrs_act
 python3 scripts/diffusion/train_diffusion.py --eval
 ```
 
+### Flow Matching
+
+```bash
+cd ~/nrs_act
+python3 scripts/flow/train_flow.py --eval
+```
+
 ---
 
 ## 0-9. Run inference node
@@ -425,7 +457,7 @@ The inference node now supports both **ACT** and **DIFFUSION** through a paramet
 cd ~/nrs_act/behavior_ws
 source install/setup.bash
 
-ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=ACT \
   -p act_root:=/home/eunseop/nrs_act \
   -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/20260423_1549 \
@@ -441,7 +473,7 @@ ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
 cd ~/nrs_act/behavior_ws
 source install/setup.bash
 
-ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=DIFFUSION \
   -p act_root:=/home/eunseop/nrs_act \
   -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/20260424_1301 \
@@ -493,7 +525,7 @@ The current workflow records **position + force + image directly during teaching
 4. scripts/diffusion/train_diffusion.py
    -> Diffusion Policy-style training
 
-5. node_act_cmdmotion_infer.py
+5. node_cmdmotion_infer.py
    -> ACT / DIFFUSION inference
 ```
 
@@ -517,7 +549,7 @@ nrs_act/
 │       │   ├── nrs_imitation/
 │       │   │   ├── vr_demo_hdf5_recorder.py
 │       │   │   ├── vr_demo_joy_controller.py
-│       │   │   ├── node_act_cmdmotion_infer.py
+│       │   │   ├── node_cmdmotion_infer.py
 │       │   │   └── ...
 │       │   ├── package.xml
 │       │   └── setup.py
@@ -560,6 +592,7 @@ nrs_act/
     │   ├── act_core.py
     │   ├── backbone.py
     │   ├── diffusion_core.py
+│   │   ├── flow_core.py
     │   ├── encoder.py
     │   ├── policy.py
     │   └── transformer.py
@@ -1111,12 +1144,62 @@ python3 scripts/diffusion/train_diffusion.py \
 
 ---
 
-# 10. Inference Node
+# 9-7. Flow Matching Training
 
-The current inference node supports both ACT and DIFFUSION:
+## 9-7-1. What this branch is
+
+This repository includes an RGB-conditioned Flow Matching policy branch.
+
+The Flow branch:
+- uses the same single-camera HDF5 dataset as ACT
+- conditions on `cam0 RGB + qpos + force_history`
+- predicts the same 9D action chunk as ACT
 
 ```text
-policy_class = ACT | DIFFUSION
+action = [x, y, z, wx, wy, wz, fx, fy, fz]
+```
+
+The current Flow baseline does **not** use virtual pose.  
+The low-level admittance controller remains unchanged.
+
+## 9-7-2. Default Flow training
+
+```bash
+cd ~/nrs_act
+python3 scripts/flow/train_flow.py
+```
+
+## 9-7-3. Camera-preprocessed Flow training
+
+```bash
+cd ~/nrs_act
+python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
+```
+
+## 9-7-4. Flow eval
+
+```bash
+cd ~/nrs_act
+python3 scripts/flow/train_flow.py --eval
+```
+
+Specific checkpoint:
+
+```bash
+python3 scripts/flow/train_flow.py \
+  --eval \
+  --ckpt_dir /home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM
+```
+
+
+---
+
+# 10. Inference Node
+
+The current inference node supports ACT, DIFFUSION, and FLOW:
+
+```text
+policy_class = ACT | DIFFUSION | FLOW
 ```
 
 Common required topics:
@@ -1136,7 +1219,7 @@ cmd_topic    = /ur10skku/cmdMotion
 cd ~/nrs_act/behavior_ws
 source install/setup.bash
 
-ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=ACT \
   -p act_root:=/home/eunseop/nrs_act \
   -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/20260423_1549 \
@@ -1154,7 +1237,7 @@ ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
 cd ~/nrs_act/behavior_ws
 source install/setup.bash
 
-ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
+ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=DIFFUSION \
   -p act_root:=/home/eunseop/nrs_act \
   -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/20260424_1301 \
@@ -1167,7 +1250,90 @@ ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
 
 ---
 
-## 10-3. Important inference notes
+---
+
+## 10-3. Flow Matching inference example
+
+```bash
+cd ~/nrs_act/behavior_ws
+source install/setup.bash
+
+ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
+  -p policy_class:=FLOW \
+  -p phase_mode:=pure \
+  -p camera_preprocess_mode:=stabilize \
+  -p act_root:=/home/eunseop/nrs_act \
+  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p image_topic:=/realsense/robot/color/image_raw \
+  -p chunk_size:=200 \
+  -p use_force_history:=true \
+  -p force_history_len:=10 \
+  -p flow_infer_steps:=10
+```
+
+---
+
+## 10-4. Recommended Flow Matching inference command
+
+The following command is the current best-performing Flow Matching inference configuration found during real robot tests.
+
+Use this as the main baseline command before trying `policy_only` mode or additional controller changes.
+
+```bash
+ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
+  -p policy_class:=FLOW \
+  -p phase_mode:=pure \
+  -p camera_preprocess_mode:=stabilize \
+  -p act_root:=/home/eunseop/nrs_act \
+  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p image_topic:=/realsense/robot/color/image_raw \
+  -p chunk_size:=200 \
+  -p use_force_history:=true \
+  -p force_history_len:=10 \
+  -p flow_infer_steps:=10 \
+  -p tau_sec:=0.7 \
+  -p startup_ramp_sec:=2.0 \
+  -p step_cap_pos_mm:=0.06 \
+  -p step_cap_ang_rad:=0.0001 \
+  -p step_cap_fz:=0.03 \
+  -p fz_hard_limit:=25.0 \
+  -p infer_hz:=5.0 \
+  -p control_hz:=125.0 \
+  -p temporal_agg_tau_steps:=15.0 \
+  -p max_plans:=5 \
+  -p contact_on_thr:=3.0 \
+  -p contact_off_thr:=1.5 \
+  -p clear_plans_on_contact_change:=false \
+  -p dither_enable:=false
+```
+
+Key option meaning:
+
+```text
+phase_mode:=pure
+  Use the pure policy-output path as much as possible.
+
+step_cap_pos_mm:=0.06
+  Keep enough Cartesian motion per 125 Hz control tick for successful approach.
+
+step_cap_fz:=0.03
+  Slow down target force command changes to reduce force overshoot.
+
+fz_hard_limit:=25.0
+  Safety limit for commanded Fz.
+
+contact_on_thr:=3.0
+  Contact is recognized when measured Fz exceeds about 3 N.
+
+contact_off_thr:=1.5
+  Contact is released when measured Fz falls below about 1.5 N.
+
+dither_enable:=false
+  Disable extra dither behavior for this baseline test.
+```
+
+
+## 10-5. Important inference notes
 
 - current node is **single-camera only**
 - `cam0` / `image_topic` are used
@@ -1203,6 +1369,19 @@ then the training config and inference config do not match and policy output sho
 
 ```text
 /home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/YYYYMMDD_HHMM/
+├── dataset_stats.pkl
+├── policy_best.ckpt
+├── policy_last.ckpt
+├── policy_epoch_0_seed_0.ckpt
+├── policy_epoch_100_seed_0.ckpt
+├── policy_epoch_200_seed_0.ckpt
+└── train_val_*.png
+```
+
+## Flow Matching
+
+```text
+/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
 ├── dataset_stats.pkl
 ├── policy_best.ckpt
 ├── policy_last.ckpt
@@ -1452,6 +1631,58 @@ python3 demo_data_act_form_single_cam.py --cam_preprocess off
 
 This creates the same final episode format as tracker mode, but with robot-side topics as the source.
 
+
+## Flow Matching camera-preprocessed workflow
+
+```bash
+vive
+ft              # or ftget
+rsv
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
+ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
+
+cd ~/nrs_act/source/custom
+python3 demo_data_act_form_single_cam.py \
+  --cam_preprocess stabilize_crop \
+  --cam_crop_h 384 \
+  --cam_crop_w 384 \
+  --cam_resize_hw 256
+
+cd ~/nrs_act
+python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
+```
+
+Recommended Flow inference baseline:
+
+```bash
+ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
+  -p policy_class:=FLOW \
+  -p phase_mode:=pure \
+  -p camera_preprocess_mode:=stabilize \
+  -p act_root:=/home/eunseop/nrs_act \
+  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p image_topic:=/realsense/robot/color/image_raw \
+  -p chunk_size:=200 \
+  -p use_force_history:=true \
+  -p force_history_len:=10 \
+  -p flow_infer_steps:=10 \
+  -p tau_sec:=0.7 \
+  -p startup_ramp_sec:=2.0 \
+  -p step_cap_pos_mm:=0.06 \
+  -p step_cap_ang_rad:=0.0001 \
+  -p step_cap_fz:=0.03 \
+  -p fz_hard_limit:=25.0 \
+  -p infer_hz:=5.0 \
+  -p control_hz:=125.0 \
+  -p temporal_agg_tau_steps:=15.0 \
+  -p max_plans:=5 \
+  -p contact_on_thr:=3.0 \
+  -p contact_off_thr:=1.5 \
+  -p clear_plans_on_contact_change:=false \
+  -p dither_enable:=false
+```
+
+
 ---
 
 # 15. Summary
@@ -1464,6 +1695,7 @@ Current repository status:
 - raw and stabilized camera dataset variants
 - ACT training branch
 - Diffusion Policy-style training branch
+- Flow Matching Policy-style training branch
 - separate checkpoint trees for ACT and Diffusion
 - one inference node with `policy_class` switch
 - shared dataset / encoder / backbone pipeline
@@ -1474,6 +1706,6 @@ So the current full path is:
 teaching (position + force + cam0)
 → merged_hdf5
 → episode_*.hdf5
-→ ACT or Diffusion training
+→ ACT / Diffusion / Flow Matching training
 → policy_class-selected inference
 ```
