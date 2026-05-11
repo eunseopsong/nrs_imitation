@@ -20,343 +20,8 @@ The current workflow is designed so that you can go from **VR teaching / demonst
 
 ---
 
-# 0-A. Dependency Installation on a New PC
 
-This repository assumes:
-
-```text
-Repository root used in this README:
-  /home/eunseop/nrs_imitation
-```
-
-```text
-OS      : Ubuntu 22.04
-ROS 2   : Humble
-Python  : 3.10
-GPU     : NVIDIA GPU recommended for training
-```
-
-The commands below install the common dependencies required for:
-
-```text
-behavior_ws
-  - ROS 2 nodes
-  - joystick recording
-  - HDF5 recording
-  - image/camera handling
-  - RealSense camera
-
-nrs_imitation Python training
-  - ACT
-  - Diffusion
-  - Flow Matching
-  - HDF5 dataset processing
-```
-
----
-
-## 0-A-1. Basic Ubuntu packages
-
-```bash
-sudo apt update
-sudo apt install -y \
-  git \
-  curl \
-  wget \
-  vim \
-  build-essential \
-  cmake \
-  pkg-config \
-  python3-pip \
-  python3-dev \
-  python3-colcon-common-extensions \
-  python3-rosdep \
-  python3-vcstool \
-  python3-argcomplete \
-  libgl1 \
-  libglib2.0-0 \
-  v4l-utils
-```
-
----
-
-## 0-A-2. ROS 2 Humble setup
-
-If ROS 2 Humble is not installed yet, install it first.
-
-```bash
-sudo apt update
-sudo apt install -y software-properties-common
-sudo add-apt-repository universe -y
-
-sudo apt update
-sudo apt install -y curl gnupg lsb-release
-
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-  -o /usr/share/keyrings/ros-archive-keyring.gpg
-
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | \
-  sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-
-sudo apt update
-sudo apt install -y ros-humble-desktop
-```
-
-Add ROS 2 Humble to `.bashrc`.
-
-```bash
-echo 'source /opt/ros/humble/setup.bash' >> ~/.bashrc
-source ~/.bashrc
-```
-
-Initialize rosdep.
-
-```bash
-sudo rosdep init 2>/dev/null || true
-rosdep update
-```
-
----
-
-## 0-A-3. ROS 2 packages for behavior_ws
-
-```bash
-sudo apt update
-sudo apt install -y \
-  ros-humble-cv-bridge \
-  ros-humble-image-transport \
-  ros-humble-image-tools \
-  ros-humble-camera-info-manager \
-  ros-humble-sensor-msgs \
-  ros-humble-geometry-msgs \
-  ros-humble-std-msgs \
-  ros-humble-std-srvs \
-  ros-humble-tf2 \
-  ros-humble-tf2-ros \
-  ros-humble-tf2-geometry-msgs \
-  ros-humble-joy \
-  ros-humble-joy-linux \
-  ros-humble-usb-cam \
-  ros-humble-realsense2-camera
-```
-
-If `ros-humble-realsense2-camera` is not available on the target PC, install Intel RealSense separately and then build/use the RealSense ROS wrapper.
-
----
-
-## 0-A-4. Python packages for training and data processing
-
-Recommended: use a Conda environment for training and dataset processing.
-
-If Conda is not installed, install Miniconda first.
-
-```bash
-cd ~
-
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh
-
-source ~/.bashrc
-```
-
-Create and activate the project environment.
-
-```bash
-conda create -n nrs_act python=3.10 -y
-conda activate nrs_act
-
-python -m pip install --upgrade pip setuptools wheel
-```
-
-Install common Python dependencies.
-
-```bash
-pip install \
-  numpy \
-  scipy \
-  h5py \
-  opencv-python \
-  pillow \
-  matplotlib \
-  tqdm \
-  pyyaml \
-  einops \
-  rospkg
-```
-
-Install PyTorch.
-
-For CUDA 12.1:
-
-```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-```
-
-For CPU-only fallback:
-
-```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-```
-
-Optional but useful for debugging:
-
-```bash
-pip install pandas tensorboard
-```
-
-When using ROS 2 nodes from this Conda environment, source ROS and the workspace after activating Conda:
-
-```bash
-conda activate nrs_act
-source /opt/ros/humble/setup.bash
-source ~/nrs_imitation/behavior_ws/install/setup.bash
-```
-
----
-
-## 0-A-5. Build behavior_ws
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source /opt/ros/humble/setup.bash
-
-rosdep install --from-paths src --ignore-src -r -y
-
-colcon build --symlink-install
-source install/setup.bash
-```
-
-If you want the workspace to be sourced automatically:
-
-```bash
-echo 'source /home/eunseop/nrs_imitation/behavior_ws/install/setup.bash' >> ~/.bashrc
-source ~/.bashrc
-```
-
-If the repo is cloned to a different path, replace `/home/eunseop/nrs_imitation` with the actual path.
-
----
-
-## 0-A-6. Verify ROS nodes
-
-```bash
-ros2 pkg list | grep nrs_imitation
-ros2 pkg executables nrs_imitation
-```
-
-Expected executables include:
-
-```text
-nrs_imitation node_cmdmotion_infer
-nrs_imitation node_check_inference
-nrs_imitation vr_demo_hdf5_recorder
-nrs_imitation vr_demo_txt_recorder
-nrs_imitation vr_demo_joy_controller
-```
-
----
-
-## 0-A-7. Verify Python training imports
-
-```bash
-cd ~/nrs_imitation
-conda activate nrs_act
-
-python3 - <<'PY'
-import torch
-import h5py
-import cv2
-import numpy as np
-
-print("torch:", torch.__version__)
-print("cuda available:", torch.cuda.is_available())
-print("h5py OK")
-print("opencv:", cv2.__version__)
-PY
-```
-
----
-
-## 0-A-8. Common device checks
-
-### RealSense camera
-
-```bash
-realsense-viewer
-```
-
-or:
-
-```bash
-ros2 launch realsense2_camera rs_launch.py
-```
-
-### USB / fisheye camera
-
-```bash
-v4l2-ctl --list-devices
-```
-
-Example `usb_cam` launch:
-
-```bash
-ros2 run usb_cam usb_cam_node_exe --ros-args \
-  -p video_device:=/dev/video2 \
-  -p image_width:=640 \
-  -p image_height:=480 \
-  -p framerate:=30.0 \
-  -r /image_raw:=/fisheye/color/image_raw
-```
-
-### Joystick
-
-```bash
-ros2 run joy joy_node
-ros2 topic echo /joy
-```
-
----
-
-## 0-A-9. One-shot setup summary
-
-If ROS 2 Humble is already installed, the shortest setup on a new PC is:
-
-If Conda is not installed yet, install Miniconda first using the command in `0-A-4`.
-
-```bash
-sudo apt update
-sudo apt install -y \
-  git curl wget vim build-essential cmake pkg-config \
-  python3-pip python3-dev \
-  python3-colcon-common-extensions python3-rosdep python3-vcstool \
-  ros-humble-cv-bridge ros-humble-image-transport ros-humble-image-tools \
-  ros-humble-camera-info-manager ros-humble-sensor-msgs ros-humble-geometry-msgs \
-  ros-humble-std-msgs ros-humble-std-srvs \
-  ros-humble-tf2 ros-humble-tf2-ros ros-humble-tf2-geometry-msgs \
-  ros-humble-joy ros-humble-joy-linux ros-humble-usb-cam \
-  ros-humble-realsense2-camera \
-  v4l-utils libgl1 libglib2.0-0
-
-cd ~/nrs_imitation
-conda create -n nrs_act python=3.10 -y
-conda activate nrs_act
-python -m pip install --upgrade pip setuptools wheel
-
-pip install \
-  numpy scipy h5py opencv-python pillow matplotlib tqdm pyyaml einops rospkg \
-  pandas tensorboard
-
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
-cd ~/nrs_imitation/behavior_ws
-source /opt/ros/humble/setup.bash
-rosdep install --from-paths src --ignore-src -r -y
-colcon build --symlink-install
-source install/setup.bash
-```
-
-
-# 0. End-to-End Quick Start
+# 0. ROS Execution Commands / End-to-End Quick Start
 
 This is the shortest path from recording to training.
 
@@ -364,6 +29,7 @@ This is the shortest path from recording to training.
 
 ```bash
 cd ~/nrs_imitation/behavior_ws
+source /opt/ros/humble/setup.bash
 colcon build
 source install/setup.bash
 ```
@@ -372,6 +38,7 @@ If you modify `nrs_imitation` only:
 
 ```bash
 cd ~/nrs_imitation/behavior_ws
+source /opt/ros/humble/setup.bash
 colcon build --packages-select nrs_imitation
 source install/setup.bash
 ```
@@ -825,47 +492,465 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
 
 ---
 
-# 1. Current End-to-End Pipeline
 
-## Previous pipeline
+# 1. Dependency Installation on a New PC
 
-The older workflow used robot playback to generate image data:
+This repository assumes:
 
 ```text
-1. vr_demo_hdf5_recorder.py
-   -> save position / force demonstration
-
-2. vr_demo_hdf5_episode_pusher.py
-   -> send one episode to robot
-
-3. robot_playback_act_hdf5_recorder.py
-   -> record robot playback with position + force + image
-
-4. demo_data_act_form.py
-   -> split merged HDF5 into episode_*.hdf5
+Repository root used in this README:
+  /home/eunseop/nrs_imitation
 ```
 
-## Current pipeline
+```text
+OS      : Ubuntu 22.04
+ROS 2   : Humble
+Python  : 3.10
+GPU     : NVIDIA GPU recommended for training
+Conda   : Miniconda or Anaconda
+```
 
-The current workflow records **position + force + image directly during teaching**:
+The commands below install the common dependencies required for:
 
 ```text
-1. joystick + vr_demo_hdf5_recorder.py
-   -> record position + force + cam0 into merged_hdf5
-   -> supports tracker mode and robot mode
+behavior_ws
+  - ROS 2 nodes
+  - joystick recording
+  - HDF5 recording
+  - image/camera handling
+  - RealSense camera
+  - custom ROS 2 interface generation
 
-2. demo_data_act_form_single_cam.py
-   -> convert merged_hdf5 into episode_*.hdf5
-   -> raw or camera-preprocessed variant
+nrs_imitation Python training
+  - ACT
+  - Diffusion
+  - Flow Matching
+  - HDF5 dataset processing
+```
 
-3. train_act.py
-   -> ACT training
+Important naming rule:
 
-4. scripts/diffusion/train_diffusion.py
-   -> Diffusion Policy-style training
+```text
+Correct Conda environment name:
+  nrs_imitation
 
-5. node_cmdmotion_infer.py
-   -> ACT / DIFFUSION inference
+Wrong typo:
+  nrs_imitaion
+```
+
+---
+
+## 1-1. Basic Ubuntu packages
+
+```bash
+sudo apt update
+sudo apt install -y \
+  git \
+  curl \
+  wget \
+  vim \
+  build-essential \
+  cmake \
+  pkg-config \
+  software-properties-common \
+  gnupg \
+  lsb-release \
+  python3-pip \
+  python3-dev \
+  python3-colcon-common-extensions \
+  python3-rosdep \
+  python3-vcstool \
+  python3-argcomplete \
+  libgl1 \
+  libglib2.0-0 \
+  libeigen3-dev \
+  v4l-utils
+```
+
+---
+
+## 1-2. ROS 2 Humble setup
+
+If ROS 2 Humble is not installed yet, install it first.
+
+```bash
+sudo apt update
+sudo apt install -y software-properties-common
+sudo add-apt-repository universe -y
+
+sudo apt update
+sudo apt install -y curl gnupg lsb-release
+
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /usr/share/keyrings/ros-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | \
+  sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+sudo apt update
+sudo apt install -y ros-humble-desktop
+```
+
+Add ROS 2 Humble to `.bashrc`.
+
+```bash
+echo 'source /opt/ros/humble/setup.bash' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Initialize rosdep.
+
+```bash
+sudo rosdep init 2>/dev/null || true
+rosdep update
+```
+
+---
+
+## 1-3. ROS 2 packages for behavior_ws
+
+```bash
+sudo apt update
+sudo apt install -y \
+  ros-humble-cv-bridge \
+  ros-humble-image-transport \
+  ros-humble-image-tools \
+  ros-humble-camera-info-manager \
+  ros-humble-sensor-msgs \
+  ros-humble-geometry-msgs \
+  ros-humble-std-msgs \
+  ros-humble-std-srvs \
+  ros-humble-tf2 \
+  ros-humble-tf2-ros \
+  ros-humble-tf2-geometry-msgs \
+  ros-humble-joy \
+  ros-humble-joy-linux \
+  ros-humble-usb-cam \
+  ros-humble-realsense2-camera \
+  ros-humble-rosidl-default-generators \
+  ros-humble-rosidl-default-runtime \
+  ros-humble-ament-cmake \
+  ros-humble-ament-cmake-python
+```
+
+If `ros-humble-realsense2-camera` is not available on the target PC, install Intel RealSense separately and then build/use the RealSense ROS wrapper.
+
+---
+
+## 1-4. Conda installation
+
+If Conda is not installed, install Miniconda first.
+
+```bash
+cd ~
+
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
+
+source ~/.bashrc
+```
+
+If Conda asks for Anaconda Terms of Service approval, accept the default channels once:
+
+```bash
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+```
+
+---
+
+## 1-5. Optional: remove old Conda environments
+
+Use this only when you want to reset all project environments.
+
+This command removes every Conda environment except `base`.
+
+```bash
+conda env list | awk 'NR>2 && $1!="base" {print $1}' | xargs -r -I {} conda env remove -n {} -y
+```
+
+Check remaining environments:
+
+```bash
+conda info --envs
+```
+
+---
+
+## 1-6. Create the project Conda environment
+
+```bash
+conda create -n nrs_imitation python=3.10 -y
+conda activate nrs_imitation
+
+python -m pip install --upgrade pip setuptools wheel
+```
+
+---
+
+## 1-7. Python packages for training and data processing
+
+Install common Python dependencies.
+
+```bash
+pip install \
+  numpy \
+  scipy \
+  h5py \
+  opencv-python \
+  pillow \
+  matplotlib \
+  tqdm \
+  pyyaml \
+  einops \
+  rospkg \
+  pandas \
+  tensorboard
+```
+
+Install PyTorch.
+
+For CUDA 12.1:
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+```
+
+For CPU-only fallback:
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
+
+---
+
+## 1-8. Python packages required for ROS 2 build inside Conda
+
+When `conda activate nrs_imitation` is active, `colcon build` may use Conda Python:
+
+```text
+/home/eunseop/miniconda3/envs/nrs_imitation/bin/python3
+```
+
+Therefore, install the ROS interface-generation Python dependencies inside the Conda environment as well.
+
+```bash
+conda activate nrs_imitation
+
+python -m pip install "empy==3.3.4" lark catkin_pkg
+```
+
+`empy==3.3.4` is recommended for ROS 2 Humble compatibility.
+
+Also install the system-side Python packages:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  python3-empy \
+  python3-lark \
+  python3-catkin-pkg-modules
+```
+
+---
+
+## 1-9. Build behavior_ws
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+conda activate nrs_imitation
+source /opt/ros/humble/setup.bash
+
+rosdep install --from-paths src --ignore-src -r -y --skip-keys "ament_python eigen3"
+
+rm -rf build install log
+
+colcon build --symlink-install
+source install/setup.bash
+```
+
+Why `--skip-keys "ament_python eigen3"` is used:
+
+```text
+ament_python
+  Some package.xml files may contain a dependency key that rosdep cannot resolve directly.
+  The actual ROS package is provided through ament-cmake / ament-cmake-python.
+
+eigen3
+  The system package is libeigen3-dev.
+  It is already installed manually above.
+```
+
+If you want the workspace to be sourced automatically:
+
+```bash
+echo 'source /home/eunseop/nrs_imitation/behavior_ws/install/setup.bash' >> ~/.bashrc
+source ~/.bashrc
+```
+
+If the repo is cloned to a different path, replace `/home/eunseop/nrs_imitation` with the actual path.
+
+---
+
+## 1-10. Verify ROS nodes
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+conda activate nrs_imitation
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+ros2 pkg list | grep nrs_imitation
+ros2 pkg executables nrs_imitation
+```
+
+Expected executables include:
+
+```text
+nrs_imitation node_cmdmotion_infer
+nrs_imitation node_check_inference
+nrs_imitation vr_demo_hdf5_recorder
+nrs_imitation vr_demo_txt_recorder
+nrs_imitation vr_demo_joy_controller
+```
+
+---
+
+## 1-11. Verify Python training imports
+
+```bash
+cd ~/nrs_imitation
+conda activate nrs_imitation
+
+python3 - <<'PY'
+import torch
+import h5py
+import cv2
+import numpy as np
+
+print("torch:", torch.__version__)
+print("cuda available:", torch.cuda.is_available())
+print("h5py OK")
+print("opencv:", cv2.__version__)
+PY
+```
+
+---
+
+## 1-12. Common device checks
+
+### RealSense camera
+
+```bash
+realsense-viewer
+```
+
+or:
+
+```bash
+ros2 launch realsense2_camera rs_launch.py
+```
+
+### USB / fisheye camera
+
+```bash
+v4l2-ctl --list-devices
+```
+
+Example `usb_cam` launch:
+
+```bash
+ros2 run usb_cam usb_cam_node_exe --ros-args \
+  -p video_device:=/dev/video2 \
+  -p image_width:=640 \
+  -p image_height:=480 \
+  -p framerate:=30.0 \
+  -r /image_raw:=/fisheye/color/image_raw
+```
+
+### Joystick
+
+```bash
+ros2 run joy joy_node
+ros2 topic echo /joy
+```
+
+---
+
+## 1-13. One-shot setup summary
+
+If ROS 2 Humble is already installed, the shortest setup on a new PC is:
+
+```bash
+sudo apt update
+sudo apt install -y \
+  git curl wget vim build-essential cmake pkg-config software-properties-common \
+  python3-pip python3-dev \
+  python3-colcon-common-extensions python3-rosdep python3-vcstool \
+  libeigen3-dev \
+  ros-humble-cv-bridge ros-humble-image-transport ros-humble-image-tools \
+  ros-humble-camera-info-manager ros-humble-sensor-msgs ros-humble-geometry-msgs \
+  ros-humble-std-msgs ros-humble-std-srvs \
+  ros-humble-tf2 ros-humble-tf2-ros ros-humble-tf2-geometry-msgs \
+  ros-humble-joy ros-humble-joy-linux ros-humble-usb-cam \
+  ros-humble-realsense2-camera \
+  ros-humble-rosidl-default-generators ros-humble-rosidl-default-runtime \
+  ros-humble-ament-cmake ros-humble-ament-cmake-python \
+  python3-empy python3-lark python3-catkin-pkg-modules \
+  v4l-utils libgl1 libglib2.0-0
+
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
+cd ~/nrs_imitation
+
+conda create -n nrs_imitation python=3.10 -y
+conda activate nrs_imitation
+
+python -m pip install --upgrade pip setuptools wheel
+
+pip install \
+  numpy scipy h5py opencv-python pillow matplotlib tqdm pyyaml einops rospkg \
+  pandas tensorboard
+
+python -m pip install "empy==3.3.4" lark catkin_pkg
+
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+cd ~/nrs_imitation/behavior_ws
+source /opt/ros/humble/setup.bash
+
+rosdep install --from-paths src --ignore-src -r -y --skip-keys "ament_python eigen3"
+
+rm -rf build install log
+
+colcon build --symlink-install
+source install/setup.bash
+```
+
+---
+
+## 1-14. Troubleshooting: `ModuleNotFoundError: No module named 'em'`
+
+If the build fails like this:
+
+```text
+ModuleNotFoundError: No module named 'em'
+```
+
+it means Conda Python is being used during ROS interface generation, but the Conda environment does not have `empy`.
+
+Fix:
+
+```bash
+conda activate nrs_imitation
+python -m pip install "empy==3.3.4" lark catkin_pkg
+
+cd ~/nrs_imitation/behavior_ws
+source /opt/ros/humble/setup.bash
+rm -rf build install log
+colcon build --symlink-install
+source install/setup.bash
 ```
 
 ---
@@ -942,6 +1027,7 @@ nrs_imitation/
 ```
 
 ---
+
 
 # 3. What Each Folder Does
 
@@ -1055,7 +1141,54 @@ Core reusable modules.
 
 ---
 
-# 4. Recorder and Joystick Details
+
+# 4. Current End-to-End Pipeline
+
+## Previous pipeline
+
+The older workflow used robot playback to generate image data:
+
+```text
+1. vr_demo_hdf5_recorder.py
+   -> save position / force demonstration
+
+2. vr_demo_hdf5_episode_pusher.py
+   -> send one episode to robot
+
+3. robot_playback_act_hdf5_recorder.py
+   -> record robot playback with position + force + image
+
+4. demo_data_act_form.py
+   -> split merged HDF5 into episode_*.hdf5
+```
+
+## Current pipeline
+
+The current workflow records **position + force + image directly during teaching**:
+
+```text
+1. joystick + vr_demo_hdf5_recorder.py
+   -> record position + force + cam0 into merged_hdf5
+   -> supports tracker mode and robot mode
+
+2. demo_data_act_form_single_cam.py
+   -> convert merged_hdf5 into episode_*.hdf5
+   -> raw or camera-preprocessed variant
+
+3. train_act.py
+   -> ACT training
+
+4. scripts/diffusion/train_diffusion.py
+   -> Diffusion Policy-style training
+
+5. node_cmdmotion_infer.py
+   -> ACT / DIFFUSION inference
+```
+
+---
+
+
+# 5. Recorder and Joystick Details
 
 ## 4-1. Recorder node
 
@@ -1161,7 +1294,8 @@ Y  -> terminate_node
 
 ---
 
-# 5. Converter: Raw vs Camera-Preprocessed Dataset
+
+# 6. Converter: Raw vs Camera-Preprocessed Dataset
 
 ## 5-1. Raw conversion
 
@@ -1234,7 +1368,8 @@ python3 demo_data_act_form_single_cam.py \
 
 ---
 
-# 6. Final Episode Format
+
+# 7. Final Episode Format
 
 Each final episode file contains:
 
@@ -1273,7 +1408,8 @@ a_t = [x, y, z, w_x, w_y, w_z, f_x, f_y, f_z]
 
 ---
 
-# 7. Shared Observation Encoding
+
+# 8. Shared Observation Encoding
 
 Both ACT and Diffusion reuse the same observation-side modular design as much as possible.
 
@@ -1303,7 +1439,8 @@ This allows ACT and Diffusion to share:
 
 ---
 
-# 8. ACT Training
+
+# 9. ACT Training
 
 ## 8-1. Default training
 
@@ -1391,7 +1528,8 @@ python3 train_act.py \
 
 ---
 
-# 9. Diffusion Training
+
+# 10. Diffusion Training
 
 ## 9-1. What this branch is
 
@@ -1483,7 +1621,8 @@ python3 scripts/diffusion/train_diffusion.py \
 
 ---
 
-# 9-7. Flow Matching Training
+
+# 11. Flow Matching Training
 
 ## 9-7-1. What this branch is
 
@@ -1533,7 +1672,8 @@ python3 scripts/flow/train_flow.py \
 
 ---
 
-# 10. Inference Node
+
+# 12. Inference Node
 
 The current inference node supports ACT, DIFFUSION, and FLOW:
 
@@ -1689,7 +1829,8 @@ then the training config and inference config do not match and policy output sho
 
 ---
 
-# 11. Checkpoint Layout
+
+# 13. Checkpoint Layout
 
 ## ACT
 
@@ -1732,7 +1873,8 @@ then the training config and inference config do not match and policy output sho
 
 ---
 
-# 12. Useful Commands
+
+# 14. Useful Commands
 
 ## Latest recorder command topic
 
@@ -1806,7 +1948,8 @@ PY
 
 ---
 
-# 13. Troubleshooting
+
+# 15. Troubleshooting
 
 ## A. `ros2 launch ... vr_demo_joy_controller.launch.py` works but recorder does not react
 Check:
@@ -1895,7 +2038,8 @@ python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 
 ---
 
-# 14. Practical Recommended Workflow
+
+# 16. Practical Recommended Workflow
 
 If you want the current recommended practical workflow:
 
@@ -2024,7 +2168,8 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
 
 ---
 
-# 15. Summary
+
+# 17. Summary
 
 Current repository status:
 
