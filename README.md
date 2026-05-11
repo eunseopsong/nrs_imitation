@@ -1,4 +1,4 @@
-# nrs_act
+# nrs_imitation
 
 Refactored imitation-learning codebase for robotic polishing / manipulation experiments.
 
@@ -25,6 +25,11 @@ The current workflow is designed so that you can go from **VR teaching / demonst
 This repository assumes:
 
 ```text
+Repository root used in this README:
+  /home/eunseop/nrs_imitation
+```
+
+```text
 OS      : Ubuntu 22.04
 ROS 2   : Humble
 Python  : 3.10
@@ -41,7 +46,7 @@ behavior_ws
   - image/camera handling
   - RealSense camera
 
-nrs_act Python training
+nrs_imitation Python training
   - ACT
   - Diffusion
   - Flow Matching
@@ -63,7 +68,6 @@ sudo apt install -y \
   cmake \
   pkg-config \
   python3-pip \
-  python3-venv \
   python3-dev \
   python3-colcon-common-extensions \
   python3-rosdep \
@@ -142,15 +146,26 @@ If `ros-humble-realsense2-camera` is not available on the target PC, install Int
 
 ## 0-A-4. Python packages for training and data processing
 
-Recommended: create a Python virtual environment.
+Recommended: use a Conda environment for training and dataset processing.
+
+If Conda is not installed, install Miniconda first.
 
 ```bash
-cd ~/nrs_act
+cd ~
 
-python3 -m venv .venv
-source .venv/bin/activate
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh
 
-python3 -m pip install --upgrade pip setuptools wheel
+source ~/.bashrc
+```
+
+Create and activate the project environment.
+
+```bash
+conda create -n nrs_act python=3.10 -y
+conda activate nrs_act
+
+python -m pip install --upgrade pip setuptools wheel
 ```
 
 Install common Python dependencies.
@@ -189,12 +204,20 @@ Optional but useful for debugging:
 pip install pandas tensorboard
 ```
 
+When using ROS 2 nodes from this Conda environment, source ROS and the workspace after activating Conda:
+
+```bash
+conda activate nrs_act
+source /opt/ros/humble/setup.bash
+source ~/nrs_imitation/behavior_ws/install/setup.bash
+```
+
 ---
 
 ## 0-A-5. Build behavior_ws
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source /opt/ros/humble/setup.bash
 
 rosdep install --from-paths src --ignore-src -r -y
@@ -206,11 +229,11 @@ source install/setup.bash
 If you want the workspace to be sourced automatically:
 
 ```bash
-echo 'source /home/eunseop/nrs_act/behavior_ws/install/setup.bash' >> ~/.bashrc
+echo 'source /home/eunseop/nrs_imitation/behavior_ws/install/setup.bash' >> ~/.bashrc
 source ~/.bashrc
 ```
 
-If the repo is cloned to a different path, replace `/home/eunseop/nrs_act` with the actual path.
+If the repo is cloned to a different path, replace `/home/eunseop/nrs_imitation` with the actual path.
 
 ---
 
@@ -236,8 +259,8 @@ nrs_imitation vr_demo_joy_controller
 ## 0-A-7. Verify Python training imports
 
 ```bash
-cd ~/nrs_act
-source .venv/bin/activate
+cd ~/nrs_imitation
+conda activate nrs_act
 
 python3 - <<'PY'
 import torch
@@ -298,11 +321,13 @@ ros2 topic echo /joy
 
 If ROS 2 Humble is already installed, the shortest setup on a new PC is:
 
+If Conda is not installed yet, install Miniconda first using the command in `0-A-4`.
+
 ```bash
 sudo apt update
 sudo apt install -y \
   git curl wget vim build-essential cmake pkg-config \
-  python3-pip python3-venv python3-dev \
+  python3-pip python3-dev \
   python3-colcon-common-extensions python3-rosdep python3-vcstool \
   ros-humble-cv-bridge ros-humble-image-transport ros-humble-image-tools \
   ros-humble-camera-info-manager ros-humble-sensor-msgs ros-humble-geometry-msgs \
@@ -312,10 +337,10 @@ sudo apt install -y \
   ros-humble-realsense2-camera \
   v4l-utils libgl1 libglib2.0-0
 
-cd ~/nrs_act
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install --upgrade pip setuptools wheel
+cd ~/nrs_imitation
+conda create -n nrs_act python=3.10 -y
+conda activate nrs_act
+python -m pip install --upgrade pip setuptools wheel
 
 pip install \
   numpy scipy h5py opencv-python pillow matplotlib tqdm pyyaml einops rospkg \
@@ -323,7 +348,7 @@ pip install \
 
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source /opt/ros/humble/setup.bash
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
@@ -338,7 +363,7 @@ This is the shortest path from recording to training.
 ## 0-1. Build the ROS 2 behavior workspace
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 colcon build
 source install/setup.bash
 ```
@@ -346,7 +371,7 @@ source install/setup.bash
 If you modify `nrs_imitation` only:
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 colcon build --packages-select nrs_imitation
 source install/setup.bash
 ```
@@ -361,7 +386,7 @@ This launch file starts both:
 - `vr_demo_joy_controller`
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
@@ -548,7 +573,7 @@ The recorder now supports **two recording modes** selected by ROS parameter.
 ### A. Tracker recording mode
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=tracker
@@ -566,7 +591,7 @@ command  : /vr_demo_recorder/command
 ### B. Robot recording mode
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=robot
@@ -592,7 +617,7 @@ ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=rob
 Recorder output path:
 
 ```text
-/home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
+/home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
 └── vr_demo_merged_YYYYMMDD_HHMM.hdf5
 ```
 
@@ -624,7 +649,7 @@ Converter is a normal Python script.
 ### A. Raw image version
 
 ```bash
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 
 python3 demo_data_act_form_single_cam.py \
   --cam_preprocess off
@@ -633,13 +658,13 @@ python3 demo_data_act_form_single_cam.py \
 This creates:
 
 ```text
-/home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft/
+/home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft/
 ```
 
 ### B. Camera-preprocessed version (recommended if hand jitter is visible)
 
 ```bash
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 
 python3 demo_data_act_form_single_cam.py \
   --cam_preprocess stabilize_crop \
@@ -651,7 +676,7 @@ python3 demo_data_act_form_single_cam.py \
 This creates:
 
 ```text
-/home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc/
+/home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc/
 ```
 
 By default, after successful conversion the merged HDF5 is deleted to save disk space.
@@ -674,14 +699,14 @@ python3 demo_data_act_form_single_cam.py \
 ### A. Raw image dataset
 
 ```bash
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py --cam_preprocess off
 ```
 
 ### B. Camera-preprocessed dataset
 
 ```bash
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py --cam_preprocess stabilize_crop
 ```
 
@@ -699,14 +724,14 @@ Default behavior:
 ### A. Raw image dataset
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/diffusion/train_diffusion.py --cam_preprocess off
 ```
 
 ### B. Camera-preprocessed dataset
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 ```
 
@@ -717,21 +742,21 @@ python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 ### A. Raw image dataset
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/flow/train_flow.py --cam_preprocess off
 ```
 
 ### B. Camera-preprocessed dataset
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
 ```
 
 Default Flow checkpoint path:
 
 ```text
-/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
+/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
 ```
 
 ---
@@ -741,21 +766,21 @@ Default Flow checkpoint path:
 ### ACT
 
 ```bash
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py --eval
 ```
 
 ### Diffusion
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/diffusion/train_diffusion.py --eval
 ```
 
 ### Flow Matching
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/flow/train_flow.py --eval
 ```
 
@@ -768,13 +793,13 @@ The inference node now supports both **ACT** and **DIFFUSION** through a paramet
 ### ACT
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=ACT \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/20260423_1549 \
+  -p act_root:=/home/eunseop/nrs_imitation \
+  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -784,13 +809,13 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
 ### Diffusion
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=DIFFUSION \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/20260424_1301 \
+  -p act_root:=/home/eunseop/nrs_imitation \
+  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -848,7 +873,7 @@ The current workflow records **position + force + image directly during teaching
 # 2. Repository Structure
 
 ```text
-nrs_act/
+nrs_imitation/
 ├── LICENSE
 ├── README.md
 ├── behavior_ws/
@@ -1037,7 +1062,7 @@ Core reusable modules.
 Run:
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 ros2 run nrs_imitation vr_demo_hdf5_recorder
 ```
@@ -1141,7 +1166,7 @@ Y  -> terminate_node
 ## 5-1. Raw conversion
 
 ```bash
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 
 python3 demo_data_act_form_single_cam.py \
   --cam_preprocess off
@@ -1163,7 +1188,7 @@ Recommended when:
 - raw teaching image is too noisy
 
 ```bash
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 
 python3 demo_data_act_form_single_cam.py \
   --cam_preprocess stabilize_crop \
@@ -1283,7 +1308,7 @@ This allows ACT and Diffusion to share:
 ## 8-1. Default training
 
 ```bash
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py
 ```
 
@@ -1294,7 +1319,7 @@ This will automatically use the latest `episodes_ft` dataset.
 ## 8-2. Camera-preprocessed training
 
 ```bash
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py --cam_preprocess stabilize_crop
 ```
 
@@ -1307,7 +1332,7 @@ This will automatically use the latest `episodes_ft_camproc` dataset.
 Current practical defaults:
 
 ```text
-ckpt_dir        = /home/eunseop/nrs_act/checkpoints/act/ur10e_swing
+ckpt_dir        = /home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing
 policy_class    = ACT
 task_name       = ur10e_swing
 camera_names    = ["cam0"]
@@ -1344,7 +1369,7 @@ Specific dataset:
 
 ```bash
 python3 train_act.py \
-  --dataset_dir /home/eunseop/nrs_act/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc
+  --dataset_dir /home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc
 ```
 
 ---
@@ -1352,7 +1377,7 @@ python3 train_act.py \
 ## 8-5. ACT eval
 
 ```bash
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py --eval
 ```
 
@@ -1361,7 +1386,7 @@ Specific checkpoint root:
 ```bash
 python3 train_act.py \
   --eval \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/act/ur10e_swing
+  --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing
 ```
 
 ---
@@ -1403,7 +1428,7 @@ Diffusion was added because diffusion-based visuomotor policies are widely used 
 ## 9-3. Default Diffusion training
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/diffusion/train_diffusion.py
 ```
 
@@ -1414,7 +1439,7 @@ This automatically uses the latest `episodes_ft` dataset.
 ## 9-4. Camera-preprocessed Diffusion training
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 ```
 
@@ -1425,7 +1450,7 @@ This automatically uses the latest `episodes_ft_camproc` dataset.
 ## 9-5. Important Diffusion defaults
 
 ```text
-ckpt_dir              = /home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing
+ckpt_dir              = /home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing
 camera_names          = ["cam0"]
 chunk_size            = 200
 train_seq_len         = 200
@@ -1444,7 +1469,7 @@ save_every            = 100
 ## 9-6. Diffusion eval
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/diffusion/train_diffusion.py --eval
 ```
 
@@ -1453,7 +1478,7 @@ Specific checkpoint root:
 ```bash
 python3 scripts/diffusion/train_diffusion.py \
   --eval \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing
+  --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing
 ```
 
 ---
@@ -1479,21 +1504,21 @@ The low-level admittance controller remains unchanged.
 ## 9-7-2. Default Flow training
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/flow/train_flow.py
 ```
 
 ## 9-7-3. Camera-preprocessed Flow training
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
 ```
 
 ## 9-7-4. Flow eval
 
 ```bash
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/flow/train_flow.py --eval
 ```
 
@@ -1502,7 +1527,7 @@ Specific checkpoint:
 ```bash
 python3 scripts/flow/train_flow.py \
   --eval \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM
+  --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM
 ```
 
 
@@ -1530,13 +1555,13 @@ cmd_topic    = /ur10skku/cmdMotion
 ## 10-1. ACT inference example
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=ACT \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/20260423_1549 \
+  -p act_root:=/home/eunseop/nrs_imitation \
+  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1548,13 +1573,13 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
 ## 10-2. Diffusion inference example
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=DIFFUSION \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/20260424_1301 \
+  -p act_root:=/home/eunseop/nrs_imitation \
+  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1569,15 +1594,15 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
 ## 10-3. Flow Matching inference example
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=FLOW \
   -p phase_mode:=pure \
   -p camera_preprocess_mode:=stabilize \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p act_root:=/home/eunseop/nrs_imitation \
+  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1598,8 +1623,8 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=FLOW \
   -p phase_mode:=pure \
   -p camera_preprocess_mode:=stabilize \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p act_root:=/home/eunseop/nrs_imitation \
+  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1669,7 +1694,7 @@ then the training config and inference config do not match and policy output sho
 ## ACT
 
 ```text
-/home/eunseop/nrs_act/checkpoints/act/ur10e_swing/YYYYMMDD_HHMM/
+/home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing/YYYYMMDD_HHMM/
 ├── dataset_stats.pkl
 ├── policy_best.ckpt
 ├── policy_last.ckpt
@@ -1682,7 +1707,7 @@ then the training config and inference config do not match and policy output sho
 ## Diffusion
 
 ```text
-/home/eunseop/nrs_act/checkpoints/diffusion/ur10e_swing/YYYYMMDD_HHMM/
+/home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing/YYYYMMDD_HHMM/
 ├── dataset_stats.pkl
 ├── policy_best.ckpt
 ├── policy_last.ckpt
@@ -1695,7 +1720,7 @@ then the training config and inference config do not match and policy output sho
 ## Flow Matching
 
 ```text
-/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
+/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
 ├── dataset_stats.pkl
 ├── policy_best.ckpt
 ├── policy_last.ckpt
@@ -1733,7 +1758,7 @@ ros2 topic echo --once /ur10skku/currentF
 ## Run recorder in tracker mode
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 ```
@@ -1741,7 +1766,7 @@ ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=track
 ## Run recorder in robot mode
 
 ```bash
-cd ~/nrs_act/behavior_ws
+cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
 ```
@@ -1751,7 +1776,7 @@ ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
 ```bash
 python3 - <<'PY'
 import glob, h5py
-files = sorted(glob.glob('/home/eunseop/nrs_act/datasets/ACT/*/episodes_ft/episode_0.hdf5'))
+files = sorted(glob.glob('/home/eunseop/nrs_imitation/datasets/ACT/*/episodes_ft/episode_0.hdf5'))
 if not files:
     raise RuntimeError("No episode file found")
 path = files[-1]
@@ -1769,7 +1794,7 @@ PY
 ```bash
 python3 - <<'PY'
 import glob, h5py
-files = sorted(glob.glob('/home/eunseop/nrs_act/datasets/ACT/*/episodes_ft_camproc/episode_0.hdf5'))
+files = sorted(glob.glob('/home/eunseop/nrs_imitation/datasets/ACT/*/episodes_ft_camproc/episode_0.hdf5'))
 if not files:
     raise RuntimeError("No camproc episode file found")
 path = files[-1]
@@ -1882,10 +1907,10 @@ rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 python3 demo_data_act_form_single_cam.py --cam_preprocess off
 
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py --cam_preprocess off
 ```
 
@@ -1897,14 +1922,14 @@ rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 python3 demo_data_act_form_single_cam.py \
   --cam_preprocess stabilize_crop \
   --cam_crop_h 384 \
   --cam_crop_w 384 \
   --cam_resize_hw 256
 
-cd ~/nrs_act/scripts/act
+cd ~/nrs_imitation/scripts/act
 python3 train_act.py --cam_preprocess stabilize_crop
 ```
 
@@ -1916,14 +1941,14 @@ rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 python3 demo_data_act_form_single_cam.py \
   --cam_preprocess stabilize_crop \
   --cam_crop_h 384 \
   --cam_crop_w 384 \
   --cam_resize_hw 256
 
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
 ```
 
@@ -1939,7 +1964,7 @@ rsr
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
 
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 python3 demo_data_act_form_single_cam.py --cam_preprocess off
 ```
 
@@ -1955,14 +1980,14 @@ rsv
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
 
-cd ~/nrs_act/source/custom
+cd ~/nrs_imitation/source/custom
 python3 demo_data_act_form_single_cam.py \
   --cam_preprocess stabilize_crop \
   --cam_crop_h 384 \
   --cam_crop_w 384 \
   --cam_resize_hw 256
 
-cd ~/nrs_act
+cd ~/nrs_imitation
 python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
 ```
 
@@ -1973,8 +1998,8 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=FLOW \
   -p phase_mode:=pure \
   -p camera_preprocess_mode:=stabilize \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p act_root:=/home/eunseop/nrs_imitation \
+  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
