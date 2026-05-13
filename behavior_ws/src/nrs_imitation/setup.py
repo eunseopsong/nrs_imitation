@@ -39,9 +39,14 @@ setup(
             'node_cmdmotion_infer = nrs_imitation.node_cmdmotion_infer:main',
             'node_check_inference = nrs_imitation.node_check_inference:main',
 
-            # Demonstration recording
+            # Demonstration recording - current integrated recorder
             'vr_demo_hdf5_recorder = nrs_imitation.vr_demo_hdf5_recorder:main',
             'vr_demo_txt_recorder = nrs_imitation.vr_demo_txt_recorder:main',
+
+            # Stage-1 / Stage-2 separated workflow
+            'vr_stage1_hdf5_recorder = nrs_imitation.vr_stage1_hdf5_recorder:main',
+            'vr_stage1_episode_pusher = nrs_imitation.vr_stage1_episode_pusher:main',
+            'robot_playback_multimodal_hdf5_recorder = nrs_imitation.robot_playback_multimodal_hdf5_recorder:main',
 
             # Joystick controller
             'vr_demo_joy_controller = nrs_imitation.vr_demo_joy_controller:main',

@@ -4,9 +4,9 @@
 scripts/flow/train_flow.py
 
 Flow Matching training entrypoint with three observation modes:
-  1) single_cam       : cam0 + qpos + force_history
-  2) dual_cam         : cam0/cam1 + qpos + force_history
-  3) dual_cam_marker  : cam0/cam1 + marker + qpos + force_history
+  1) single_cam         : cam0(local RGB) + qpos + force_history
+  2) dual_cam           : cam0(local RGB) + cam1(global RGB) + qpos + force_history
+  3) single_cam_marker  : cam0(local RGB) + ArUco marker(id0,id1) + qpos + force_history
 
 Sequential 3-model training:
   python3 scripts/flow/train_flow.py --train_all_obs_modes
@@ -14,16 +14,16 @@ Sequential 3-model training:
 Checkpoint layout:
   /home/eunseop/nrs_imitation/checkpoints/flow/single_cam/YYYYMMDD_HHMM/
   /home/eunseop/nrs_imitation/checkpoints/flow/dual_cam/YYYYMMDD_HHMM/
-  /home/eunseop/nrs_imitation/checkpoints/flow/dual_cam_marker/YYYYMMDD_HHMM/
+  /home/eunseop/nrs_imitation/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM/
 
 Single-model examples:
   python3 scripts/flow/train_flow.py --obs_mode single_cam
   python3 scripts/flow/train_flow.py --obs_mode dual_cam
-  python3 scripts/flow/train_flow.py --obs_mode dual_cam_marker
+  python3 scripts/flow/train_flow.py --obs_mode single_cam_marker
 
 Eval-load check:
-  python3 scripts/flow/train_flow.py --eval --obs_mode dual_cam_marker \
-    --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/flow/dual_cam_marker/YYYYMMDD_HHMM
+  python3 scripts/flow/train_flow.py --eval --obs_mode single_cam_marker \
+    --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM
 """
 
 from __future__ import annotations
@@ -150,9 +150,15 @@ def obs_mode_to_camera_names(obs_mode: str, camera_names_arg: Optional[Sequence[
             raw.extend([p.strip() for p in str(item).split(",") if p.strip()])
         if raw:
             return raw
+
     if obs_mode == "single_cam":
         return ["cam0"]
-    return ["cam0", "cam1"]
+    if obs_mode == "dual_cam":
+        return ["cam0", "cam1"]
+    if obs_mode == "single_cam_marker":
+        return ["cam0"]
+
+    raise ValueError(f"Unsupported obs_mode={obs_mode}")
 
 
 def mode_to_ckpt_base(args, obs_mode: str) -> str:
@@ -163,7 +169,7 @@ def mode_to_ckpt_base(args, obs_mode: str) -> str:
 
 
 def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> Dict:
-    use_marker = obs_mode == "dual_cam_marker"
+    use_marker = obs_mode == "single_cam_marker"
     return {
         "lr": args.lr,
         "weight_decay": args.weight_decay,
@@ -198,6 +204,105 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "norm_mode": args.norm_mode,
     }
 
+
+
+
+# =============================================================================
+# Dataset / normalization debug
+# =============================================================================
+
+def _tensor_debug_line(name: str, x):
+    if x is None:
+        print(f"[DBG] {name:<16}: None")
+        return
+
+    if torch.is_tensor(x):
+        t = x.detach().cpu()
+        arr = t.float()
+        finite = bool(torch.isfinite(arr).all().item())
+        mn = float(arr.min().item()) if arr.numel() > 0 else float("nan")
+        mx = float(arr.max().item()) if arr.numel() > 0 else float("nan")
+        mean = float(arr.mean().item()) if arr.numel() > 0 else float("nan")
+        print(
+            f"[DBG] {name:<16}: shape={tuple(t.shape)}, dtype={t.dtype}, "
+            f"min={mn:.4f}, max={mx:.4f}, mean={mean:.4f}, finite={finite}"
+        )
+    else:
+        a = np.asarray(x)
+        finite = bool(np.isfinite(a).all()) if a.size > 0 else True
+        mn = float(np.min(a)) if a.size > 0 else float("nan")
+        mx = float(np.max(a)) if a.size > 0 else float("nan")
+        mean = float(np.mean(a)) if a.size > 0 else float("nan")
+        print(
+            f"[DBG] {name:<16}: shape={a.shape}, dtype={a.dtype}, "
+            f"min={mn:.4f}, max={mx:.4f}, mean={mean:.4f}, finite={finite}"
+        )
+
+
+def _print_stats_debug(stats: Dict[str, object], obs_mode: str, camera_names: Sequence[str]):
+    print("\n" + "-" * 80)
+    print("[DBG] Dataset stats / normalization check")
+    print(f"[DBG] obs_mode        = {obs_mode}")
+    print(f"[DBG] camera_names    = {list(camera_names)}")
+    print(f"[DBG] qpos_norm_mode  = {stats.get('qpos_norm_mode')}")
+    print(f"[DBG] action_norm_mode= {stats.get('action_norm_mode')}")
+    print(f"[DBG] marker_norm_mode= {stats.get('marker_norm_mode')}")
+    print(f"[DBG] marker_dim      = {stats.get('marker_dim')}")
+
+    for key in ["qpos_min", "qpos_max", "action_min", "action_max", "marker_min", "marker_max"]:
+        if key in stats:
+            a = np.asarray(stats[key], dtype=np.float32).reshape(-1)
+            head = np.array2string(a[: min(6, a.size)], precision=4, separator=", ")
+            tail = "" if a.size <= 6 else " ..."
+            print(f"[DBG] {key:<12}: shape={a.shape}, head={head}{tail}")
+
+    print("[DBG] Expected normalized ranges:")
+    print("[DBG]   image          : [0, 1] before ImageNet normalization inside policy")
+    print("[DBG]   qpos/action    : [-1, 1] when norm_mode=minmax_m11")
+    print("[DBG]   force_history  : [-1, 1] when norm_mode=minmax_m11")
+    print("[DBG]   marker         : [-1, 1] when marker_norm_mode=minmax_m11")
+    print("-" * 80 + "\n")
+
+
+def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
+    print("\n" + "-" * 80)
+    print("[DBG] First train batch check")
+    batch = next(iter(train_loader))
+    image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, torch.device("cpu"))
+
+    _tensor_debug_line("image", image)
+    _tensor_debug_line("qpos", qpos)
+    _tensor_debug_line("action", action)
+    _tensor_debug_line("is_pad", is_pad.float())
+    _tensor_debug_line("force_history", force_history)
+    _tensor_debug_line("marker", marker)
+
+    expected_k = len(list(camera_names))
+    actual_k = int(image.shape[1]) if torch.is_tensor(image) and image.dim() >= 2 else -1
+    print(f"[DBG] camera count    : expected={expected_k}, actual={actual_k}, names={list(camera_names)}")
+
+    if obs_mode == "single_cam":
+        print("[DBG] obs check       : cam0 only expected; marker should be None")
+    elif obs_mode == "dual_cam":
+        print("[DBG] obs check       : cam0 + cam1 expected; marker should be None")
+    elif obs_mode == "single_cam_marker":
+        print("[DBG] obs check       : cam0 + marker expected; camera count should be 1")
+        if marker is not None and marker.numel() > 0:
+            marker_np = marker.detach().cpu().numpy()
+            id0_valid = marker_np[:, 6] if marker_np.shape[-1] >= 7 else None
+            id1_valid = marker_np[:, 13] if marker_np.shape[-1] >= 14 else None
+            if id0_valid is not None:
+                print(
+                    f"[DBG] marker id0 valid(normed) range: "
+                    f"min={float(np.min(id0_valid)):.4f}, max={float(np.max(id0_valid)):.4f}"
+                )
+            if id1_valid is not None:
+                print(
+                    f"[DBG] marker id1 valid(normed) range: "
+                    f"min={float(np.min(id1_valid)):.4f}, max={float(np.max(id1_valid)):.4f}"
+                )
+
+    print("-" * 80 + "\n")
 
 # =============================================================================
 # Demo-start stats
@@ -406,6 +511,12 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     print(f"[INFO] dataset_dir        = {dataset_dir}")
     print(f"[INFO] num_episodes       = {num_episodes}")
     print(f"[INFO] camera_names       = {camera_names}")
+    if obs_mode == "single_cam":
+        print("[INFO] policy_obs         = cam0 RGB only")
+    elif obs_mode == "dual_cam":
+        print("[INFO] policy_obs         = cam0 RGB + cam1/global RGB")
+    elif obs_mode == "single_cam_marker":
+        print("[INFO] policy_obs         = cam0 RGB + ArUco marker(id0,id1)")
     print(f"[INFO] marker_dim         = {args.marker_dim}")
     print(f"[INFO] norm_mode          = {args.norm_mode}")
     print(f"[INFO] batch_size         = {args.batch_size}")
@@ -502,7 +613,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
 def main(args):
     if args.train_all_obs_modes:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M") if args.shared_timestamp else None
-        modes = ["single_cam", "dual_cam", "dual_cam_marker"]
+        modes = ["single_cam", "dual_cam", "single_cam_marker"]
         print(f"[SEQ] train_all_obs_modes=True | modes={modes} | shared_timestamp={timestamp}")
         for mode in modes:
             run_one(args, obs_mode=mode, timestamp=timestamp)
@@ -516,7 +627,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--train_all_obs_modes", action="store_true")
     parser.add_argument("--shared_timestamp", action="store_true", default=True)
-    parser.add_argument("--obs_mode", type=str, default="single_cam", choices=["single_cam", "dual_cam", "dual_cam_marker"])
+    parser.add_argument("--obs_mode", type=str, default="single_cam", choices=["single_cam", "dual_cam", "single_cam_marker"])
 
     parser.add_argument("--dataset_dir", type=str, default=None)
     parser.add_argument("--num_episodes", type=int, default=0)
@@ -526,7 +637,7 @@ if __name__ == "__main__":
     parser.add_argument("--ckpt_dir", type=str, default=None)
 
     parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
-    parser.add_argument("--marker_dim", type=int, default=7)
+    parser.add_argument("--marker_dim", type=int, default=14)
 
     parser.add_argument("--batch_size", type=int, default=12)
     parser.add_argument("--seed", type=int, default=0)
