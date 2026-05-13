@@ -1,127 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-flow_core.py
+source/models/flow_core.py
 
-RGB-conditioned Flow Matching policy core for nrs_imitation.
+Flow Matching policy core for nrs_imitation.
 
-References
-----------
-[1] Flow Matching original generative modeling framework:
-    Yaron Lipman, Ricky T. Q. Chen, Heli Ben-Hamu, Maximilian Nickel, Matt Le,
-    "Flow Matching for Generative Modeling", ICLR 2023.
-    Role:
-        General generative modeling / continuous normalizing flow training framework.
-    arXiv:
-        https://arxiv.org/abs/2210.02747
-    OpenReview:
-        https://openreview.net/forum?id=PqvMRDCJT9t
+Supported observation modes:
+  - single_cam       : cam0 + qpos + optional force_history
+  - dual_cam         : cam0/cam1 + qpos + optional force_history
+  - dual_cam_marker  : cam0/cam1 + marker + qpos + optional force_history
 
-[2] Rectified Flow, closely related formulation:
-    Xingchao Liu, Chengyue Gong, Qiang Liu,
-    "Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow",
-    ICLR 2023.
-    Role:
-        Straight-line probability path / velocity-field learning formulation closely
-        related to the objective used in this implementation.
-    arXiv:
-        https://arxiv.org/abs/2209.03003
-    OpenReview:
-        https://openreview.net/forum?id=XVjTT1nw5z
+Action remains the original 9D ACT-compatible command chunk:
+  [x, y, z, wx, wy, wz, fx, fy, fz]
 
-[3] Early core robot imitation learning application:
-    Eugenio Chisari, Nick Heppert, Max Argus, Tim Welschehold,
-    Thomas Brox, Abhinav Valada,
-    "Learning Robotic Manipulation Policies from Point Clouds with Conditional Flow Matching",
-    CoRL 2024.
-    Also known as:
-        PointFlowMatch.
-    Role:
-        One of the early key works that applies Conditional Flow Matching to
-        robot manipulation imitation learning, especially with point-cloud observations.
-    arXiv:
-        https://arxiv.org/abs/2409.07343
-    Project:
-        https://pointflowmatch.cs.uni-freiburg.de/
-    Code:
-        https://github.com/robot-learning-freiburg/PointFlowMatch
-
-[4] Fast robot flow policy / inference efficiency:
-    Qinglun Zhang, Zhen Liu, Haoqiang Fan, Guanghui Liu, Bing Zeng, Shuaicheng Liu,
-    "FlowPolicy: Enabling Fast and Robust 3D Flow-based Policy via
-    Consistency Flow Matching for Robot Manipulation", AAAI 2025.
-    Role:
-        Robot manipulation policy using 3D point-cloud observations and
-        consistency flow matching, emphasizing fast / nearly one-step policy generation.
-    arXiv:
-        https://arxiv.org/abs/2412.04987
-    Code:
-        https://github.com/zql-kk/FlowPolicy
-
-[5] Force-aware / contact-rich robot policy application:
-    Tianyu Li, Yihan Li, Zizhe Zhang, Nadia Figueroa,
-    "Flow with the Force Field: Learning 3D Compliant Flow Matching Policies
-    from Force and Demonstration-Guided Simulation Data", arXiv 2025 / 2026.
-    Role:
-        Contact-rich robot policy using point cloud + force input and compliant
-        flow matching. This paper motivates the force-aware extension direction,
-        but this file intentionally keeps the current ACT-compatible 9D action
-        and does not use virtual pose or impedance output.
-    arXiv:
-        https://arxiv.org/abs/2510.02738
-    Project:
-        https://flow-with-the-force-field.github.io/
-
-Purpose
--------
-First-stage Flow RGB baseline:
-    observation:
-        - cam0 RGB image
-        - qpos/state 9D or 6/9D depending on dataset stats
-        - optional force_history (L, 3)
-    action:
-        - current ACT-compatible 9D action chunk
-          [x, y, z, wx, wy, wz, fx, fy, fz]
-
-No virtual pose is used.
-No impedance/compliance output is used.
-Low-level admittance controller remains responsible for target-force tracking.
-
-Training objective
-------------------
-Conditional Flow Matching / Rectified Flow style objective:
-
-    z0 ~ N(0, I)
-    z1 = action chunk
-    t  ~ U(0, 1)
-    zt = (1 - t) z0 + t z1
-    u  = z1 - z0
-
-    L = || v_theta(zt, t, obs) - u ||^2
-
-Inference
----------
-Euler integration:
-
-    z <- N(0, I)
-    for k in 0 ... K-1:
-        z <- z + dt * v_theta(z, t_k, obs)
-
-    predicted action chunk = z
-
-Implementation note
--------------------
-This file is a custom adaptation for the nrs_imitation HDF5 / ACT pipeline.
-It is not a direct copy of any official Flow Matching, Rectified Flow,
-PointFlowMatch, FlowPolicy, or Flow-with-the-Force-Field repository.
-
-In this first-stage implementation, the goal is to compare:
-    ACT-RGB-force baseline
-    vs.
-    FLOW-RGB-force baseline
-
-under the same HDF5 data format, same 9D action space, and same low-level
-admittance controller.
+The class name FlowRGBPolicy is preserved for backward compatibility with the
+existing inference/training code.
 """
 
 from __future__ import annotations
@@ -132,6 +25,7 @@ from typing import Iterable, Optional, Sequence, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.transforms as T
 
 try:
     from torchvision.models import resnet18, ResNet18_Weights
@@ -139,11 +33,9 @@ except Exception:
     from torchvision.models import resnet18  # type: ignore
     ResNet18_Weights = None  # type: ignore
 
-import torchvision.transforms as T
-
 
 # =============================================================================
-# Small utilities
+# Utilities
 # =============================================================================
 
 def _parse_down_dims(v) -> Tuple[int, ...]:
@@ -156,13 +48,23 @@ def _parse_down_dims(v) -> Tuple[int, ...]:
 
 def _make_group_count(channels: int, requested_groups: int) -> int:
     g = min(int(requested_groups), int(channels))
-    while g > 1 and (channels % g != 0):
+    while g > 1 and channels % g != 0:
         g -= 1
     return max(1, g)
 
 
+def _mish_mlp(in_dim: int, hidden_dim: int, out_dim: int) -> nn.Sequential:
+    return nn.Sequential(
+        nn.Linear(in_dim, hidden_dim),
+        nn.LayerNorm(hidden_dim),
+        nn.Mish(),
+        nn.Linear(hidden_dim, out_dim),
+        nn.Mish(),
+    )
+
+
 # =============================================================================
-# Time embedding and 1D U-Net blocks
+# 1D conditional U-Net blocks
 # =============================================================================
 
 class SinusoidalPosEmb(nn.Module):
@@ -171,17 +73,12 @@ class SinusoidalPosEmb(nn.Module):
         self.dim = int(dim)
 
     def forward(self, t: torch.Tensor) -> torch.Tensor:
-        """
-        t: (B,) float in [0, 1]
-        return: (B, dim)
-        """
         device = t.device
-        half_dim = self.dim // 2
-        if half_dim == 0:
+        half = self.dim // 2
+        if half <= 0:
             return t[:, None]
-
-        scale = math.log(10000.0) / max(half_dim - 1, 1)
-        emb = torch.exp(torch.arange(half_dim, device=device, dtype=torch.float32) * -scale)
+        scale = math.log(10000.0) / max(half - 1, 1)
+        emb = torch.exp(torch.arange(half, device=device, dtype=torch.float32) * -scale)
         emb = t[:, None].float() * emb[None, :]
         emb = torch.cat([emb.sin(), emb.cos()], dim=-1)
         if self.dim % 2 == 1:
@@ -192,11 +89,9 @@ class SinusoidalPosEmb(nn.Module):
 class Conv1dBlock(nn.Module):
     def __init__(self, in_ch: int, out_ch: int, kernel_size: int = 5, n_groups: int = 8):
         super().__init__()
-        padding = kernel_size // 2
         g = _make_group_count(out_ch, n_groups)
-
         self.net = nn.Sequential(
-            nn.Conv1d(in_ch, out_ch, kernel_size=kernel_size, padding=padding),
+            nn.Conv1d(in_ch, out_ch, kernel_size=kernel_size, padding=kernel_size // 2),
             nn.GroupNorm(g, out_ch),
             nn.Mish(),
         )
@@ -224,13 +119,6 @@ class Upsample1d(nn.Module):
 
 
 class ConditionalResidualBlock1D(nn.Module):
-    """
-    FiLM-conditioned residual block.
-
-    x    : (B, C, T)
-    cond : (B, cond_dim)
-    """
-
     def __init__(
         self,
         in_channels: int,
@@ -241,30 +129,19 @@ class ConditionalResidualBlock1D(nn.Module):
         cond_predict_scale: bool = False,
     ):
         super().__init__()
-
         self.blocks = nn.ModuleList([
-            Conv1dBlock(in_channels, out_channels, kernel_size=kernel_size, n_groups=n_groups),
-            Conv1dBlock(out_channels, out_channels, kernel_size=kernel_size, n_groups=n_groups),
+            Conv1dBlock(in_channels, out_channels, kernel_size, n_groups),
+            Conv1dBlock(out_channels, out_channels, kernel_size, n_groups),
         ])
-
         self.cond_predict_scale = bool(cond_predict_scale)
         self.out_channels = int(out_channels)
-
         cond_out = out_channels * 2 if self.cond_predict_scale else out_channels
-        self.cond_encoder = nn.Sequential(
-            nn.Mish(),
-            nn.Linear(cond_dim, cond_out),
-        )
-
-        if in_channels != out_channels:
-            self.residual_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1)
-        else:
-            self.residual_conv = nn.Identity()
+        self.cond_encoder = nn.Sequential(nn.Mish(), nn.Linear(cond_dim, cond_out))
+        self.residual_conv = nn.Conv1d(in_channels, out_channels, kernel_size=1) if in_channels != out_channels else nn.Identity()
 
     def forward(self, x: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         out = self.blocks[0](x)
         emb = self.cond_encoder(cond)
-
         if self.cond_predict_scale:
             emb = emb.view(emb.shape[0], 2, self.out_channels, 1)
             scale = emb[:, 0]
@@ -272,7 +149,6 @@ class ConditionalResidualBlock1D(nn.Module):
             out = scale * out + bias
         else:
             out = out + emb[:, :, None]
-
         out = self.blocks[1](out)
         return out + self.residual_conv(x)
 
@@ -283,35 +159,35 @@ class ConditionalResidualBlock1D(nn.Module):
 
 class FlowRGBObservationEncoder(nn.Module):
     """
-    Encodes current observation into a global condition vector.
+    Encodes qpos + image(s) + optional force history + optional marker into
+    one global condition vector.
 
-    qpos:
-        (B, state_dim)
-    image:
-        (B, K, 3, H, W), cam0 is used
-    force_history:
-        optional (B, L, 3)
+    qpos          : (B, state_dim)
+    image         : (B, K, 3, H, W)
+    force_history : optional (B, L, 3)
+    marker        : optional (B, marker_dim)
     """
 
     def __init__(self, cfg: dict):
         super().__init__()
+        self.cfg = dict(cfg)
+        self.obs_mode = str(cfg.get("obs_mode", "single_cam"))
+        self.camera_names = list(cfg.get("camera_names", ["cam0"]))
+        self.num_cameras = max(1, len(self.camera_names))
+        self.use_force_history = bool(cfg.get("use_force_history", True))
+        self.use_marker = bool(cfg.get("use_marker", self.obs_mode == "dual_cam_marker"))
 
         state_dim = int(cfg.get("state_dim", 9))
         force_dim = int(cfg.get("force_dim", 3))
+        marker_dim = int(cfg.get("marker_dim", 7))
+
         obs_hidden_dim = int(cfg.get("flow_obs_hidden_dim", 256))
         image_feature_dim = int(cfg.get("flow_image_feature_dim", 512))
+        marker_feature_dim = int(cfg.get("flow_marker_feature_dim", 128))
         global_cond_dim = int(cfg.get("flow_global_cond_dim", 256))
-
         pretrained_backbone = bool(cfg.get("pretrained_backbone", True))
-        self.use_force_history = bool(cfg.get("use_force_history", True))
 
-        self.qpos_encoder = nn.Sequential(
-            nn.Linear(state_dim, obs_hidden_dim),
-            nn.LayerNorm(obs_hidden_dim),
-            nn.Mish(),
-            nn.Linear(obs_hidden_dim, obs_hidden_dim),
-            nn.Mish(),
-        )
+        self.qpos_encoder = _mish_mlp(state_dim, obs_hidden_dim, obs_hidden_dim)
 
         if self.use_force_history:
             force_hidden_dim = int(cfg.get("force_encoder_hidden_dim", 64))
@@ -321,8 +197,8 @@ class FlowRGBObservationEncoder(nn.Module):
                 input_size=force_dim,
                 hidden_size=force_hidden_dim,
                 num_layers=force_num_layers,
-                batch_first=True,
                 dropout=force_dropout if force_num_layers > 1 else 0.0,
+                batch_first=True,
             )
             force_out_dim = force_hidden_dim
         else:
@@ -334,46 +210,76 @@ class FlowRGBObservationEncoder(nn.Module):
             backbone = resnet18(weights=weights)
         else:
             backbone = resnet18(pretrained=pretrained_backbone)
-
         backbone.fc = nn.Identity()
         self.image_backbone = backbone
-
         self.image_proj = nn.Sequential(
             nn.Linear(512, image_feature_dim),
             nn.LayerNorm(image_feature_dim),
             nn.Mish(),
         )
+        image_out_dim = self.num_cameras * image_feature_dim
 
-        fuse_dim = obs_hidden_dim + image_feature_dim + force_out_dim
+        if self.use_marker:
+            self.marker_encoder = _mish_mlp(marker_dim, marker_feature_dim, marker_feature_dim)
+            marker_out_dim = marker_feature_dim
+        else:
+            self.marker_encoder = None
+            marker_out_dim = 0
+
+        fuse_in = obs_hidden_dim + image_out_dim + force_out_dim + marker_out_dim
         self.fuse = nn.Sequential(
-            nn.Linear(fuse_dim, global_cond_dim),
+            nn.Linear(fuse_in, global_cond_dim),
             nn.LayerNorm(global_cond_dim),
             nn.Mish(),
             nn.Linear(global_cond_dim, global_cond_dim),
         )
-
         self.global_cond_dim = global_cond_dim
+        self.marker_dim = marker_dim
 
     def forward(
         self,
         qpos: torch.Tensor,
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
+        marker: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if qpos.dim() == 3:
+            qpos = qpos[:, 0, :]
+        if qpos.dim() != 2:
+            raise RuntimeError(f"qpos must be (B,D), got {tuple(qpos.shape)}")
+
         if image.dim() != 5:
-            raise RuntimeError(f"Expected image shape (B,K,3,H,W), got {tuple(image.shape)}")
+            raise RuntimeError(f"image must be (B,K,3,H,W), got {tuple(image.shape)}")
+        B, K, C, H, W = image.shape
+        if C != 3:
+            raise RuntimeError(f"image channel dim must be 3, got {C}")
+        if K != self.num_cameras:
+            raise RuntimeError(f"model expected K={self.num_cameras} cameras {self.camera_names}, got image K={K}")
 
         q_feat = self.qpos_encoder(qpos)
 
-        cam0 = image[:, 0]  # (B,3,H,W)
-        img_feat = self.image_backbone(cam0)
+        img_flat = image.reshape(B * K, C, H, W)
+        img_feat = self.image_backbone(img_flat)
         img_feat = self.image_proj(img_feat)
+        img_feat = img_feat.reshape(B, K, -1).flatten(1)
 
         feats = [q_feat, img_feat]
 
-        if self.use_force_history and force_history is not None:
+        if self.use_force_history:
+            if force_history is None:
+                # Fallback: use current force from qpos if no history is supplied.
+                force_history = qpos[:, -3:].unsqueeze(1)
+            if force_history.dim() == 4 and force_history.size(1) == 1:
+                force_history = force_history[:, 0]
             _, h = self.force_gru(force_history)
             feats.append(h[-1])
+
+        if self.use_marker:
+            if marker is None:
+                marker = torch.zeros((B, self.marker_dim), dtype=qpos.dtype, device=qpos.device)
+            if marker.dim() == 3:
+                marker = marker[:, 0, :]
+            feats.append(self.marker_encoder(marker))
 
         return self.fuse(torch.cat(feats, dim=-1))
 
@@ -383,19 +289,6 @@ class FlowRGBObservationEncoder(nn.Module):
 # =============================================================================
 
 class ConditionalUnet1D(nn.Module):
-    """
-    Conditional 1D U-Net for velocity field prediction.
-
-    sample:
-        (B, H, action_dim)
-    t:
-        (B,) float in [0,1]
-    global_cond:
-        (B, global_cond_dim)
-    output:
-        (B, H, action_dim)
-    """
-
     def __init__(
         self,
         input_dim: int,
@@ -407,11 +300,9 @@ class ConditionalUnet1D(nn.Module):
         cond_predict_scale: bool = False,
     ):
         super().__init__()
-
         down_dims = list(down_dims)
         if len(down_dims) < 2:
-            raise ValueError("down_dims should contain at least 2 levels, e.g. 256,512,1024")
-
+            raise ValueError("down_dims must contain at least two levels")
         cond_dim = time_embed_dim + global_cond_dim
 
         self.time_encoder = nn.Sequential(
@@ -422,35 +313,26 @@ class ConditionalUnet1D(nn.Module):
         )
 
         start_dim = down_dims[0]
-        self.input_proj = Conv1dBlock(input_dim, start_dim, kernel_size=kernel_size, n_groups=n_groups)
+        self.input_proj = Conv1dBlock(input_dim, start_dim, kernel_size, n_groups)
 
-        # Down path.
-        # For default down_dims=[256,512,1024] and horizon=200:
-        # T: 200 -> 100 -> 50
         self.down_modules = nn.ModuleList()
-        prev_dim = start_dim
+        prev = start_dim
         for i, dim_out in enumerate(down_dims):
             is_last = i == len(down_dims) - 1
             self.down_modules.append(nn.ModuleList([
-                ConditionalResidualBlock1D(prev_dim, dim_out, cond_dim, kernel_size, n_groups, cond_predict_scale),
+                ConditionalResidualBlock1D(prev, dim_out, cond_dim, kernel_size, n_groups, cond_predict_scale),
                 ConditionalResidualBlock1D(dim_out, dim_out, cond_dim, kernel_size, n_groups, cond_predict_scale),
                 Downsample1d(dim_out) if not is_last else nn.Identity(),
             ]))
-            prev_dim = dim_out
+            prev = dim_out
 
-        mid_dim = down_dims[-1]
+        mid = down_dims[-1]
         self.mid_modules = nn.ModuleList([
-            ConditionalResidualBlock1D(mid_dim, mid_dim, cond_dim, kernel_size, n_groups, cond_predict_scale),
-            ConditionalResidualBlock1D(mid_dim, mid_dim, cond_dim, kernel_size, n_groups, cond_predict_scale),
+            ConditionalResidualBlock1D(mid, mid, cond_dim, kernel_size, n_groups, cond_predict_scale),
+            ConditionalResidualBlock1D(mid, mid, cond_dim, kernel_size, n_groups, cond_predict_scale),
         ])
 
-        # Up path.
-        # With skips [256,512,1024], bottleneck is 1024.
-        # Up blocks:
-        #   concat 1024 + 1024 -> 512, upsample 50->100
-        #   concat 512 + 512   -> 256, upsample 100->200
-        up_pairs = list(reversed(list(zip(down_dims[:-1], down_dims[1:]))))  # [(512,1024), (256,512)]
-
+        up_pairs = list(reversed(list(zip(down_dims[:-1], down_dims[1:]))))
         self.up_modules = nn.ModuleList()
         for dim_out, dim_in in up_pairs:
             self.up_modules.append(nn.ModuleList([
@@ -460,16 +342,14 @@ class ConditionalUnet1D(nn.Module):
             ]))
 
         self.final_conv = nn.Sequential(
-            Conv1dBlock(start_dim, start_dim, kernel_size=kernel_size, n_groups=n_groups),
+            Conv1dBlock(start_dim, start_dim, kernel_size, n_groups),
             nn.Conv1d(start_dim, input_dim, kernel_size=1),
         )
 
     def forward(self, sample: torch.Tensor, t: torch.Tensor, global_cond: torch.Tensor) -> torch.Tensor:
         x = sample.moveaxis(-1, -2)  # (B,C,T)
         x = self.input_proj(x)
-
-        t_emb = self.time_encoder(t)
-        cond = torch.cat([t_emb, global_cond], dim=-1)
+        cond = torch.cat([self.time_encoder(t), global_cond], dim=-1)
 
         skips = []
         for res1, res2, down in self.down_modules:
@@ -497,19 +377,14 @@ class ConditionalUnet1D(nn.Module):
 
 
 # =============================================================================
-# Full Flow Matching Policy
+# Policy
 # =============================================================================
 
 class FlowRGBPolicy(nn.Module):
-    """
-    RGB-conditioned Flow Matching Policy.
-
-    This class is directly usable by train_flow.py.
-    """
+    """Backward-compatible Flow policy class name."""
 
     def __init__(self, cfg: dict):
         super().__init__()
-
         self.cfg = dict(cfg)
         self.num_queries = int(cfg.get("num_queries", 200))
         self.action_dim = int(cfg.get("action_dim", 9))
@@ -518,7 +393,6 @@ class FlowRGBPolicy(nn.Module):
         self.flow_loss_type = str(cfg.get("flow_loss_type", "mse")).lower()
 
         self.obs_encoder = FlowRGBObservationEncoder(cfg)
-
         self.velocity_net = ConditionalUnet1D(
             input_dim=self.action_dim,
             global_cond_dim=self.obs_encoder.global_cond_dim,
@@ -528,24 +402,27 @@ class FlowRGBPolicy(nn.Module):
             n_groups=int(cfg.get("flow_n_groups", 8)),
             cond_predict_scale=bool(cfg.get("flow_cond_predict_scale", False)),
         )
-
-        self.image_normalize = T.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225],
-        )
+        self.image_normalize = T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def _normalize_image(self, image: torch.Tensor) -> torch.Tensor:
-        """
-        image: (B,K,3,H,W), usually already in [0,1].
-        """
         B, K, C, H, W = image.shape
         flat = image.reshape(B * K, C, H, W)
         flat = self.image_normalize(flat)
         return flat.reshape(B, K, C, H, W)
 
-    def _condition(self, qpos: torch.Tensor, image: torch.Tensor, force_history: Optional[torch.Tensor]):
-        image = self._normalize_image(image)
-        return self.obs_encoder(qpos=qpos, image=image, force_history=force_history)
+    def _condition(
+        self,
+        qpos: torch.Tensor,
+        image: torch.Tensor,
+        force_history: Optional[torch.Tensor] = None,
+        marker: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        return self.obs_encoder(
+            qpos=qpos,
+            image=self._normalize_image(image),
+            force_history=force_history,
+            marker=marker,
+        )
 
     def predict_velocity(
         self,
@@ -554,19 +431,16 @@ class FlowRGBPolicy(nn.Module):
         qpos: torch.Tensor,
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
+        marker: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        cond = self._condition(qpos=qpos, image=image, force_history=force_history)
+        cond = self._condition(qpos=qpos, image=image, force_history=force_history, marker=marker)
         return self.velocity_net(sample=z_t, t=t, global_cond=cond)
 
     def _masked_loss(self, pred: torch.Tensor, target: torch.Tensor, is_pad: torch.Tensor) -> torch.Tensor:
-        if self.flow_loss_type == "l1":
-            per = torch.abs(pred - target)
-        else:
-            per = (pred - target) ** 2
-
-        valid_mask = (~is_pad).unsqueeze(-1).float()
-        denom = valid_mask.sum().clamp_min(1.0) * pred.shape[-1]
-        return (per * valid_mask).sum() / denom
+        per = torch.abs(pred - target) if self.flow_loss_type == "l1" else (pred - target) ** 2
+        valid = (~is_pad).unsqueeze(-1).float()
+        denom = valid.sum().clamp_min(1.0) * pred.shape[-1]
+        return (per * valid).sum() / denom
 
     def forward(
         self,
@@ -575,50 +449,23 @@ class FlowRGBPolicy(nn.Module):
         actions: Optional[torch.Tensor] = None,
         is_pad: Optional[torch.Tensor] = None,
         force_history: Optional[torch.Tensor] = None,
+        marker: Optional[torch.Tensor] = None,
     ):
-        """
-        Training:
-            return loss dict.
-        Inference:
-            return sampled action chunk.
-        """
         if actions is not None:
             assert is_pad is not None, "is_pad is required for training"
-
             z1 = actions[:, : self.num_queries]
             is_pad = is_pad[:, : self.num_queries]
-
             B = z1.shape[0]
             z0 = torch.randn_like(z1)
-
-            # Avoid exact 0/1 for numerical stability.
             eps = self.flow_train_eps
             t = torch.rand(B, device=z1.device, dtype=z1.dtype) * (1.0 - 2.0 * eps) + eps
+            z_t = (1.0 - t.view(B, 1, 1)) * z0 + t.view(B, 1, 1) * z1
+            target_v = z1 - z0
+            pred_v = self.predict_velocity(z_t, t, qpos, image, force_history, marker)
+            loss = self._masked_loss(pred_v, target_v, is_pad)
+            return {"flow": loss, "loss": loss}
 
-            t_view = t.view(B, 1, 1)
-            z_t = (1.0 - t_view) * z0 + t_view * z1
-            target_velocity = z1 - z0
-
-            pred_velocity = self.predict_velocity(
-                z_t=z_t,
-                t=t,
-                qpos=qpos,
-                image=image,
-                force_history=force_history,
-            )
-
-            loss = self._masked_loss(pred_velocity, target_velocity, is_pad)
-            return {
-                "flow": loss,
-                "loss": loss,
-            }
-
-        return self.sample_action(
-            qpos=qpos,
-            image=image,
-            force_history=force_history,
-            num_steps=self.flow_infer_steps,
-        )
+        return self.sample_action(qpos=qpos, image=image, force_history=force_history, marker=marker)
 
     @torch.no_grad()
     def sample_action(
@@ -626,31 +473,17 @@ class FlowRGBPolicy(nn.Module):
         qpos: torch.Tensor,
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
+        marker: Optional[torch.Tensor] = None,
         num_steps: Optional[int] = None,
     ) -> torch.Tensor:
-        steps = int(num_steps or self.flow_infer_steps)
-        steps = max(1, steps)
-
+        steps = max(1, int(num_steps or self.flow_infer_steps))
         B = qpos.shape[0]
-        device = qpos.device
-        dtype = qpos.dtype
-
-        z = torch.randn(B, self.num_queries, self.action_dim, device=device, dtype=dtype)
+        z = torch.randn(B, self.num_queries, self.action_dim, device=qpos.device, dtype=qpos.dtype)
         dt = 1.0 / float(steps)
-
         for k in range(steps):
-            # midpoint Euler tends to be slightly more stable than using t=k/steps.
-            t_val = (k + 0.5) / float(steps)
-            t = torch.full((B,), t_val, device=device, dtype=dtype)
-            v = self.predict_velocity(
-                z_t=z,
-                t=t,
-                qpos=qpos,
-                image=image,
-                force_history=force_history,
-            )
+            t = torch.full((B,), (k + 0.5) / float(steps), device=qpos.device, dtype=qpos.dtype)
+            v = self.predict_velocity(z, t, qpos, image, force_history, marker)
             z = z + dt * v
-
         return z
 
 

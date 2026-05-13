@@ -1,338 +1,451 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 source/data/dataset.py
 
-ACT-style HDF5 dataset for nrs_imitation.
+Multimodal ACT/Flow-compatible HDF5 dataloader for nrs_imitation.
 
-Expected common HDF5 layout
----------------------------
-observations/position        (T, 6)
-observations/force           (T, 3)
-observations/images/cam0     (T, H, W, 3) or (T, 3, H, W)
+Supported observation modes:
+  - single_cam       : cam0 + qpos + optional force_history
+  - dual_cam         : cam0/cam1 + qpos + optional force_history
+  - dual_cam_marker  : cam0/cam1 + marker + qpos + optional force_history
 
-action/position              (T, 6)
-action/force                 (T, 3)
+Canonical episode layout:
+  episode_0.hdf5
+  ├── action/position        (T,6)
+  ├── action/force           (T,3)
+  ├── observations/position  (T,6)
+  ├── observations/force     (T,3)
+  ├── observations/marker    (T,M), optional
+  ├── observations/images/cam0
+  ├── observations/images/cam1, optional
+  └── observations/is_pad, optional
 
-The dataset returns:
-    image         : torch.FloatTensor (K, 3, H, W), image in [0,1]
-    qpos          : torch.FloatTensor (9,)
-    action        : torch.FloatTensor (seq_len, 9)
-    is_pad        : torch.BoolTensor  (seq_len,)
-    force_history : torch.FloatTensor (L, 3), optional
+Return tuple:
+  without marker:
+    image, qpos, action, is_pad, force_history
+  with marker:
+    image, qpos, action, is_pad, force_history, marker
 
-Normalization is controlled by stats:
-    stats["qpos_norm_mode"]
-    stats["action_norm_mode"]
-
-Raw HDF5 files are not rewritten.
+Shapes:
+  image         : (K,3,H,W), float32 in [0,1]
+  qpos          : (9,), normalized
+  action        : (seq_len,9), normalized
+  is_pad        : (seq_len,), bool
+  force_history : (L,3), normalized, if requested
+  marker        : (M,), normalized, only if obs_mode == dual_cam_marker
 """
 
 from __future__ import annotations
 
-import re
+import json
+import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
 import torch
-from torch.utils.data import Dataset
-
-from .normalization import normalize, canonical_norm_mode
+from torch.utils.data import Dataset, DataLoader
 
 
-def natural_key(path):
-    name = Path(path).name
-    parts = re.split(r"(\d+)", name)
-    return [int(p) if p.isdigit() else p for p in parts]
+# =============================================================================
+# Small helpers
+# =============================================================================
+
+def _episode_files(dataset_dir: str | Path, num_episodes: int = 0) -> List[Path]:
+    d = Path(dataset_dir).expanduser()
+    if not d.is_dir():
+        raise FileNotFoundError(f"dataset_dir does not exist: {d}")
+    files = sorted(d.glob("episode_*.hdf5"))
+    if not files:
+        files = sorted(d.glob("episode_*.h5"))
+    if not files:
+        raise FileNotFoundError(f"no episode_*.hdf5 files found in {d}")
+    if num_episodes is not None and int(num_episodes) > 0:
+        files = files[: int(num_episodes)]
+    return files
 
 
-def _read_dataset(f: h5py.File, candidates: Sequence[str]):
-    for key in candidates:
-        k = key[1:] if key.startswith("/") else key
-        if k in f and isinstance(f[k], h5py.Dataset):
-            return f[k]
-    raise KeyError(f"None of dataset keys exists: {candidates}")
-
-
-def _find_image_dataset(f: h5py.File, camera_name: str):
-    candidates = [
-        f"observations/images/{camera_name}",
-        f"/observations/images/{camera_name}",
-        f"images/{camera_name}",
-        f"/images/{camera_name}",
-        camera_name,
-        f"/{camera_name}",
-    ]
-    for key in candidates:
-        k = key[1:] if key.startswith("/") else key
-        if k in f and isinstance(f[k], h5py.Dataset):
-            return f[k]
-
-    # fallback: first image-like dataset
-    found = []
-    def visitor(name, obj):
-        if isinstance(obj, h5py.Dataset):
-            lname = name.lower()
-            if "image" in lname or "cam" in lname:
-                found.append(name)
-    f.visititems(visitor)
-    if found:
-        return f[found[0]]
-    raise KeyError(f"Could not find image dataset for camera={camera_name}")
-
-
-def _decode_frame(arr: np.ndarray) -> np.ndarray:
-    """Return uint8 RGB image with shape (H,W,3)."""
-    arr = np.asarray(arr)
-
-    if arr.ndim == 1 and arr.dtype == np.uint8:
-        # compressed image bytes
+def _read_dataset(f: h5py.File, keys: Sequence[str], required: bool = True):
+    for k in keys:
         try:
-            import cv2
-            bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            if bgr is None:
-                raise RuntimeError("cv2.imdecode returned None")
-            return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        except Exception as e:
-            raise RuntimeError(f"Failed to decode compressed image: {e}")
-
-    if arr.ndim == 3:
-        if arr.shape[0] == 3 and arr.shape[-1] != 3:
-            arr = np.transpose(arr, (1, 2, 0))
-        if arr.shape[-1] == 4:
-            arr = arr[..., :3]
-        if arr.shape[-1] != 3:
-            raise RuntimeError(f"Unsupported image shape: {arr.shape}")
-        if arr.dtype != np.uint8:
-            if np.issubdtype(arr.dtype, np.floating) and arr.max() <= 1.5:
-                arr = arr * 255.0
-            arr = np.clip(arr, 0, 255).astype(np.uint8)
-        return arr
-
-    if arr.ndim == 2:
-        if arr.dtype != np.uint8:
-            arr = np.clip(arr, 0, 255).astype(np.uint8)
-        return np.repeat(arr[..., None], 3, axis=-1)
-
-    raise RuntimeError(f"Unsupported frame shape: {arr.shape}, dtype={arr.dtype}")
+            if k in f:
+                return np.asarray(f[k])
+        except Exception:
+            pass
+    if required:
+        raise KeyError(f"missing dataset; tried keys={list(keys)}")
+    return None
 
 
-def _to_chw_float01(rgb: np.ndarray) -> np.ndarray:
-    rgb = _decode_frame(rgb)
-    chw = np.transpose(rgb, (2, 0, 1)).astype(np.float32) / 255.0
-    return chw
+def _read_position(f: h5py.File) -> np.ndarray:
+    arr = _read_dataset(f, ["observations/position", "position", "pose"], required=True)
+    arr = np.asarray(arr, dtype=np.float32)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.shape[-1] < 6:
+        raise ValueError(f"position must have >=6 dims, got {arr.shape}")
+    return arr[:, :6]
 
 
-def _concat_pos_force(pos, force) -> np.ndarray:
+def _read_force(f: h5py.File, T: int) -> np.ndarray:
+    arr = _read_dataset(f, ["observations/force", "force", "ft"], required=True)
+    arr = np.asarray(arr, dtype=np.float32)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.shape[-1] < 3:
+        raise ValueError(f"force must have >=3 dims, got {arr.shape}")
+    arr = arr[:, :3]
+    if arr.shape[0] == 1 and T > 1:
+        arr = np.repeat(arr, T, axis=0)
+    return arr
+
+
+def _read_marker(f: h5py.File, T: int, marker_dim: int) -> np.ndarray:
+    arr = _read_dataset(f, ["observations/marker", "marker", "aruco", "aruco_pose"], required=False)
+    if arr is None:
+        return np.zeros((T, marker_dim), dtype=np.float32)
+    arr = np.asarray(arr, dtype=np.float32)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.shape[0] == 1 and T > 1:
+        arr = np.repeat(arr, T, axis=0)
+    out = np.zeros((arr.shape[0], marker_dim), dtype=np.float32)
+    d = min(marker_dim, arr.shape[-1])
+    out[:, :d] = arr[:, :d]
+    if arr.shape[-1] == 6 and marker_dim >= 7:
+        out[:, 6] = 1.0
+    return out
+
+
+def _read_action(f: h5py.File, fallback_pos: np.ndarray, fallback_force: np.ndarray) -> np.ndarray:
+    pos = _read_dataset(f, ["action/position", "actions/position"], required=False)
+    force = _read_dataset(f, ["action/force", "actions/force"], required=False)
+    if pos is None:
+        pos = fallback_pos
+    if force is None:
+        force = fallback_force
     pos = np.asarray(pos, dtype=np.float32)
     force = np.asarray(force, dtype=np.float32)
-
     if pos.ndim == 1:
         pos = pos.reshape(1, -1)
     if force.ndim == 1:
         force = force.reshape(1, -1)
-
-    if pos.shape[-1] >= 6:
-        pos = pos[..., :6]
-    if force.shape[-1] >= 3:
-        force = force[..., :3]
-
-    return np.concatenate([pos, force], axis=-1).astype(np.float32)
+    return np.concatenate([pos[:, :6], force[:, :3]], axis=-1).astype(np.float32)
 
 
-def read_qpos_action_arrays(h5_path: str) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Read full qpos/action arrays from one episode file.
-
-    Returns:
-        qpos   : (T,9)
-        action : (T,9)
-    """
-    with h5py.File(h5_path, "r") as f:
-        # observations
-        if "observations/qpos" in f:
-            qpos = np.asarray(f["observations/qpos"], dtype=np.float32)
-            if qpos.shape[-1] != 9:
-                # fallback to explicit fields
-                obs_pos = _read_dataset(f, ["observations/position", "observations/pose", "qpos/position"])
-                obs_force = _read_dataset(f, ["observations/force", "force", "observations/ft"])
-                qpos = _concat_pos_force(obs_pos[:], obs_force[:])
-        else:
-            obs_pos = _read_dataset(f, ["observations/position", "observations/pose", "position"])
-            obs_force = _read_dataset(f, ["observations/force", "force", "observations/ft"])
-            qpos = _concat_pos_force(obs_pos[:], obs_force[:])
-
-        # actions
-        if "action" in f and isinstance(f["action"], h5py.Dataset):
-            action = np.asarray(f["action"], dtype=np.float32)
-            if action.shape[-1] != 9:
-                act_pos = _read_dataset(f, ["action/position", "action/pose", "target/position"])
-                act_force = _read_dataset(f, ["action/force", "target/force"])
-                action = _concat_pos_force(act_pos[:], act_force[:])
-        elif "actions" in f and isinstance(f["actions"], h5py.Dataset):
-            action = np.asarray(f["actions"], dtype=np.float32)
-            if action.shape[-1] != 9:
-                act_pos = _read_dataset(f, ["action/position", "action/pose", "target/position"])
-                act_force = _read_dataset(f, ["action/force", "target/force"])
-                action = _concat_pos_force(act_pos[:], act_force[:])
-        else:
-            act_pos = _read_dataset(f, ["action/position", "action/pose", "target/position"])
-            act_force = _read_dataset(f, ["action/force", "target/force"])
-            action = _concat_pos_force(act_pos[:], act_force[:])
-
-    qpos = np.asarray(qpos, dtype=np.float32)
-    action = np.asarray(action, dtype=np.float32)
-
-    if qpos.ndim != 2 or qpos.shape[-1] != 9:
-        raise RuntimeError(f"qpos must be (T,9), got {qpos.shape} in {h5_path}")
-    if action.ndim != 2 or action.shape[-1] != 9:
-        raise RuntimeError(f"action must be (T,9), got {action.shape} in {h5_path}")
-
-    T = min(qpos.shape[0], action.shape[0])
-    return qpos[:T], action[:T]
+def _read_image(f: h5py.File, camera_name: str) -> np.ndarray:
+    keys = [
+        f"observations/images/{camera_name}",
+        f"images/{camera_name}",
+        camera_name,
+    ]
+    if camera_name == "cam0":
+        keys += ["observations/image", "image", "rgb", "color"]
+    arr = _read_dataset(f, keys, required=True)
+    return np.asarray(arr)
 
 
-class EpisodicDataset(Dataset):
+def _image_frame_to_chw_float(frame: np.ndarray) -> torch.Tensor:
+    a = np.asarray(frame)
+    if a.ndim != 3:
+        raise ValueError(f"image frame must be 3D, got {a.shape}")
+    if a.shape[0] == 3 and a.shape[-1] != 3:
+        chw = a
+    elif a.shape[-1] == 3:
+        chw = np.transpose(a, (2, 0, 1))
+    else:
+        raise ValueError(f"cannot interpret image frame shape={a.shape}")
+    chw = chw.astype(np.float32)
+    if chw.max(initial=0.0) > 1.5:
+        chw = chw / 255.0
+    return torch.from_numpy(np.clip(chw, 0.0, 1.0))
+
+
+def _slice_pad(arr: np.ndarray, start: int, length: int, pad_value: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
+    T = arr.shape[0]
+    start = int(np.clip(start, 0, max(T - 1, 0)))
+    end = min(start + length, T)
+    chunk = arr[start:end]
+    pad_n = length - chunk.shape[0]
+    is_pad = np.zeros((length,), dtype=np.bool_)
+    if pad_n > 0:
+        if pad_value is None:
+            pad_value = chunk[-1:] if chunk.shape[0] > 0 else np.zeros((1, arr.shape[-1]), dtype=arr.dtype)
+        pad = np.repeat(pad_value.reshape(1, -1), pad_n, axis=0).astype(arr.dtype)
+        chunk = np.concatenate([chunk, pad], axis=0)
+        is_pad[-pad_n:] = True
+    return chunk, is_pad
+
+
+def _force_history(force: np.ndarray, start: int, L: int) -> np.ndarray:
+    L = max(1, int(L))
+    T = force.shape[0]
+    start = int(np.clip(start, 0, max(T - 1, 0)))
+    lo = max(0, start - L + 1)
+    hist = force[lo:start + 1]
+    if hist.shape[0] < L:
+        pad = np.repeat(hist[0:1], L - hist.shape[0], axis=0)
+        hist = np.concatenate([pad, hist], axis=0)
+    return hist.astype(np.float32)
+
+
+def _sanitize_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6) -> Tuple[np.ndarray, np.ndarray]:
+    vmin = np.asarray(vmin, dtype=np.float32)
+    vmax = np.asarray(vmax, dtype=np.float32)
+    return vmin, np.maximum(vmax, vmin + eps).astype(np.float32)
+
+
+def normalize_minmax(x: np.ndarray, vmin: np.ndarray, vmax: np.ndarray, mode: str) -> np.ndarray:
+    vmin, vmax = _sanitize_minmax(vmin, vmax)
+    y = (x - vmin) / np.maximum(vmax - vmin, 1e-6)
+    if mode == "minmax_m11":
+        y = 2.0 * y - 1.0
+        return np.clip(y, -1.0, 1.0).astype(np.float32)
+    return np.clip(y, 0.0, 1.0).astype(np.float32)
+
+
+# =============================================================================
+# Stats
+# =============================================================================
+
+def compute_dataset_stats(
+    episode_paths: Sequence[Path],
+    marker_dim: int = 7,
+    qpos_norm_mode: str = "minmax_m11",
+    action_norm_mode: str = "minmax_m11",
+    marker_norm_mode: str = "minmax_m11",
+) -> Dict[str, np.ndarray | str | int]:
+    qpos_all = []
+    action_all = []
+    marker_all = []
+
+    for p in episode_paths:
+        with h5py.File(str(p), "r") as f:
+            pos = _read_position(f)
+            force = _read_force(f, T=pos.shape[0])
+            T = min(pos.shape[0], force.shape[0])
+            pos = pos[:T]
+            force = force[:T]
+            qpos = np.concatenate([pos[:, :6], force[:, :3]], axis=-1).astype(np.float32)
+            action = _read_action(f, fallback_pos=pos, fallback_force=force)[:T]
+            marker = _read_marker(f, T=T, marker_dim=marker_dim)[:T]
+            qpos_all.append(qpos)
+            action_all.append(action)
+            marker_all.append(marker)
+
+    q = np.concatenate(qpos_all, axis=0)
+    a = np.concatenate(action_all, axis=0)
+    m = np.concatenate(marker_all, axis=0)
+
+    qmin, qmax = _sanitize_minmax(q.min(axis=0), q.max(axis=0))
+    amin, amax = _sanitize_minmax(a.min(axis=0), a.max(axis=0))
+    mmin, mmax = _sanitize_minmax(m.min(axis=0), m.max(axis=0))
+
+    return {
+        "qpos_min": qmin.astype(np.float32),
+        "qpos_max": qmax.astype(np.float32),
+        "action_min": amin.astype(np.float32),
+        "action_max": amax.astype(np.float32),
+        "marker_min": mmin.astype(np.float32),
+        "marker_max": mmax.astype(np.float32),
+        "qpos_norm_mode": qpos_norm_mode,
+        "action_norm_mode": action_norm_mode,
+        "marker_norm_mode": marker_norm_mode,
+        "marker_dim": int(marker_dim),
+        "num_total_timesteps": int(q.shape[0]),
+    }
+
+
+# =============================================================================
+# Dataset
+# =============================================================================
+
+class ImitationEpisodeDataset(Dataset):
     def __init__(
         self,
-        episode_files: Sequence[str],
-        camera_names: Sequence[str],
+        episode_paths: Sequence[Path],
         stats: Dict,
-        seq_len: int,
+        camera_names: Sequence[str],
+        obs_mode: str = "single_cam",
+        seq_len: int = 200,
         samples_per_episode: int = 50,
         seed: int = 0,
-        return_force_history: bool = False,
-        use_force_history: bool = False,
+        return_force_history: bool = True,
         force_history_len: int = 10,
+        marker_dim: int = 7,
+        qpos_norm_mode: str = "minmax_m11",
+        action_norm_mode: str = "minmax_m11",
+        marker_norm_mode: str = "minmax_m11",
     ):
         super().__init__()
-        self.episode_files = [str(Path(p).expanduser()) for p in episode_files]
+        self.episode_paths = list(episode_paths)
+        self.stats = stats
         self.camera_names = list(camera_names)
-        self.stats = dict(stats)
+        self.obs_mode = str(obs_mode)
         self.seq_len = int(seq_len)
         self.samples_per_episode = int(samples_per_episode)
-        self.return_force_history = bool(return_force_history or use_force_history)
-        self.use_force_history = bool(use_force_history or return_force_history)
+        self.seed = int(seed)
+        self.return_force_history = bool(return_force_history)
         self.force_history_len = int(force_history_len)
+        self.marker_dim = int(marker_dim)
+        self.qpos_norm_mode = str(qpos_norm_mode)
+        self.action_norm_mode = str(action_norm_mode)
+        self.marker_norm_mode = str(marker_norm_mode)
 
-        self.qpos_norm_mode = canonical_norm_mode(self.stats.get("qpos_norm_mode", "minmax_01"))
-        self.action_norm_mode = canonical_norm_mode(self.stats.get("action_norm_mode", "minmax_01"))
+        self.return_marker = self.obs_mode == "dual_cam_marker"
+        self.index = []
+        for ep_i in range(len(self.episode_paths)):
+            for s_i in range(max(1, self.samples_per_episode)):
+                self.index.append((ep_i, s_i))
 
-        self.index_map: List[Tuple[int, int]] = []
-        rng = np.random.default_rng(seed)
+    def __len__(self) -> int:
+        return len(self.index)
 
-        for ep_idx, p in enumerate(self.episode_files):
-            qpos, action = read_qpos_action_arrays(p)
-            T = min(qpos.shape[0], action.shape[0])
-            if T <= 0:
-                continue
+    def _choose_start(self, T: int, global_idx: int) -> int:
+        if T <= 1:
+            return 0
+        rng = np.random.default_rng(self.seed + 1000003 * int(global_idx))
+        max_start = max(0, T - 1)
+        return int(rng.integers(0, max_start + 1))
 
-            if self.samples_per_episode > 0:
-                starts = rng.integers(low=0, high=T, size=self.samples_per_episode).tolist()
-            else:
-                starts = list(range(T))
+    def __getitem__(self, idx: int):
+        ep_i, _ = self.index[idx]
+        path = self.episode_paths[ep_i]
+        with h5py.File(str(path), "r") as f:
+            pos = _read_position(f)
+            force = _read_force(f, T=pos.shape[0])
+            action = _read_action(f, fallback_pos=pos, fallback_force=force)
+            marker = _read_marker(f, T=pos.shape[0], marker_dim=self.marker_dim)
 
-            for s in starts:
-                self.index_map.append((ep_idx, int(s)))
+            T = min(pos.shape[0], force.shape[0], action.shape[0], marker.shape[0])
+            pos = pos[:T]
+            force = force[:T]
+            action = action[:T]
+            marker = marker[:T]
+            start = self._choose_start(T, idx)
 
-        if len(self.index_map) == 0:
-            raise RuntimeError("No dataset samples were created. Check episode files.")
-
-    def __len__(self):
-        return len(self.index_map)
-
-    def _read_action_chunk(self, action_raw: np.ndarray, start: int):
-        T = action_raw.shape[0]
-        end = start + self.seq_len
-
-        chunk = np.zeros((self.seq_len, 9), dtype=np.float32)
-        is_pad = np.zeros((self.seq_len,), dtype=bool)
-
-        valid_end = min(end, T)
-        valid_len = max(0, valid_end - start)
-
-        if valid_len > 0:
-            chunk[:valid_len] = action_raw[start:valid_end]
-
-        if valid_len < self.seq_len:
-            is_pad[valid_len:] = True
-            if T > 0:
-                fill = action_raw[T - 1]
-                chunk[valid_len:] = fill
-
-        return chunk, is_pad
-
-    def _read_force_history(self, qpos_raw: np.ndarray, start: int) -> np.ndarray:
-        L = max(1, self.force_history_len)
-        T = qpos_raw.shape[0]
-        force = qpos_raw[:, 6:9].astype(np.float32)
-
-        end = min(max(start, 0), T - 1)
-        begin = end - L + 1
-
-        if begin < 0:
-            pad_count = -begin
-            pad_value = force[0:1]
-            hist = force[0:end + 1]
-            hist = np.concatenate([np.repeat(pad_value, pad_count, axis=0), hist], axis=0)
-        else:
-            hist = force[begin:end + 1]
-
-        if hist.shape[0] < L:
-            pad_count = L - hist.shape[0]
-            pad_value = hist[0:1] if hist.shape[0] > 0 else force[0:1]
-            hist = np.concatenate([np.repeat(pad_value, pad_count, axis=0), hist], axis=0)
-
-        hist = hist[-L:].astype(np.float32)
-
-        qmin = np.asarray(self.stats["qpos_min"], dtype=np.float32)[6:9]
-        qmax = np.asarray(self.stats["qpos_max"], dtype=np.float32)[6:9]
-        hist_n = normalize(hist, qmin, qmax, mode=self.qpos_norm_mode)
-        return hist_n.astype(np.float32)
-
-    def __getitem__(self, index: int):
-        ep_idx, start = self.index_map[index]
-        h5_path = self.episode_files[ep_idx]
-
-        with h5py.File(h5_path, "r") as f:
-            qpos_raw, action_raw = read_qpos_action_arrays(h5_path)
-            T = min(qpos_raw.shape[0], action_raw.shape[0])
-            start = int(np.clip(start, 0, max(T - 1, 0)))
-
-            # Image stack, current frame only.
+            # Images use the frame at the current qpos time.
             imgs = []
             for cam in self.camera_names:
-                dset = _find_image_dataset(f, cam)
-                img_idx = min(start, int(dset.shape[0]) - 1)
-                imgs.append(_to_chw_float01(dset[img_idx]))
-            image = np.stack(imgs, axis=0).astype(np.float32)  # (K,3,H,W)
+                arr = _read_image(f, cam)
+                if arr.ndim == 3:
+                    frame = arr
+                else:
+                    frame = arr[min(start, arr.shape[0] - 1)]
+                imgs.append(_image_frame_to_chw_float(frame))
+            image = torch.stack(imgs, dim=0)  # (K,3,H,W)
 
-        qpos = qpos_raw[start].astype(np.float32)
-        action, is_pad = self._read_action_chunk(action_raw, start)
+        qpos_raw = np.concatenate([pos[start, :6], force[start, :3]], axis=0).astype(np.float32)
+        action_chunk, is_pad = _slice_pad(action, start, self.seq_len)
+        marker_raw = marker[start].astype(np.float32)
+        fh_raw = _force_history(force, start, self.force_history_len)
 
-        qpos_n = normalize(
-            qpos,
-            self.stats["qpos_min"],
-            self.stats["qpos_max"],
-            mode=self.qpos_norm_mode,
-        ).astype(np.float32)
+        qpos = normalize_minmax(qpos_raw, self.stats["qpos_min"], self.stats["qpos_max"], self.qpos_norm_mode)
+        action_norm = normalize_minmax(action_chunk, self.stats["action_min"], self.stats["action_max"], self.action_norm_mode)
+        marker_norm = normalize_minmax(marker_raw, self.stats["marker_min"], self.stats["marker_max"], self.marker_norm_mode)
+        fh_norm = normalize_minmax(fh_raw, self.stats["qpos_min"][6:9], self.stats["qpos_max"][6:9], self.qpos_norm_mode)
 
-        action_n = normalize(
-            action,
-            self.stats["action_min"],
-            self.stats["action_max"],
-            mode=self.action_norm_mode,
-        ).astype(np.float32)
+        image_t = image.float()
+        qpos_t = torch.from_numpy(qpos).float()
+        action_t = torch.from_numpy(action_norm).float()
+        is_pad_t = torch.from_numpy(is_pad).bool()
+        fh_t = torch.from_numpy(fh_norm).float()
+        marker_t = torch.from_numpy(marker_norm).float()
 
-        image_t = torch.from_numpy(image)
-        qpos_t = torch.from_numpy(qpos_n)
-        action_t = torch.from_numpy(action_n)
-        is_pad_t = torch.from_numpy(is_pad)
+        if self.return_marker:
+            return image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t
+        return image_t, qpos_t, action_t, is_pad_t, fh_t
 
-        if self.return_force_history:
-            force_hist = self._read_force_history(qpos_raw, start)
-            force_hist_t = torch.from_numpy(force_hist)
-            return image_t, qpos_t, action_t, is_pad_t, force_hist_t
 
-        return image_t, qpos_t, action_t, is_pad_t
+# =============================================================================
+# Loader factory
+# =============================================================================
+
+def make_loaders(
+    dataset_dir: str,
+    num_episodes: int = 0,
+    camera_names: Sequence[str] = ("cam0",),
+    obs_mode: str = "single_cam",
+    batch_size_train: int = 12,
+    batch_size_val: int = 12,
+    seq_len_train: int = 200,
+    seq_len_val: int = 200,
+    seed: int = 0,
+    samples_per_episode: int = 50,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
+    prefetch_factor: int = 2,
+    return_force_history: bool = True,
+    use_force_history: bool = True,
+    force_history_len: int = 10,
+    qpos_norm_mode: str = "minmax_m11",
+    action_norm_mode: str = "minmax_m11",
+    marker_norm_mode: str = "minmax_m11",
+    marker_dim: int = 7,
+):
+    paths = _episode_files(dataset_dir, num_episodes=num_episodes)
+    n = len(paths)
+    if n == 1:
+        train_paths = paths
+        val_paths = paths
+    else:
+        rng = np.random.default_rng(seed)
+        order = np.arange(n)
+        rng.shuffle(order)
+        split = max(1, int(round(0.9 * n)))
+        split = min(split, n - 1)
+        train_paths = [paths[i] for i in order[:split]]
+        val_paths = [paths[i] for i in order[split:]]
+
+    stats = compute_dataset_stats(
+        train_paths,
+        marker_dim=marker_dim,
+        qpos_norm_mode=qpos_norm_mode,
+        action_norm_mode=action_norm_mode,
+        marker_norm_mode=marker_norm_mode,
+    )
+    stats["dataset_dir"] = str(Path(dataset_dir).expanduser())
+    stats["camera_names"] = list(camera_names)
+    stats["obs_mode"] = str(obs_mode)
+
+    common = dict(
+        stats=stats,
+        camera_names=list(camera_names),
+        obs_mode=obs_mode,
+        samples_per_episode=samples_per_episode,
+        return_force_history=return_force_history and use_force_history,
+        force_history_len=force_history_len,
+        marker_dim=marker_dim,
+        qpos_norm_mode=qpos_norm_mode,
+        action_norm_mode=action_norm_mode,
+        marker_norm_mode=marker_norm_mode,
+    )
+    train_ds = ImitationEpisodeDataset(train_paths, seq_len=seq_len_train, seed=seed, **common)
+    val_ds = ImitationEpisodeDataset(val_paths, seq_len=seq_len_val, seed=seed + 12345, **common)
+
+    loader_kwargs = dict(
+        num_workers=int(num_workers),
+        pin_memory=bool(pin_memory),
+        persistent_workers=bool(persistent_workers) if int(num_workers) > 0 else False,
+    )
+    if int(num_workers) > 0:
+        loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size_train, shuffle=True, drop_last=False, **loader_kwargs)
+    val_loader = DataLoader(val_ds, batch_size=batch_size_val, shuffle=False, drop_last=False, **loader_kwargs)
+
+    meta = {
+        "num_episodes_total": n,
+        "num_train_episodes": len(train_paths),
+        "num_val_episodes": len(val_paths),
+        "num_train_samples": len(train_ds),
+        "num_val_samples": len(val_ds),
+        "camera_names": list(camera_names),
+        "obs_mode": obs_mode,
+        "marker_dim": int(marker_dim),
+    }
+    return train_loader, val_loader, stats, meta

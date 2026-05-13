@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-train_flow.py
+scripts/flow/train_flow.py
 
-RGB-conditioned Flow Matching training script for nrs_imitation.
+Flow Matching training entrypoint with three observation modes:
+  1) single_cam       : cam0 + qpos + force_history
+  2) dual_cam         : cam0/cam1 + qpos + force_history
+  3) dual_cam_marker  : cam0/cam1 + marker + qpos + force_history
 
-This is the first-stage Flow RGB baseline:
-    - Use the existing ACT-compatible HDF5 dataset.
-    - Use cam0 RGB + qpos + optional force_history as observation.
-    - Predict the same 9D action chunk as ACT:
-        [x, y, z, wx, wy, wz, fx, fy, fz]
-    - No virtual pose.
-    - No impedance/compliance output.
-    - Low-level admittance controller remains unchanged.
+Sequential 3-model training:
+  python3 scripts/flow/train_flow.py --train_all_obs_modes
 
-Default dataset:
-    /home/eunseop/nrs_imitation/datasets/ACT/<latest_timestamp>/episodes_ft
+Checkpoint layout:
+  /home/eunseop/nrs_imitation/checkpoints/flow/single_cam/YYYYMMDD_HHMM/
+  /home/eunseop/nrs_imitation/checkpoints/flow/dual_cam/YYYYMMDD_HHMM/
+  /home/eunseop/nrs_imitation/checkpoints/flow/dual_cam_marker/YYYYMMDD_HHMM/
 
-Default checkpoint:
-    /home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/<timestamp>
-
-Run:
-    cd ~/nrs_imitation
-    python3 scripts/flow/train_flow.py
+Single-model examples:
+  python3 scripts/flow/train_flow.py --obs_mode single_cam
+  python3 scripts/flow/train_flow.py --obs_mode dual_cam
+  python3 scripts/flow/train_flow.py --obs_mode dual_cam_marker
 
 Eval-load check:
-    python3 scripts/flow/train_flow.py --eval
+  python3 scripts/flow/train_flow.py --eval --obs_mode dual_cam_marker \
+    --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/flow/dual_cam_marker/YYYYMMDD_HHMM
 """
 
 from __future__ import annotations
@@ -33,303 +31,231 @@ from __future__ import annotations
 import argparse
 import os
 import pickle
+import random
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.abspath(os.path.join(_THIS_DIR, "..", ".."))
 _SOURCE_DIR = os.path.join(_PROJECT_ROOT, "source")
-
 for p in [_PROJECT_ROOT, _SOURCE_DIR]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
-import torch
-import numpy as np
 import h5py
+import numpy as np
+import torch
 from tqdm import tqdm
 
 from data.loader import load_data
-from common.utils import set_seed
-from common.fs import find_latest_timestamped_subdir
 from models.flow_core import build_flow_rgb_policy_and_optimizer
 
 
 # =============================================================================
-# Dataset helpers
+# Utils
 # =============================================================================
 
-TASK_CONFIGS = {}
-try:
-    from custom.custom_constants import TASK_CONFIGS as _TC
-    TASK_CONFIGS = _TC
-except Exception:
-    TASK_CONFIGS = {}
+def set_seed(seed: int):
+    seed = int(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
-def _is_probably_timestamp_dir(name: str) -> bool:
+def _timestamp_like(name: str) -> bool:
     for fmt in ("%Y%m%d_%H%M", "%Y%m%d%H%M", "%m%d_%H%M"):
         try:
             datetime.strptime(name, fmt)
             return True
         except ValueError:
-            continue
+            pass
     return False
 
 
-def _episode_files(dataset_dir: str) -> List[Path]:
+def find_latest_timestamped_subdir(root: str | Path) -> Optional[str]:
+    root = Path(root).expanduser()
+    if not root.is_dir():
+        return None
+    candidates = []
+    for d in root.iterdir():
+        if not d.is_dir():
+            continue
+        if not (d / "policy_best.ckpt").exists():
+            continue
+        candidates.append((1 if _timestamp_like(d.name) else 0, d.name, d.stat().st_mtime, d))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    return str(candidates[0][3])
+
+
+def _episode_files(dataset_dir: str | Path) -> List[Path]:
     d = Path(dataset_dir).expanduser()
-    if not d.is_dir():
-        return []
-    return sorted(d.glob("episode_*.hdf5"))
+    files = sorted(d.glob("episode_*.hdf5"))
+    if not files:
+        files = sorted(d.glob("episode_*.h5"))
+    return files
 
 
-def _count_episodes(dataset_dir: str) -> int:
+def _count_episodes(dataset_dir: str | Path) -> int:
     return len(_episode_files(dataset_dir))
 
 
 def find_latest_episode_dir(
     root_dir: str = "/home/eunseop/nrs_imitation/datasets/ACT",
-    subdir_name: str = "episodes_ft",
+    subdir_preference: Sequence[str] = ("episodes_multimodal", "episodes_ft_camproc", "episodes_ft"),
 ) -> str:
     root = Path(root_dir).expanduser()
     if not root.exists():
         raise FileNotFoundError(f"Dataset root does not exist: {root}")
 
     candidates = []
-
-    for run_dir in root.iterdir():
-        if not run_dir.is_dir():
-            continue
-        ep_dir = run_dir / subdir_name
-        if not ep_dir.is_dir():
-            continue
-        n = _count_episodes(str(ep_dir))
-        if n <= 0:
-            continue
-        timestamp_bonus = 1 if _is_probably_timestamp_dir(run_dir.name) else 0
-        candidates.append((timestamp_bonus, run_dir.name, ep_dir.stat().st_mtime, ep_dir, n))
-
-    if not candidates:
+    for subdir_name in subdir_preference:
         for ep_dir in root.rglob(subdir_name):
             if not ep_dir.is_dir():
                 continue
-            n = _count_episodes(str(ep_dir))
+            n = _count_episodes(ep_dir)
             if n <= 0:
                 continue
-            parent_name = ep_dir.parent.name
-            timestamp_bonus = 1 if _is_probably_timestamp_dir(parent_name) else 0
-            candidates.append((timestamp_bonus, parent_name, ep_dir.stat().st_mtime, ep_dir, n))
+            run_name = ep_dir.parent.name
+            candidates.append((1 if _timestamp_like(run_name) else 0, run_name, ep_dir.stat().st_mtime, ep_dir, n))
+        if candidates:
+            break
 
     if not candidates:
-        raise FileNotFoundError(
-            f"No usable dataset directory found for subdir={subdir_name} under {root}"
-        )
-
+        raise FileNotFoundError(f"No usable episode dataset found under {root}")
     candidates.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     return str(candidates[0][3])
 
 
-def resolve_dataset_dir(dataset_dir: Optional[str], cam_preprocess: str, task_name: str) -> str:
-    if dataset_dir is not None and str(dataset_dir).strip():
+def resolve_dataset_dir(dataset_dir: Optional[str]) -> str:
+    if dataset_dir and str(dataset_dir).strip():
         resolved = os.path.expanduser(dataset_dir)
         if not os.path.isdir(resolved):
             raise FileNotFoundError(f"dataset_dir does not exist: {resolved}")
         return resolved
-
-    subdir_name = "episodes_ft_camproc" if cam_preprocess == "stabilize_crop" else "episodes_ft"
-
-    if task_name in TASK_CONFIGS and "dataset_dir" in TASK_CONFIGS[task_name]:
-        resolved = os.path.expanduser(str(TASK_CONFIGS[task_name]["dataset_dir"]))
-        if os.path.isdir(resolved) and _count_episodes(resolved) > 0:
-            return resolved
-
-    latest = find_latest_episode_dir(
-        root_dir="/home/eunseop/nrs_imitation/datasets/ACT",
-        subdir_name=subdir_name,
-    )
-    print(f"[AUTO] dataset_dir not provided -> using latest {subdir_name}: {latest}")
+    latest = find_latest_episode_dir()
+    print(f"[AUTO] dataset_dir not provided -> using latest episode dir: {latest}")
     return latest
 
 
-def parse_camera_names(camera_names_arg) -> List[str]:
-    if camera_names_arg is None:
+def obs_mode_to_camera_names(obs_mode: str, camera_names_arg: Optional[Sequence[str]]) -> List[str]:
+    if camera_names_arg:
+        raw = []
+        for item in camera_names_arg:
+            raw.extend([p.strip() for p in str(item).split(",") if p.strip()])
+        if raw:
+            return raw
+    if obs_mode == "single_cam":
         return ["cam0"]
-    if isinstance(camera_names_arg, str):
-        raw = [camera_names_arg]
-    else:
-        raw = list(camera_names_arg)
+    return ["cam0", "cam1"]
 
-    out = []
-    for item in raw:
-        for part in str(item).split(","):
-            s = part.strip()
-            if s:
-                out.append(s)
-    return out if out else ["cam0"]
+
+def mode_to_ckpt_base(args, obs_mode: str) -> str:
+    # --ckpt_dir explicitly points either to a timestamp dir for eval or to a root for training.
+    if args.ckpt_dir:
+        return os.path.expanduser(args.ckpt_dir)
+    return os.path.join(os.path.expanduser(args.ckpt_root), obs_mode)
+
+
+def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> Dict:
+    use_marker = obs_mode == "dual_cam_marker"
+    return {
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "beta1": args.beta1,
+        "beta2": args.beta2,
+        "num_queries": args.chunk_size,
+        "state_dim": args.state_dim,
+        "action_dim": args.action_dim,
+        "force_dim": args.force_dim,
+        "marker_dim": args.marker_dim,
+        "camera_names": list(camera_names),
+        "obs_mode": obs_mode,
+        "use_marker": use_marker,
+        "pretrained_backbone": not args.no_pretrained,
+        "use_force_history": args.use_force_history,
+        "force_history_len": args.force_history_len,
+        "force_encoder_hidden_dim": args.force_encoder_hidden_dim,
+        "force_encoder_num_layers": args.force_encoder_num_layers,
+        "force_encoder_dropout": args.force_encoder_dropout,
+        "flow_obs_hidden_dim": args.flow_obs_hidden_dim,
+        "flow_image_feature_dim": args.flow_image_feature_dim,
+        "flow_marker_feature_dim": args.flow_marker_feature_dim,
+        "flow_global_cond_dim": args.flow_global_cond_dim,
+        "flow_time_embed_dim": args.flow_time_embed_dim,
+        "flow_down_dims": args.flow_down_dims,
+        "flow_kernel_size": args.flow_kernel_size,
+        "flow_n_groups": args.flow_n_groups,
+        "flow_cond_predict_scale": args.flow_cond_predict_scale,
+        "flow_infer_steps": args.flow_infer_steps,
+        "flow_train_eps": args.flow_train_eps,
+        "flow_loss_type": args.flow_loss_type,
+        "norm_mode": args.norm_mode,
+    }
 
 
 # =============================================================================
-# Demo-start pose statistics
+# Demo-start stats
 # =============================================================================
 
-def _read_first_dataset_row(f: h5py.File, candidate_keys: List[str]) -> Optional[np.ndarray]:
-    """
-    Read the first row of the first existing dataset among candidate_keys.
-
-    Supported final episode layouts:
-      - /observations/position, /observations/force
-      - /position, /ft  (fallback for merged-like files)
-    """
-    for key in candidate_keys:
-        if key not in f:
-            continue
-        arr = f[key]
-        if arr.shape[0] <= 0:
-            continue
-        row = np.asarray(arr[0], dtype=np.float32).reshape(-1)
-        return row.copy()
+def _read_first_dataset_row(f: h5py.File, keys: Sequence[str]) -> Optional[np.ndarray]:
+    for key in keys:
+        if key in f:
+            arr = np.asarray(f[key])
+            if arr.shape[0] > 0:
+                return np.asarray(arr[0], dtype=np.float32).reshape(-1).copy()
     return None
 
 
-def collect_demo_start_pose_stats(
-    dataset_dir: str,
-    num_episodes: int = 0,
-    max_store_episodes: int = 10000,
-) -> Dict[str, object]:
-    """
-    Collect initial pose statistics from final ACT-format episode_*.hdf5 files.
-
-    This stores the average initial pose of all training episodes into dataset_stats.pkl,
-    so the inference node can later move the robot from its current pose to the
-    demonstration initial pose before starting policy inference.
-
-    Saved keys:
-      demo_start_pose_mean : (6,)  [x, y, z, wx, wy, wz]
-      demo_start_pose_std  : (6,)
-      demo_start_pose_min  : (6,)
-      demo_start_pose_max  : (6,)
-      demo_start_pose_all  : (N,6)
-
-      demo_start_qpos_mean : (9,)  [x, y, z, wx, wy, wz, fx, fy, fz]
-      demo_start_qpos_std  : (9,)
-      demo_start_qpos_min  : (9,)
-      demo_start_qpos_max  : (9,)
-      demo_start_qpos_all  : (N,9)
-
-      demo_start_num_episodes
-      demo_start_source_dataset_dir
-      demo_start_episode_files
-    """
+def collect_demo_start_pose_stats(dataset_dir: str, num_episodes: int = 0) -> Dict[str, object]:
     files = _episode_files(dataset_dir)
     if num_episodes is not None and int(num_episodes) > 0:
         files = files[: int(num_episodes)]
-
-    poses: List[np.ndarray] = []
-    qposes: List[np.ndarray] = []
-    used_files: List[str] = []
-    skipped: List[Tuple[str, str]] = []
-
+    poses = []
+    qposes = []
+    used_files = []
     for path in files:
         try:
             with h5py.File(str(path), "r") as f:
-                p0 = _read_first_dataset_row(
-                    f,
-                    [
-                        "observations/position",
-                        "/observations/position",
-                        "position",
-                        "/position",
-                    ],
-                )
+                p0 = _read_first_dataset_row(f, ["observations/position", "position", "pose"])
                 if p0 is None or p0.size < 6:
-                    skipped.append((str(path), "missing first position row"))
                     continue
-
-                pose0 = p0[:6].astype(np.float32)
-
-                f0 = _read_first_dataset_row(
-                    f,
-                    [
-                        "observations/force",
-                        "/observations/force",
-                        "ft",
-                        "/ft",
-                        "force",
-                        "/force",
-                    ],
-                )
+                f0 = _read_first_dataset_row(f, ["observations/force", "force", "ft"])
                 if f0 is None or f0.size < 3:
-                    force0 = np.zeros(3, dtype=np.float32)
-                else:
-                    force0 = f0[:3].astype(np.float32)
-
-                qpos0 = np.concatenate([pose0, force0], axis=0).astype(np.float32)
-
+                    f0 = np.zeros(3, dtype=np.float32)
+                pose0 = p0[:6].astype(np.float32)
+                force0 = f0[:3].astype(np.float32)
                 poses.append(pose0)
-                qposes.append(qpos0)
+                qposes.append(np.concatenate([pose0, force0], axis=0).astype(np.float32))
                 used_files.append(str(path))
-
-        except Exception as e:
-            skipped.append((str(path), repr(e)))
-
+        except Exception:
+            pass
     if not poses:
-        print("[WARN] demo-start stats: no valid episode initial poses were found.")
-        if skipped:
-            print("[WARN] demo-start stats: first skipped examples:")
-            for path, reason in skipped[:5]:
-                print(f"       - {path}: {reason}")
+        print("[WARN] demo-start stats: no valid initial poses found.")
         return {}
-
     pose_all = np.stack(poses, axis=0).astype(np.float32)
     qpos_all = np.stack(qposes, axis=0).astype(np.float32)
-
-    if max_store_episodes is not None and int(max_store_episodes) > 0:
-        pose_store = pose_all[: int(max_store_episodes)].copy()
-        qpos_store = qpos_all[: int(max_store_episodes)].copy()
-        file_store = used_files[: int(max_store_episodes)]
-    else:
-        pose_store = pose_all.copy()
-        qpos_store = qpos_all.copy()
-        file_store = used_files
-
     out = {
         "demo_start_pose_mean": pose_all.mean(axis=0).astype(np.float32),
         "demo_start_pose_std": pose_all.std(axis=0).astype(np.float32),
         "demo_start_pose_min": pose_all.min(axis=0).astype(np.float32),
         "demo_start_pose_max": pose_all.max(axis=0).astype(np.float32),
-        "demo_start_pose_all": pose_store,
-
+        "demo_start_pose_all": pose_all,
         "demo_start_qpos_mean": qpos_all.mean(axis=0).astype(np.float32),
         "demo_start_qpos_std": qpos_all.std(axis=0).astype(np.float32),
         "demo_start_qpos_min": qpos_all.min(axis=0).astype(np.float32),
         "demo_start_qpos_max": qpos_all.max(axis=0).astype(np.float32),
-        "demo_start_qpos_all": qpos_store,
-
+        "demo_start_qpos_all": qpos_all,
         "demo_start_num_episodes": int(pose_all.shape[0]),
         "demo_start_source_dataset_dir": str(Path(dataset_dir).expanduser()),
-        "demo_start_episode_files": file_store,
+        "demo_start_episode_files": used_files,
     }
-
-    print("[DEMO_START] collected initial pose statistics")
-    print(f"[DEMO_START] used episodes = {pose_all.shape[0]} / candidate files = {len(files)}")
-    if skipped:
-        print(f"[DEMO_START] skipped episodes = {len(skipped)}")
-    print(
-        "[DEMO_START] pose_mean [x y z wx wy wz] = "
-        + np.array2string(out["demo_start_pose_mean"], precision=4, separator=", ")
-    )
-    print(
-        "[DEMO_START] pose_std  [x y z wx wy wz] = "
-        + np.array2string(out["demo_start_pose_std"], precision=4, separator=", ")
-    )
-    print(
-        "[DEMO_START] qpos_mean [x y z wx wy wz fx fy fz] = "
-        + np.array2string(out["demo_start_qpos_mean"], precision=4, separator=", ")
-    )
-
+    print("[DEMO_START] pose_mean = " + np.array2string(out["demo_start_pose_mean"], precision=4, separator=", "))
     return out
 
 
@@ -338,38 +264,30 @@ def collect_demo_start_pose_stats(
 # =============================================================================
 
 def _unpack_batch(batch, device: torch.device):
-    """
-    Supports existing loader outputs:
-      1) image, qpos, action, is_pad
-      2) image, qpos, action, is_pad, force_history
-    """
     if len(batch) == 4:
         image, qpos, action, is_pad = batch
         force_history = None
+        marker = None
     elif len(batch) == 5:
         image, qpos, action, is_pad, force_history = batch
+        marker = None
+    elif len(batch) == 6:
+        image, qpos, action, is_pad, force_history, marker = batch
     else:
         raise RuntimeError(f"Unexpected batch length: {len(batch)}")
-
     image = image.to(device, non_blocking=True)
     qpos = qpos.to(device, non_blocking=True)
     action = action.to(device, non_blocking=True)
     is_pad = is_pad.to(device, non_blocking=True)
-
     if force_history is not None:
         force_history = force_history.to(device, non_blocking=True)
-
-    return image, qpos, action, is_pad, force_history
+    if marker is not None:
+        marker = marker.to(device, non_blocking=True)
+    return image, qpos, action, is_pad, force_history, marker
 
 
 def _scalar_dict(loss_dict: Dict[str, torch.Tensor]) -> Dict[str, float]:
-    out = {}
-    for k, v in loss_dict.items():
-        if torch.is_tensor(v):
-            out[k] = float(v.detach().cpu().item())
-        else:
-            out[k] = float(v)
-    return out
+    return {k: float(v.detach().cpu().item()) if torch.is_tensor(v) else float(v) for k, v in loss_dict.items()}
 
 
 def _mean_dict(items: List[Dict[str, float]]) -> Dict[str, float]:
@@ -380,294 +298,166 @@ def _mean_dict(items: List[Dict[str, float]]) -> Dict[str, float]:
 
 
 @torch.no_grad()
-def validate(policy, val_loader, device, amp: bool = False) -> Dict[str, float]:
+def validate(policy, val_loader, device):
     policy.eval()
-    vals = []
-
+    outs = []
     for batch in val_loader:
-        image, qpos, action, is_pad, force_history = _unpack_batch(batch, device)
-        if amp and device.type == "cuda":
-            with torch.cuda.amp.autocast():
-                out = policy(qpos, image, action, is_pad, force_history=force_history)
-        else:
-            out = policy(qpos, image, action, is_pad, force_history=force_history)
-        vals.append(_scalar_dict(out))
-
-    return _mean_dict(vals)
+        image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
+        out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
+        outs.append(_scalar_dict(out))
+    return _mean_dict(outs)
 
 
-def save_checkpoint(
-    path: str,
-    epoch: int,
-    policy,
-    optimizer,
-    train_summary,
-    val_summary,
-    config: dict,
-):
-    payload = {
+def save_checkpoint(path: str, epoch: int, policy, optimizer, train_summary, val_summary, config):
+    torch.save({
         "epoch": int(epoch),
         "model_state_dict": policy.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "train_summary": train_summary,
         "val_summary": val_summary,
         "config": config,
-    }
-    torch.save(payload, path)
+    }, path)
 
 
-def train_flow(train_loader, val_loader, config: dict):
+def train_flow(train_loader, val_loader, config):
     device = config["device"]
-    ckpt_dir = config["ckpt_dir"]
-    num_epochs = int(config["num_epochs"])
     seed = int(config.get("seed", 0))
-    save_every = int(config.get("save_every", 100))
+    num_epochs = int(config["num_epochs"])
+    ckpt_dir = str(config["ckpt_dir"])
+    save_every = int(config.get("save_every", 0))
     debug_batches = int(config.get("debug_batches", 3))
-    amp = bool(config.get("amp", False))
+    policy_config = config["policy_config"]
 
     os.makedirs(ckpt_dir, exist_ok=True)
     set_seed(seed)
 
-    policy, optimizer = build_flow_rgb_policy_and_optimizer(config["policy_config"])
+    policy, optimizer = build_flow_rgb_policy_and_optimizer(policy_config)
     policy = policy.to(device)
 
-    scaler = torch.cuda.amp.GradScaler(enabled=(amp and device.type == "cuda"))
-
     n_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
-    print(f"[FlowRGBPolicy] trainable params = {n_params / 1e6:.2f}M")
+    print(f"[MODEL] params = {n_params / 1e6:.2f}M")
 
     best_val = float("inf")
     best_epoch = -1
-    best_path = os.path.join(ckpt_dir, "policy_best.ckpt")
-    last_path = os.path.join(ckpt_dir, "policy_last.ckpt")
+    history = {"train": [], "val": []}
 
     pbar = tqdm(range(num_epochs))
     for epoch in pbar:
         print(f"Epoch {epoch}")
+        val_summary = validate(policy, val_loader, device)
+        print("Val: " + " | ".join([f"{k}:{v:.6f}" for k, v in val_summary.items()]))
 
-        val_summary = validate(policy, val_loader, device, amp=amp)
-        val_loss = val_summary.get("loss", float("nan"))
-        if val_summary:
-            val_msg = " | ".join(f"{k}:{v:.6f}" for k, v in sorted(val_summary.items()))
-            print(f"Val: {val_msg}")
-
+        val_loss = float(val_summary.get("loss", val_summary.get("flow", float("inf"))))
         if val_loss < best_val:
-            best_val = float(val_loss)
-            best_epoch = int(epoch)
-            save_checkpoint(
-                path=best_path,
-                epoch=epoch,
-                policy=policy,
-                optimizer=optimizer,
-                train_summary=None,
-                val_summary=val_summary,
-                config=config,
-            )
+            best_val = val_loss
+            best_epoch = epoch
+            save_checkpoint(os.path.join(ckpt_dir, "policy_best.ckpt"), epoch, policy, optimizer, {}, val_summary, config)
 
         policy.train()
-        train_items = []
-
-        for batch_idx, batch in enumerate(train_loader):
-            image, qpos, action, is_pad, force_history = _unpack_batch(batch, device)
-
+        train_outs = []
+        for bi, batch in enumerate(train_loader):
+            image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
             optimizer.zero_grad(set_to_none=True)
+            out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
+            loss = out["loss"]
+            loss.backward()
+            optimizer.step()
+            train_outs.append(_scalar_dict(out))
+            if bi < debug_batches:
+                print(f"[DEBUG] Epoch {epoch}, batch {bi}, train loss = {float(loss.detach().cpu().item()):.6f}")
 
-            if amp and device.type == "cuda":
-                with torch.cuda.amp.autocast():
-                    out = policy(qpos, image, action, is_pad, force_history=force_history)
-                    loss = out["loss"]
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                out = policy(qpos, image, action, is_pad, force_history=force_history)
-                loss = out["loss"]
-                loss.backward()
-                optimizer.step()
+        train_summary = _mean_dict(train_outs)
+        history["train"].append(train_summary)
+        history["val"].append(val_summary)
 
-            scalars = _scalar_dict(out)
-            train_items.append(scalars)
+        if save_every > 0 and (epoch % save_every == 0):
+            save_checkpoint(os.path.join(ckpt_dir, f"policy_epoch_{epoch}_seed_{seed}.ckpt"), epoch, policy, optimizer, train_summary, val_summary, config)
 
-            if batch_idx < debug_batches:
-                print(f"[DEBUG] Epoch {epoch}, batch {batch_idx}, train loss = {scalars['loss']:.6f}")
+        pbar.set_postfix(train_loss=train_summary.get("loss", 0.0), val_loss=val_loss)
 
-        train_summary = _mean_dict(train_items)
-        train_loss = train_summary.get("loss", float("nan"))
-
-        if save_every > 0 and epoch % save_every == 0:
-            save_checkpoint(
-                path=os.path.join(ckpt_dir, f"policy_epoch_{epoch}_seed_{seed}.ckpt"),
-                epoch=epoch,
-                policy=policy,
-                optimizer=optimizer,
-                train_summary=train_summary,
-                val_summary=val_summary,
-                config=config,
-            )
-
-        save_checkpoint(
-            path=last_path,
-            epoch=epoch,
-            policy=policy,
-            optimizer=optimizer,
-            train_summary=train_summary,
-            val_summary=val_summary,
-            config=config,
-        )
-
-        pbar.set_postfix(train_loss=f"{train_loss:.4f}", val_loss=f"{val_loss:.4f}")
+    last_path = os.path.join(ckpt_dir, "policy_last.ckpt")
+    save_checkpoint(last_path, num_epochs - 1, policy, optimizer, history["train"][-1], history["val"][-1], config)
 
     print("[INFO] Training finished.")
     print(f"[INFO] Best epoch     = {best_epoch}")
     print(f"[INFO] Best val loss  = {best_val:.6f}")
-    print(f"[INFO] Best ckpt path = {best_path}")
+    print(f"[INFO] Best ckpt path = {os.path.join(ckpt_dir, 'policy_best.ckpt')}")
     print(f"[INFO] Last ckpt path = {last_path}")
 
-    return {
-        "best_epoch": best_epoch,
-        "best_val_loss": best_val,
-        "best_ckpt_path": best_path,
-        "last_ckpt_path": last_path,
-    }
-
 
 # =============================================================================
-# Main
+# One run / sequential run
 # =============================================================================
 
-def main(args):
+def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
+    dataset_dir = resolve_dataset_dir(args.dataset_dir)
+    num_episodes = _count_episodes(dataset_dir)
+    if args.num_episodes and args.num_episodes > 0:
+        num_episodes = min(num_episodes, int(args.num_episodes))
+
+    camera_names = obs_mode_to_camera_names(obs_mode, args.camera_names)
+    train_seq_len = args.train_seq_len or args.chunk_size
+    val_seq_len = args.val_seq_len or args.chunk_size
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[INFO] using device = {device}")
 
-    task_name = args.task_name
-    dataset_dir = resolve_dataset_dir(
-        dataset_dir=args.dataset_dir,
-        cam_preprocess=args.cam_preprocess,
-        task_name=task_name,
-    )
-
-    num_episodes = int(args.num_episodes)
-    if num_episodes <= 0:
-        num_episodes = _count_episodes(dataset_dir)
-
-    camera_names = parse_camera_names(args.camera_names)
-
-    if args.train_seq_len is None:
-        args.train_seq_len = int(args.chunk_size)
-    if args.val_seq_len is None:
-        args.val_seq_len = int(args.chunk_size)
-
-    print(f"[INFO] task_name          = {task_name}")
+    print("\n" + "=" * 80)
+    print(f"[RUN] obs_mode={obs_mode}")
+    print(f"[INFO] device             = {device}")
     print(f"[INFO] dataset_dir        = {dataset_dir}")
-    print(f"[INFO] cam_preprocess     = {args.cam_preprocess}")
-    print(f"[INFO] norm_mode          = {args.norm_mode}")
     print(f"[INFO] num_episodes       = {num_episodes}")
     print(f"[INFO] camera_names       = {camera_names}")
-    print(f"[INFO] chunk_size         = {args.chunk_size}")
-    print(f"[INFO] train_seq_len      = {args.train_seq_len}")
-    print(f"[INFO] val_seq_len        = {args.val_seq_len}")
-    print(f"[INFO] samples/ep         = {args.samples_per_episode}")
-    print(f"[INFO] save_every         = {args.save_every}")
+    print(f"[INFO] marker_dim         = {args.marker_dim}")
+    print(f"[INFO] norm_mode          = {args.norm_mode}")
     print(f"[INFO] batch_size         = {args.batch_size}")
-    print(f"[INFO] AMP                = {args.amp}")
-    print(f"[INFO] use_force_history  = {args.use_force_history}")
-    print(f"[INFO] force_history_len  = {args.force_history_len}")
-    print(f"[INFO] flow_infer_steps   = {args.flow_infer_steps}")
-    if args.norm_mode == "minmax_m11":
-        print("[INFO] qpos/action norm  = min-max per-dim -> [-1,1]")
-    else:
-        print("[INFO] qpos/action norm  = min-max per-dim -> [0,1]")
-    print("[INFO] image norm        = raw RGB -> [0,1], then ImageNet normalization inside policy")
+    print(f"[INFO] chunk_size         = {args.chunk_size}")
+    print(f"[INFO] force_history      = {args.use_force_history}, L={args.force_history_len}")
 
-    policy_config = {
-        "lr": args.lr,
-        "weight_decay": args.weight_decay,
-        "beta1": args.beta1,
-        "beta2": args.beta2,
-
-        "num_queries": args.chunk_size,
-        "state_dim": args.state_dim,
-        "action_dim": args.action_dim,
-        "force_dim": args.force_dim,
-
-        "camera_names": camera_names,
-        "pretrained_backbone": not args.no_pretrained,
-
-        "use_force_history": args.use_force_history,
-        "force_history_len": args.force_history_len,
-        "force_encoder_hidden_dim": args.force_encoder_hidden_dim,
-        "force_encoder_num_layers": args.force_encoder_num_layers,
-        "force_encoder_dropout": args.force_encoder_dropout,
-
-        "flow_obs_hidden_dim": args.flow_obs_hidden_dim,
-        "flow_image_feature_dim": args.flow_image_feature_dim,
-        "flow_global_cond_dim": args.flow_global_cond_dim,
-
-        "flow_time_embed_dim": args.flow_time_embed_dim,
-        "flow_down_dims": args.flow_down_dims,
-        "flow_kernel_size": args.flow_kernel_size,
-        "flow_n_groups": args.flow_n_groups,
-        "flow_cond_predict_scale": args.flow_cond_predict_scale,
-
-        "flow_infer_steps": args.flow_infer_steps,
-        "flow_train_eps": args.flow_train_eps,
-        "flow_loss_type": args.flow_loss_type,
-        "norm_mode": args.norm_mode,
-    }
+    policy_config = default_policy_config(args, obs_mode, camera_names)
 
     if args.eval:
-        ckpt_dir = args.ckpt_dir
+        ckpt_base = mode_to_ckpt_base(args, obs_mode)
+        ckpt_dir = ckpt_base
         best_ckpt = os.path.join(ckpt_dir, "policy_best.ckpt")
         if not os.path.exists(best_ckpt):
-            latest = find_latest_timestamped_subdir(ckpt_dir)
+            latest = find_latest_timestamped_subdir(ckpt_base)
             if latest is None:
-                raise FileNotFoundError(f"No policy_best.ckpt in {ckpt_dir}, and no timestamp subdir found.")
+                raise FileNotFoundError(f"No policy_best.ckpt found in {ckpt_base}")
             ckpt_dir = latest
             best_ckpt = os.path.join(ckpt_dir, "policy_best.ckpt")
 
         stats_path = os.path.join(ckpt_dir, "dataset_stats.pkl")
-        if not os.path.exists(best_ckpt):
-            raise FileNotFoundError(f"policy_best.ckpt not found: {best_ckpt}")
         if not os.path.exists(stats_path):
             raise FileNotFoundError(f"dataset_stats.pkl not found: {stats_path}")
 
         policy, _ = build_flow_rgb_policy_and_optimizer(policy_config)
         policy = policy.to(device)
-
-        print(f"[EVAL] Using checkpoint dir: {ckpt_dir}")
-        print(f"[INFO] Loading checkpoint from {best_ckpt}")
-
         ckpt = torch.load(best_ckpt, map_location=device)
         sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
         missing, unexpected = policy.load_state_dict(sd, strict=False)
         policy.eval()
-
-        print(f"[INFO] load_state_dict: missing={len(missing)}, unexpected={len(unexpected)}")
-        if len(missing) > 0:
-            print("[WARN] first missing keys:", list(missing)[:10])
-        if len(unexpected) > 0:
-            print("[WARN] first unexpected keys:", list(unexpected)[:10])
-
+        print(f"[EVAL] ckpt_dir={ckpt_dir}")
+        print(f"[EVAL] load_state_dict: missing={len(missing)}, unexpected={len(unexpected)}")
         with open(stats_path, "rb") as f:
-            _ = pickle.load(f)
-        print(f"[INFO] Loaded dataset stats from {stats_path}")
-        print("\n✅ FLOW-RGB model ready for inference wrapper.\n")
+            stats = pickle.load(f)
+        print(f"[EVAL] stats loaded: obs_mode={stats.get('obs_mode')}, camera_names={stats.get('camera_names')}")
+        print("\n✅ FLOW model ready for inference wrapper.\n")
         return
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    ckpt_dir = os.path.join(args.ckpt_dir, timestamp)
+    ts = timestamp or datetime.now().strftime("%Y%m%d_%H%M")
+    ckpt_root_for_mode = mode_to_ckpt_base(args, obs_mode)
+    ckpt_dir = os.path.join(ckpt_root_for_mode, ts)
     os.makedirs(ckpt_dir, exist_ok=True)
-
     print(f"[TRAIN] Checkpoints will be saved under: {ckpt_dir}")
 
     train_loader, val_loader, stats, meta = load_data(
         dataset_dir=dataset_dir,
         num_episodes=num_episodes,
         camera_names=camera_names,
+        obs_mode=obs_mode,
         batch_size_train=args.batch_size,
         batch_size_val=args.batch_size,
-        seq_len_train=args.train_seq_len,
-        seq_len_val=args.val_seq_len,
+        seq_len_train=train_seq_len,
+        seq_len_val=val_seq_len,
         seed=args.seed,
         samples_per_episode=args.samples_per_episode,
         num_workers=args.num_workers,
@@ -679,20 +469,16 @@ def main(args):
         force_history_len=args.force_history_len,
         qpos_norm_mode=args.norm_mode,
         action_norm_mode=args.norm_mode,
+        marker_norm_mode=args.norm_mode,
+        marker_dim=args.marker_dim,
     )
     print(f"[INFO] data meta: {meta}")
 
-    # ------------------------------------------------------------
-    # Demo-start pose statistics for inference-time auto alignment
-    # ------------------------------------------------------------
-    demo_start_stats = collect_demo_start_pose_stats(
-        dataset_dir=dataset_dir,
-        num_episodes=num_episodes,
-    )
+    demo_start_stats = collect_demo_start_pose_stats(dataset_dir=dataset_dir, num_episodes=num_episodes)
     if demo_start_stats:
         stats.update(demo_start_stats)
-    else:
-        print("[WARN] dataset_stats.pkl will be saved without demo_start_pose_mean.")
+    stats["policy_config"] = dict(policy_config)
+    stats["data_meta"] = dict(meta)
 
     stats_path = os.path.join(ckpt_dir, "dataset_stats.pkl")
     with open(stats_path, "wb") as f:
@@ -705,27 +491,42 @@ def main(args):
         "num_epochs": args.num_epochs,
         "ckpt_dir": ckpt_dir,
         "save_every": args.save_every,
-        "amp": args.amp,
         "debug_batches": args.debug_batches,
         "policy_class": "FLOW",
+        "obs_mode": obs_mode,
         "policy_config": policy_config,
     }
-
     train_flow(train_loader, val_loader, config)
+
+
+def main(args):
+    if args.train_all_obs_modes:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M") if args.shared_timestamp else None
+        modes = ["single_cam", "dual_cam", "dual_cam_marker"]
+        print(f"[SEQ] train_all_obs_modes=True | modes={modes} | shared_timestamp={timestamp}")
+        for mode in modes:
+            run_one(args, obs_mode=mode, timestamp=timestamp)
+        print("\n[SEQ] All observation-mode training runs finished.\n")
+    else:
+        run_one(args, obs_mode=args.obs_mode, timestamp=None)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
     parser.add_argument("--eval", action="store_true")
-    parser.add_argument("--task_name", type=str, default="ur10e_swing")
-    parser.add_argument("--ckpt_dir", type=str, default="/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing")
+    parser.add_argument("--train_all_obs_modes", action="store_true")
+    parser.add_argument("--shared_timestamp", action="store_true", default=True)
+    parser.add_argument("--obs_mode", type=str, default="single_cam", choices=["single_cam", "dual_cam", "dual_cam_marker"])
 
     parser.add_argument("--dataset_dir", type=str, default=None)
-    parser.add_argument("--cam_preprocess", type=str, default="stabilize_crop", choices=["off", "stabilize_crop"])
-    parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
     parser.add_argument("--num_episodes", type=int, default=0)
-    parser.add_argument("--camera_names", nargs="+", default=["cam0"])
+    parser.add_argument("--camera_names", nargs="+", default=None)
+
+    parser.add_argument("--ckpt_root", type=str, default="/home/eunseop/nrs_imitation/checkpoints/flow")
+    parser.add_argument("--ckpt_dir", type=str, default=None)
+
+    parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
+    parser.add_argument("--marker_dim", type=int, default=7)
 
     parser.add_argument("--batch_size", type=int, default=12)
     parser.add_argument("--seed", type=int, default=0)
@@ -753,9 +554,9 @@ if __name__ == "__main__":
     parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
 
     parser.add_argument("--no_pretrained", action="store_true", default=False)
-
     parser.add_argument("--flow_obs_hidden_dim", type=int, default=256)
     parser.add_argument("--flow_image_feature_dim", type=int, default=512)
+    parser.add_argument("--flow_marker_feature_dim", type=int, default=128)
     parser.add_argument("--flow_global_cond_dim", type=int, default=256)
     parser.add_argument("--flow_time_embed_dim", type=int, default=256)
     parser.add_argument("--flow_down_dims", type=str, default="256,512,1024")
@@ -770,8 +571,6 @@ if __name__ == "__main__":
     parser.add_argument("--pin_memory", action="store_true")
     parser.add_argument("--persistent_workers", action="store_true")
     parser.add_argument("--prefetch_factor", type=int, default=2)
-    parser.add_argument("--amp", action="store_true", default=False)
     parser.add_argument("--debug_batches", type=int, default=3)
 
-    args = parser.parse_args()
-    main(args)
+    main(parser.parse_args())
