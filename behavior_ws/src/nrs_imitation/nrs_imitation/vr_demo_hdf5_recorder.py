@@ -46,13 +46,9 @@ manually to numpy RGB to avoid cv_bridge / NumPy ABI issues.
 from __future__ import annotations
 
 import os
-import sys
 import time
 import atexit
 import threading
-import select
-import termios
-import tty
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Set
 
@@ -299,66 +295,6 @@ def process_force_keep_fz_with_ema_and_edge_zero(
 
 
 # ============================================================
-# Keyboard backup quit
-# ============================================================
-
-class KeyboardQuitter:
-    def __init__(self, quit_key: str = "q"):
-        self.quit_key = (quit_key or "q").lower()
-        self._stop_evt = threading.Event()
-        self._hit_quit = threading.Event()
-        self._thread = None
-        self._enabled = False
-        self._fd = None
-        self._old_term = None
-
-    def start(self) -> bool:
-        if not sys.stdin.isatty():
-            self._enabled = False
-            return False
-        self._enabled = True
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._thread.start()
-        return True
-
-    def stop(self):
-        self._stop_evt.set()
-        if self._thread is not None:
-            self._thread.join(timeout=0.5)
-        self._restore_term()
-
-    def hit(self) -> bool:
-        return self._hit_quit.is_set()
-
-    def _restore_term(self):
-        try:
-            if self._enabled and self._fd is not None and self._old_term is not None:
-                termios.tcsetattr(self._fd, termios.TCSADRAIN, self._old_term)
-        except Exception:
-            pass
-        self._fd = None
-        self._old_term = None
-
-    def _loop(self):
-        try:
-            self._fd = sys.stdin.fileno()
-            self._old_term = termios.tcgetattr(self._fd)
-            tty.setcbreak(self._fd)
-            while not self._stop_evt.is_set():
-                r, _, _ = select.select([sys.stdin], [], [], 0.1)
-                if not r:
-                    continue
-                ch = sys.stdin.read(1)
-                if ch and ch.lower() == self.quit_key:
-                    self._hit_quit.set()
-                    break
-        except Exception:
-            pass
-        finally:
-            self._restore_term()
-
-
-# ============================================================
 # Main node
 # ============================================================
 
@@ -375,7 +311,6 @@ class VRDemoHDF5Recorder(Node):
         self.declare_parameter("flush_each_episode", True)
         self.declare_parameter("num_episodes", 50)
         self.declare_parameter("min_samples", 10)
-        self.declare_parameter("quit_key", "q")
 
         # Topic parameters
         self.declare_parameter("recording_mode", "tracker")  # tracker | robot
@@ -437,7 +372,6 @@ class VRDemoHDF5Recorder(Node):
         self.flush_each_episode = bool(self.get_parameter("flush_each_episode").value)
         self.num_episodes = int(self.get_parameter("num_episodes").value)
         self.min_samples = int(self.get_parameter("min_samples").value)
-        self.quit_key = str(self.get_parameter("quit_key").value)
 
         self.recording_mode = str(self.get_parameter("recording_mode").value).strip().lower()
         self.tracker_pose_topic = str(self.get_parameter("tracker_pose_topic").value)
@@ -565,9 +499,6 @@ class VRDemoHDF5Recorder(Node):
         self.create_subscription(String, self.command_topic, self._on_command, reliable_qos)
         self.timer = self.create_timer(self.dt, self._on_sample_timer)
 
-        self.keyboard = KeyboardQuitter(self.quit_key)
-        self.keyboard.start()
-        self.keyboard_timer = self.create_timer(0.10, self._on_keyboard_timer)
         atexit.register(self._atexit_close)
 
         self.get_logger().info(
@@ -648,14 +579,6 @@ class VRDemoHDF5Recorder(Node):
             self.start_episode(reason="joystick_start")
         elif cmd == "end_recording":
             self.end_episode(reason="joystick_end")
-        elif cmd == "erase_current_episode":
-            self.erase_current_episode()
-        elif cmd == "terminate_node":
-            self.request_stop(reason="joystick_terminate")
-        elif cmd == "prev_episode":
-            self.prev_episode()
-        elif cmd == "next_episode":
-            self.next_episode()
         else:
             self.get_logger().warn(f"[COMMAND] unknown command ignored: {cmd}")
 
@@ -671,7 +594,7 @@ class VRDemoHDF5Recorder(Node):
             self.get_logger().warn("Episode already active.")
             return
         if (not self.allow_overwrite_episode) and (self.current_ep_idx in self.saved_indices):
-            self.get_logger().warn(f"Episode index {self.current_ep_idx} already exists. Use next_episode or allow_overwrite_episode:=true.")
+            self.get_logger().warn(f"Episode index {self.current_ep_idx} already exists. Set allow_overwrite_episode:=true to overwrite.")
             return
 
         for buf in [self.P_buf, self.F_buf, self.I0_buf, self.I1_buf, self.M0_buf, self.M1_buf, self.M0Q_buf, self.M1Q_buf, self.sample_time_buf]:
@@ -698,34 +621,6 @@ class VRDemoHDF5Recorder(Node):
         )
         self.get_logger().warn(f"[EP {self._ep_name(ep_idx)}] END requested. raw_samples={len(self.P_buf)}, reason={reason}")
         threading.Thread(target=self._finish_episode_worker, args=args, daemon=True).start()
-
-    def erase_current_episode(self):
-        if self.episode_active or self.finishing:
-            self.get_logger().warn("Cannot erase while recording/saving.")
-            return
-        ep_name = self._ep_name(self.current_ep_idx)
-        with self.h5_lock:
-            if ep_name in self.grp_eps:
-                del self.grp_eps[ep_name]
-                self.h5.flush()
-                self.saved_indices.discard(self.current_ep_idx)
-                self.get_logger().warn(f"[ERASE] deleted {ep_name}")
-            else:
-                self.get_logger().warn(f"[ERASE] no saved group for {ep_name}")
-
-    def prev_episode(self):
-        if self.episode_active or self.finishing:
-            self.get_logger().warn("Cannot change episode index while recording/saving.")
-            return
-        self.current_ep_idx = max(0, self.current_ep_idx - 1)
-        self._print_status("PREV")
-
-    def next_episode(self):
-        if self.episode_active or self.finishing:
-            self.get_logger().warn("Cannot change episode index while recording/saving.")
-            return
-        self.current_ep_idx += 1
-        self._print_status("NEXT")
 
     def request_stop(self, reason: str = "stop"):
         self.stop_requested = True
@@ -795,10 +690,6 @@ class VRDemoHDF5Recorder(Node):
         if now - self.last_status_t >= self.recording_status_period_sec:
             self.last_status_t = now
             self._print_status("RECORDING")
-
-    def _on_keyboard_timer(self):
-        if self.keyboard.hit():
-            self.request_stop(reason=f"keyboard_{self.quit_key}")
 
     # save worker
     def _finish_episode_worker(self, ep_idx, P_list, F_list, I0_list, I1_list, M0_list, M1_list, M0Q_list, M1Q_list, sample_time_list, reason):
@@ -925,10 +816,6 @@ class VRDemoHDF5Recorder(Node):
 
     def finalize_and_shutdown(self):
         self.get_logger().warn("[FINALIZE] closing HDF5 and shutting down recorder.")
-        try:
-            self.keyboard.stop()
-        except Exception:
-            pass
         try:
             with self.h5_lock:
                 if self.h5 is not None:

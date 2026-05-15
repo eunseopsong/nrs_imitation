@@ -10,7 +10,8 @@ from launch_ros.actions import Node
 def generate_launch_description():
     joy_topic = LaunchConfiguration("joy_topic")
     command_topic = LaunchConfiguration("command_topic")
-    dpad_left_positive = LaunchConfiguration("dpad_left_positive")
+    button_start = LaunchConfiguration("button_start")
+    button_end = LaunchConfiguration("button_end")
     device_id = LaunchConfiguration("device_id")
     deadzone = LaunchConfiguration("deadzone")
     autorepeat_rate = LaunchConfiguration("autorepeat_rate")
@@ -18,7 +19,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("joy_topic", default_value="/joy_il"),
         DeclareLaunchArgument("command_topic", default_value="/vr_demo_recorder/command"),
-        DeclareLaunchArgument("dpad_left_positive", default_value="true"),
+        DeclareLaunchArgument("button_start", default_value="4"),
+        DeclareLaunchArgument("button_end", default_value="5"),
         DeclareLaunchArgument("device_id", default_value="0"),
         DeclareLaunchArgument("deadzone", default_value="0.05"),
         DeclareLaunchArgument("autorepeat_rate", default_value="20.0"),
@@ -46,7 +48,8 @@ def generate_launch_description():
             parameters=[{
                 "joy_topic": joy_topic,
                 "command_topic": command_topic,
-                "dpad_left_positive": dpad_left_positive,
+                "button_start": button_start,
+                "button_end": button_end,
             }],
         ),
     ])
