@@ -144,14 +144,14 @@ Use whichever force node matches your current setup.
 Use this when bringing up the VR-side camera (`camera_name:=vr`) in RGB-only mode.
 
 Default:
-- `480x320@20`
+- `424x240@30`
 
 Function:
 
 ```bash
 rs_vr() {
   local profile="${1:-$RS_VR_PROFILE_DEFAULT}"
-  ros2 launch realsense2_camera rs_launch.py     camera_namespace:="$RS_NS" camera_name:=vr     serial_no:="'243622073271'"     $(_rs_common_args)     rgb_camera.profile:="${profile}"
+  ros2 launch realsense2_camera rs_launch.py     camera_namespace:="$RS_NS" camera_name:=vr     serial_no:="'332322072455'"     $(_rs_common_args)     rgb_camera.color_profile:="${profile}"
 }
 ```
 
@@ -159,7 +159,7 @@ Usage:
 
 ```bash
 rsv
-rsv 480x320x20
+rsv 424x240x30
 ```
 
 Expected image topic:
@@ -173,14 +173,14 @@ Expected image topic:
 Use this when bringing up the robot-side / end-effector camera (`camera_name:=robot`) in RGB-only mode.
 
 Default:
-- `480x320@20`
+- `424x240@30`
 
 Function:
 
 ```bash
 rs_robot() {
   local profile="${1:-$RS_ROBOT_PROFILE_DEFAULT}"
-  ros2 launch realsense2_camera rs_launch.py     camera_namespace:="$RS_NS" camera_name:=robot     serial_no:="'244222070489'"     $(_rs_common_args)     rgb_camera.profile:="${profile}"
+  ros2 launch realsense2_camera rs_launch.py     camera_namespace:="$RS_NS" camera_name:=robot     serial_no:="'244222070489'"     $(_rs_common_args)     rgb_camera.color_profile:="${profile}"
 }
 ```
 
@@ -188,7 +188,7 @@ Usage:
 
 ```bash
 rsr
-rsr 480x320x20
+rsr 424x240x30
 ```
 
 Expected image topic:
