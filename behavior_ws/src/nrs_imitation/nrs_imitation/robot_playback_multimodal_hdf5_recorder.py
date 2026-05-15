@@ -190,7 +190,7 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         self.declare_parameter("command_topic", "/robot_playback_recorder/command")
 
         # Sampling.
-        self.declare_parameter("sample_hz", 30.0)
+        self.declare_parameter("sample_hz", 20.0)
         self.declare_parameter("fresh_sec", 0.50)
         self.declare_parameter("marker_fresh_sec", 0.80)
         self.declare_parameter("status_period_sec", 1.0)

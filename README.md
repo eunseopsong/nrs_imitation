@@ -144,7 +144,7 @@ Use whichever force node matches your current setup.
 Use this when bringing up the VR-side camera (`camera_name:=vr`) in RGB-only mode.
 
 Default:
-- `640x480@30`
+- `480x320@20`
 
 Function:
 
@@ -159,7 +159,7 @@ Usage:
 
 ```bash
 rsv
-rsv 640x480x15
+rsv 480x320x20
 ```
 
 Expected image topic:
@@ -173,7 +173,7 @@ Expected image topic:
 Use this when bringing up the robot-side / end-effector camera (`camera_name:=robot`) in RGB-only mode.
 
 Default:
-- `640x480@15`  (more stable on USB2.1)
+- `480x320@20`
 
 Function:
 
@@ -188,7 +188,7 @@ Usage:
 
 ```bash
 rsr
-rsr 424x240x30
+rsr 480x320x20
 ```
 
 Expected image topic:
