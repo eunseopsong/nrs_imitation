@@ -37,7 +37,6 @@ Saved merged HDF5 layout:
         combined           (T,14) float32 [id0(7), id1(7)]
         id0_quat           (T, 8) float32 [x y z qx qy qz qw valid]
         id1_quat           (T, 8) float32 [x y z qx qy qz qw valid]
-      marker               (T,14) float32 top-level convenience alias
 
 This file intentionally does NOT use cv_bridge. sensor_msgs/Image is converted
 manually to numpy RGB to avoid cv_bridge / NumPy ABI issues.
@@ -751,53 +750,67 @@ class VRDemoHDF5Recorder(Node):
 
     def _save_episode_to_hdf5(self, ep_idx, position, ft, images0, images1, marker0, marker1, marker0q, marker1q, marker_combined, sample_times, reason):
         ep_name = self._ep_name(ep_idx)
+        tmp_name = self._tmp_ep_name(ep_idx)
         with self.h5_lock:
             if ep_name in self.grp_eps:
                 if not self.allow_overwrite_episode:
                     raise RuntimeError(f"{ep_name} already exists and allow_overwrite_episode=False")
                 del self.grp_eps[ep_name]
 
-            g = self.grp_eps.create_group(ep_name)
-            g.attrs["saved_unix"] = float(time.time())
-            g.attrs["reason"] = str(reason)
-            g.attrs["raw_len"] = int(position.shape[0])
-            g.attrs["out_len"] = int(position.shape[0])
-            g.attrs["record_hz"] = float(self.sample_hz)
-            g.attrs["dt"] = float(self.dt)
-            g.attrs["recording_mode"] = str(self.recording_mode)
-            g.attrs["pose_topic"] = str(self.pose_topic)
-            g.attrs["force_topic"] = str(self.force_topic)
-            g.attrs["cam0_topic"] = str(self.image_topic)
-            g.attrs["cam1_topic"] = str(self.global_image_topic)
-            g.attrs["aruco_id0_pose_topic"] = str(self.aruco_id0_pose_topic)
-            g.attrs["aruco_id1_pose_topic"] = str(self.aruco_id1_pose_topic)
-            g.attrs["schema_version"] = "multimodal_v1"
-            g.attrs["marker_format"] = "[x,y,z,rx,ry,rz,valid]"
-            g.attrs["marker_quat_format"] = "[x,y,z,qx,qy,qz,qw,valid]"
+            if tmp_name in self.grp_eps:
+                del self.grp_eps[tmp_name]
 
-            g.create_dataset("position", data=position.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
-            g.create_dataset("ft", data=ft.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
-            g.create_dataset("sample_time_unix", data=sample_times.astype(np.float64), compression="gzip", compression_opts=4, shuffle=True)
+            try:
+                g = self.grp_eps.create_group(tmp_name)
+                g.attrs["saved_unix"] = float(time.time())
+                g.attrs["reason"] = str(reason)
+                g.attrs["raw_len"] = int(position.shape[0])
+                g.attrs["out_len"] = int(position.shape[0])
+                g.attrs["record_hz"] = float(self.sample_hz)
+                g.attrs["dt"] = float(self.dt)
+                g.attrs["recording_mode"] = str(self.recording_mode)
+                g.attrs["pose_topic"] = str(self.pose_topic)
+                g.attrs["force_topic"] = str(self.force_topic)
+                g.attrs["cam0_topic"] = str(self.image_topic)
+                g.attrs["cam1_topic"] = str(self.global_image_topic)
+                g.attrs["aruco_id0_pose_topic"] = str(self.aruco_id0_pose_topic)
+                g.attrs["aruco_id1_pose_topic"] = str(self.aruco_id1_pose_topic)
+                g.attrs["schema_version"] = "multimodal_v1"
+                g.attrs["marker_format"] = "[x,y,z,rx,ry,rz,valid]"
+                g.attrs["marker_quat_format"] = "[x,y,z,qx,qy,qz,qw,valid]"
 
-            g_img = g.create_group("images")
-            g_img.create_dataset(self.image_dataset_name, data=images0.astype(np.uint8), **self._compression_kwargs())
-            if images1 is not None:
-                g_img.create_dataset(self.global_image_dataset_name, data=images1.astype(np.uint8), **self._compression_kwargs())
+                g.create_dataset("position", data=position.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                g.create_dataset("ft", data=ft.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                g.create_dataset("sample_time_unix", data=sample_times.astype(np.float64), compression="gzip", compression_opts=4, shuffle=True)
 
-            g_marker = g.create_group("marker")
-            g_marker.create_dataset("id0", data=marker0.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
-            g_marker.create_dataset("id1", data=marker1.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
-            g_marker.create_dataset("combined", data=marker_combined.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
-            g_marker.create_dataset("id0_quat", data=marker0q.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
-            g_marker.create_dataset("id1_quat", data=marker1q.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
-            g.create_dataset("marker", data=marker_combined.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                g_img = g.create_group("images")
+                g_img.create_dataset(self.image_dataset_name, data=images0.astype(np.uint8), **self._compression_kwargs())
+                if images1 is not None:
+                    g_img.create_dataset(self.global_image_dataset_name, data=images1.astype(np.uint8), **self._compression_kwargs())
 
-            if self.flush_each_episode:
-                self.h5.flush()
+                g_marker = g.create_group("marker")
+                g_marker.create_dataset("id0", data=marker0.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                g_marker.create_dataset("id1", data=marker1.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                g_marker.create_dataset("combined", data=marker_combined.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                g_marker.create_dataset("id0_quat", data=marker0q.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                g_marker.create_dataset("id1_quat", data=marker1q.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+
+                g.attrs["save_complete"] = 1
+                self.grp_eps.move(tmp_name, ep_name)
+
+                if self.flush_each_episode:
+                    self.h5.flush()
+            except Exception:
+                if tmp_name in self.grp_eps:
+                    del self.grp_eps[tmp_name]
+                raise
 
     # status / shutdown
     def _ep_name(self, idx: int) -> str:
         return f"ep_{int(idx):04d}"
+
+    def _tmp_ep_name(self, idx: int) -> str:
+        return f"{self._ep_name(idx)}__writing"
 
     def _print_status(self, tag: str):
         with self.state_lock:

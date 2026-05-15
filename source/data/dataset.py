@@ -104,7 +104,7 @@ def _read_force(f: h5py.File, T: int) -> np.ndarray:
 
 
 def _read_marker(f: h5py.File, T: int, marker_dim: int) -> np.ndarray:
-    arr = _read_dataset(f, ["observations/marker", "marker", "aruco", "aruco_pose"], required=False)
+    arr = _read_dataset(f, ["observations/marker", "marker/combined", "marker", "aruco/combined", "aruco", "aruco_pose"], required=False)
     if arr is None:
         return np.zeros((T, marker_dim), dtype=np.float32)
     arr = np.asarray(arr, dtype=np.float32)

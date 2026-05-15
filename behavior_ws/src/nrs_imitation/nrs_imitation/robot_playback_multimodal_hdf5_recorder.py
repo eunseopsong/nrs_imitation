@@ -37,7 +37,7 @@ Output merged HDF5:
 
 Layout compatible with demo_data_imitation_form.py:
   episodes/ep_0000/{position, ft, images/cam0, images/cam1,
-                    marker/id0, marker/id1, marker/combined, marker}
+                    marker/id0, marker/id1, marker/combined}
 """
 
 from __future__ import annotations
@@ -518,8 +518,6 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         mg.create_dataset("combined", data=marker, compression="gzip", compression_opts=4, shuffle=True)
         mg.create_dataset("id0_quat", data=m0q, compression="gzip", compression_opts=4, shuffle=True)
         mg.create_dataset("id1_quat", data=m1q, compression="gzip", compression_opts=4, shuffle=True)
-
-        g.create_dataset("marker", data=marker, compression="gzip", compression_opts=4, shuffle=True)
 
         self.h5.flush()
 

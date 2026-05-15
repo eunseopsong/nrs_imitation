@@ -539,9 +539,11 @@ def write_output_episode(
         g_meta.attrs["source_episode"] = str(ep_name)
         g_meta.attrs["marker_dim"] = int(data["marker"].shape[1])
 
-        # Compatibility aliases for older quick inspection scripts.
+        # Compatibility aliases for older quick inspection scripts.  The flat
+        # action alias cannot be named "action" because /action is the
+        # canonical group containing position and force datasets.
         f.create_dataset("qpos", data=np.concatenate([data["position"], data["force"]], axis=1).astype(np.float32), **arr_kwargs)
-        f.create_dataset("action", data=np.concatenate([data["position"], data["force"]], axis=1).astype(np.float32), **arr_kwargs)
+        f.create_dataset("action_flat", data=np.concatenate([data["position"], data["force"]], axis=1).astype(np.float32), **arr_kwargs)
 
 
 def convert_merged_h5(
