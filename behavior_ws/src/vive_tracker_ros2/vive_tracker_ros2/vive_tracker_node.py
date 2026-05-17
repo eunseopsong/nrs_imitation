@@ -196,6 +196,13 @@ class ViveTracker(Node):
         self.declare_parameter("T_SA_side", "right")  # ✅ default RIGHT (ver5와 맞춤)
         self.declare_parameter("debug_print_T_SA", False)
 
+        # Tool-center correction.
+        # t_bc: use solved EE->tracker transform from calibration (recommended)
+        # t_ce: legacy constant YAML T_CE offset
+        # none: publish calibrated tracker/world pose without tool correction
+        self.declare_parameter("tool_correction_mode", "t_bc")
+        self.declare_parameter("apply_T_CE_extra", False)
+
         # --- rotvec 연속화 (π 근처 튐 완화)
         self.declare_parameter("rotvec_continuous", True)
 
@@ -213,6 +220,8 @@ class ViveTracker(Node):
         self.apply_T_SA = bool(self.get_parameter("apply_T_SA").value)
         self.T_SA_side = str(self.get_parameter("T_SA_side").value).lower()
         self.debug_print_T_SA = bool(self.get_parameter("debug_print_T_SA").value)
+        self.tool_correction_mode = str(self.get_parameter("tool_correction_mode").value).lower()
+        self.apply_T_CE_extra = bool(self.get_parameter("apply_T_CE_extra").value)
 
         self.rotvec_continuous = bool(self.get_parameter("rotvec_continuous").value)
 
@@ -333,6 +342,19 @@ class ViveTracker(Node):
         self.T_CE = np.array(data.get("T_CE", np.eye(4)), dtype=np.float64)
         self.R_Adj = np.array(data.get("R_Adj", np.eye(3)), dtype=np.float64)
         T_FIX_loaded = self._to_T44(data.get("T_FIX", None))
+        self.T_BC_INV = np.eye(4, dtype=np.float64)
+        self.T_BC_valid = self._is_valid_T(self.T_BC)
+        if self.T_BC_valid:
+            self.T_BC_INV = np.linalg.inv(self.T_BC)
+        elif self.tool_correction_mode == "t_bc":
+            self.get_logger().warn("[vive_tracker_node] T_BC invalid. Falling back to legacy T_CE.")
+            self.tool_correction_mode = "t_ce"
+
+        if self.tool_correction_mode not in ["t_bc", "t_ce", "none", "off"]:
+            self.get_logger().warn(
+                f"[tool_correction_mode] unknown '{self.tool_correction_mode}', using t_bc"
+            )
+            self.tool_correction_mode = "t_bc" if self.T_BC_valid else "t_ce"
 
         # ROS1 순서 호환: T_Adj = R_Adj.T
         self.T_Adj = np.eye(4, dtype=np.float64)
@@ -358,11 +380,13 @@ class ViveTracker(Node):
 
         self.get_logger().info(
             f"[vive_tracker_node] apply_T_SA={self.apply_T_SA}, T_SA_side={self.T_SA_side}, "
-            f"rotvec_continuous={self.rotvec_continuous}, out_fix_mode={self.out_fix_mode}"
+            f"rotvec_continuous={self.rotvec_continuous}, out_fix_mode={self.out_fix_mode}, "
+            f"tool_correction_mode={self.tool_correction_mode}, apply_T_CE_extra={self.apply_T_CE_extra}"
         )
         if self.debug_print_T_SA:
             self.get_logger().info("T_SA=\n" + np.array2string(self.T_SA, precision=6, suppress_small=True))
             self.get_logger().info("T_FIX=\n" + np.array2string(self.T_FIX, precision=6, suppress_small=True))
+            self.get_logger().info("T_BC_INV=\n" + np.array2string(self.T_BC_INV, precision=6, suppress_small=True))
 
     # ------------------------------------------------------------------
     # service
@@ -469,6 +493,22 @@ class ViveTracker(Node):
             return self.T_SA @ M_cal
         return M_cal @ self.T_SA
 
+    def _apply_tool_correction(self, M_adj: np.ndarray) -> np.ndarray:
+        M_cal = self.T_AD @ M_adj
+
+        if self.tool_correction_mode == "t_bc":
+            # Calibration solves: T_AB * T_BC = T_AD * T_DC.
+            # Therefore the runtime EE/TCP pose is T_AD * T_DC * inv(T_BC).
+            M_cal = M_cal @ self.T_BC_INV
+            if self.apply_T_CE_extra:
+                M_cal = M_cal @ self.T_CE
+            return M_cal
+
+        if self.tool_correction_mode == "t_ce":
+            return M_cal @ self.T_CE
+
+        return M_cal
+
     # ------------------------------------------------------------------
     # main timer
     # ------------------------------------------------------------------
@@ -489,7 +529,7 @@ class ViveTracker(Node):
 
             # base chain (ROS1 순서 유지)
             M_adj = self.T_Adj @ raw_M
-            M_cal = self.T_AD @ M_adj @ self.T_CE
+            M_cal = self._apply_tool_correction(M_adj)
 
             # out_fix + z-plane correction: left-multiplied in base/world frame.
             M_cal = self.T_FIX @ M_cal

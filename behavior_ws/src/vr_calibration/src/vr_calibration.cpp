@@ -1,5 +1,5 @@
 // vr_calibration.cpp  (Option B: Auto-capture + Update R_Adj, T_AD, T_BC, T_SA in one YAML write)
-// v8: add T_FIX z-plane correction
+// v9: T_FIX uses the same solved T_BC tool-center chain as runtime
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
@@ -121,7 +121,9 @@ static double rotAngleBetweenRad(const std::array<double,9>& R_target,
 struct Waypoint
 {
   std::array<double,6> pose; // x y z wx wy wz
-  double flag;               // last column
+  double lin_vel;            // cmd_6D: desired_lin_vel
+  double ang_vel;            // cmd_6D: desired_ang_vel
+  double holding_time_s;     // cmd_6D: holding_time
 };
 
 // ================= helper: Eigen rigid transform =================
@@ -173,8 +175,11 @@ public:
     // ----------------------------
     // Files
     // ----------------------------
+    const char* home = std::getenv("HOME");
+    if (!home) throw std::runtime_error("HOME env not set");
+
     waypoint_file_ =
-      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/vr_calibration/for_vr_calibration_point.txt";
+      std::string(home) + "/nrs_imitation/behavior_ws/src/vr_calibration/data/for_vr_calibration_point.txt";
 
     ee_path_ =
       "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/vr_calibration/ur10_ee.txt";
@@ -193,7 +198,7 @@ public:
     vel_thresh_mms_      = 15.0;  // mm/s
     angvel_thresh_dps_   = 8.0;   // deg/s
 
-    hold_time_s_ = 0.35;
+    hold_time_s_ = 2.0;
 
     cp_fresh_s_       = 1.0;
     vr_capture_age_s_ = 30.0;
@@ -218,6 +223,9 @@ public:
     this->declare_parameter<double>("t_sa_max_delta_deg", 20.0); // update 시 old->new 변화량 제한
     this->declare_parameter<bool>("z_fix_enable", true);
     this->declare_parameter<double>("z_fix_max_tilt_deg", 5.0);
+    this->declare_parameter<std::string>("waypoint_file", waypoint_file_);
+    this->declare_parameter<int>("radj_sample_count", 8);
+    this->declare_parameter<double>("capture_hold_time_s", hold_time_s_);
 
     t_sa_w_des_z_        = this->get_parameter("t_sa_w_des_z").as_double();
     t_sa_wait_timeout_s_ = this->get_parameter("t_sa_wait_timeout_s").as_double();
@@ -229,6 +237,9 @@ public:
     t_sa_max_delta_deg_  = this->get_parameter("t_sa_max_delta_deg").as_double();
     z_fix_enable_        = this->get_parameter("z_fix_enable").as_bool();
     z_fix_max_tilt_deg_  = this->get_parameter("z_fix_max_tilt_deg").as_double();
+    waypoint_file_       = this->get_parameter("waypoint_file").as_string();
+    radj_sample_count_   = static_cast<size_t>(std::max<int64_t>(3, this->get_parameter("radj_sample_count").as_int()));
+    hold_time_s_         = std::max(0.1, this->get_parameter("capture_hold_time_s").as_double());
 
     // ----------------------------
     // Waypoints
@@ -265,20 +276,21 @@ public:
     // ----------------------------
     // yaml path
     // ----------------------------
-    const char* home = std::getenv("HOME");
-    if (!home) throw std::runtime_error("HOME env not set");
     calib_yaml_path_ = std::string(home) + "/nrs_imitation/behavior_ws/src/vive_tracker_ros2/yaml/calibration_matrix.yaml";
 
     // load existing constants (T_CE, T_SA_old)
     loadExistingYamlConstants();
 
     RCLCPP_INFO(get_logger(),
-      "Loaded %zu waypoints (%zu target points, flag!=0). Auto-capture enabled.",
+      "Loaded %zu cmd_6D waypoints (%zu hold targets, holding_time>0). Auto-capture enabled.",
       waypoints_.size(), target_indices_.size());
 
     RCLCPP_INFO(get_logger(),
       "[T_SA_MODE] t_sa_mode=%s, t_sa_max_delta_deg=%.1f",
       t_sa_mode_.c_str(), t_sa_max_delta_deg_);
+    RCLCPP_INFO(get_logger(),
+      "[CAPTURE_HOLD] capture_hold_time_s=%.2f, stop_threshold=(%.1fmm/s, %.1fdeg/s)",
+      hold_time_s_, vel_thresh_mms_, angvel_thresh_dps_);
   }
 
   void run()
@@ -287,7 +299,7 @@ public:
     exec.add_node(shared_from_this());
 
     if (target_indices_.empty()) {
-      RCLCPP_WARN(get_logger(), "No target points (flag!=0). Nothing to capture.");
+      RCLCPP_WARN(get_logger(), "No hold target points (holding_time>0). Nothing to capture.");
       return;
     }
 
@@ -440,7 +452,7 @@ private:
   double ori_exit_deg_{60.0};
   double vel_thresh_mms_{15.0};
   double angvel_thresh_dps_{8.0};
-  double hold_time_s_{0.35};
+  double hold_time_s_{2.0};
   double cp_fresh_s_{1.0};
   double vr_capture_age_s_{30.0};
   double target_timeout_s_{300.0};
@@ -452,6 +464,7 @@ private:
   double t_sa_wait_timeout_s_{15.0};
   double t_sa_hold_s_{0.25};
   double t_sa_fresh_s_{1.0};
+  size_t radj_sample_count_{8};
 
   // ✅ NEW
   std::string t_sa_mode_{"keep"};     // keep/update
@@ -523,11 +536,6 @@ private:
 
   bool t_sa_computed_{false};
   Eigen::Matrix4d T_SA_new_ = Eigen::Matrix4d::Identity();
-
-  // store the first two captured VR poses (for R_Adj)
-  bool have_pose1_{false}, have_pose2_{false};
-  Eigen::Quaterniond q_pose1_{1,0,0,0}; // (w,x,y,z)
-  Eigen::Quaterniond q_pose2_{1,0,0,0};
 
   // store all captured samples for T_BC / T_AD
   std::vector<Eigen::Matrix4d> T_AB_all_; // arm
@@ -626,8 +634,7 @@ private:
           throw std::runtime_error("Waypoint parse error in line: " + line);
       }
 
-      double dummy1, dummy2;
-      if (!(ss >> dummy1 >> dummy2 >> wp.flag))
+      if (!(ss >> wp.lin_vel >> wp.ang_vel >> wp.holding_time_s))
         throw std::runtime_error("Waypoint tail parse error in line: " + line);
 
       max_abs_w = std::max(max_abs_w, std::fabs(wp.pose[3]));
@@ -644,7 +651,7 @@ private:
   {
     target_indices_.clear();
     for (size_t i=0; i<waypoints_.size(); ++i) {
-      if (std::fabs(waypoints_[i].flag) > 1e-12)
+      if (waypoints_[i].holding_time_s > 1e-12)
         target_indices_.push_back(i);
     }
   }
@@ -974,32 +981,6 @@ private:
     Eigen::Vector3d p_dc(vr_x, vr_y, vr_z);
     T_DC_all_.push_back(makeT(R_dc, p_dc));
 
-    // --- R_Adj from the first two captured VR poses ---
-    if (target_k == 0 && !have_pose1_) {
-      q_pose1_ = q_vr;
-      have_pose1_ = true;
-      RCLCPP_INFO(get_logger(), "[R_ADJ] pose1 stored (from 1st capture).");
-    } else if (target_k == 1 && !have_pose2_) {
-      q_pose2_ = q_vr;
-      have_pose2_ = true;
-
-      Eigen::Matrix3d R1 = q_pose1_.toRotationMatrix();
-      Eigen::Matrix3d R2 = q_pose2_.toRotationMatrix();
-      R_adj_ = R1.transpose() * R2;
-      have_radj_ = true;
-
-      RCLCPP_INFO(get_logger(),
-        "[R_ADJ_DONE] R_Adj computed after 2nd capture (wp line %zu).\n"
-        "R_Adj=\n"
-        "[% .6f % .6f % .6f]\n"
-        "[% .6f % .6f % .6f]\n"
-        "[% .6f % .6f % .6f]",
-        wp_idx + 1,
-        R_adj_(0,0), R_adj_(0,1), R_adj_(0,2),
-        R_adj_(1,0), R_adj_(1,1), R_adj_(1,2),
-        R_adj_(2,0), R_adj_(2,1), R_adj_(2,2));
-    }
-
     RCLCPP_INFO(get_logger(),
       "[CAPTURE] target %zu/%zu (wp line %zu) | dist=%.2fmm ang=%.2fdeg | v=%.2fmm/s w=%.2fdeg/s",
       target_k+1, target_indices_.size(), wp_idx+1,
@@ -1065,9 +1046,79 @@ private:
     return true;
   }
 
+  bool computeRAdjFromSamples()
+  {
+    const size_t N_all = T_AB_all_.size();
+    if (N_all < 3 || T_DC_all_.size() != N_all) {
+      RCLCPP_WARN(get_logger(), "[R_ADJ] Need >=3 matched samples. Using Identity.");
+      R_adj_ = Eigen::Matrix3d::Identity();
+      have_radj_ = false;
+      return false;
+    }
+
+    const size_t N = std::min(radj_sample_count_, N_all);
+    Eigen::Vector3d p_arm_mean = Eigen::Vector3d::Zero();
+    Eigen::Vector3d p_vr_mean = Eigen::Vector3d::Zero();
+
+    for (size_t i=0; i<N; ++i) {
+      p_arm_mean += T_AB_all_[i].block<3,1>(0,3);
+      p_vr_mean += T_DC_all_[i].block<3,1>(0,3);
+    }
+    p_arm_mean /= static_cast<double>(N);
+    p_vr_mean /= static_cast<double>(N);
+
+    Eigen::Matrix3d H = Eigen::Matrix3d::Zero();
+    for (size_t i=0; i<N; ++i) {
+      const Eigen::Vector3d a = T_AB_all_[i].block<3,1>(0,3) - p_arm_mean;
+      const Eigen::Vector3d v = T_DC_all_[i].block<3,1>(0,3) - p_vr_mean;
+      H += v * a.transpose();
+    }
+
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
+    if (svd.info() != Eigen::Success) {
+      RCLCPP_WARN(get_logger(), "[R_ADJ] SVD failed. Using Identity.");
+      R_adj_ = Eigen::Matrix3d::Identity();
+      have_radj_ = false;
+      return false;
+    }
+
+    Eigen::Matrix3d R_vr_to_arm = svd.matrixV() * svd.matrixU().transpose();
+    if (R_vr_to_arm.determinant() < 0.0) {
+      Eigen::Matrix3d V = svd.matrixV();
+      V.col(2) *= -1.0;
+      R_vr_to_arm = V * svd.matrixU().transpose();
+    }
+
+    double rms = 0.0;
+    for (size_t i=0; i<N; ++i) {
+      const Eigen::Vector3d a = T_AB_all_[i].block<3,1>(0,3) - p_arm_mean;
+      const Eigen::Vector3d v = T_DC_all_[i].block<3,1>(0,3) - p_vr_mean;
+      const Eigen::Vector3d e = a - R_vr_to_arm * v;
+      rms += e.squaredNorm();
+    }
+    rms = std::sqrt(rms / static_cast<double>(N));
+
+    // Runtime applies T_Adj = R_Adj.transpose() before the base calibration.
+    R_adj_ = R_vr_to_arm.transpose();
+    have_radj_ = true;
+
+    RCLCPP_INFO(get_logger(),
+      "[R_ADJ_DONE] multi-point position fit using %zu/%zu samples. fit_rms=%.3fmm\n"
+      "R_Adj=\n"
+      "[% .6f % .6f % .6f]\n"
+      "[% .6f % .6f % .6f]\n"
+      "[% .6f % .6f % .6f]",
+      N, N_all, rms * 1000.0,
+      R_adj_(0,0), R_adj_(0,1), R_adj_(0,2),
+      R_adj_(1,0), R_adj_(1,1), R_adj_(1,2),
+      R_adj_(2,0), R_adj_(2,1), R_adj_(2,2));
+
+    return true;
+  }
+
   Eigen::Matrix4d computeZPlaneFix(const Eigen::Matrix4d& T_AD,
                                    const Eigen::Matrix3d& R_Adj,
-                                   const Eigen::Matrix4d& T_CE)
+                                   const Eigen::Matrix4d& T_BC)
   {
     Eigen::Matrix4d T_fix = Eigen::Matrix4d::Identity();
     const size_t N = T_AB_all_.size();
@@ -1082,6 +1133,7 @@ private:
 
     Eigen::Matrix4d T_Adj = Eigen::Matrix4d::Identity();
     T_Adj.block<3,3>(0,0) = R_Adj.transpose();
+    const Eigen::Matrix4d T_CB = invT(T_BC);
 
     Eigen::MatrixXd A(static_cast<Eigen::Index>(N), 3);
     Eigen::VectorXd b(static_cast<Eigen::Index>(N));
@@ -1092,7 +1144,7 @@ private:
 
     double rms_before = 0.0;
     for (size_t i=0; i<N; ++i) {
-      const Eigen::Matrix4d M_cal = T_AD * T_Adj * T_DC_all_[i] * T_CE;
+      const Eigen::Matrix4d M_cal = T_AD * T_Adj * T_DC_all_[i] * T_CB;
       const Eigen::Vector3d p_cal = M_cal.block<3,1>(0,3);
       const double z_ref = T_AB_all_[i](2,3);
       const double dz = z_ref - p_cal.z();
@@ -1158,6 +1210,18 @@ private:
       throw std::runtime_error("Not enough samples to compute calibration (need >=2).");
     }
 
+    computeRAdjFromSamples();
+
+    Eigen::Matrix4d T_Adj = Eigen::Matrix4d::Identity();
+    T_Adj.block<3,3>(0,0) =
+      (have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity()).transpose();
+
+    std::vector<Eigen::Matrix4d> T_DC_adj_all;
+    T_DC_adj_all.reserve(N);
+    for (const auto& T_DC : T_DC_all_) {
+      T_DC_adj_all.push_back(T_Adj * T_DC);
+    }
+
     // clear buffers
     O_B0B1_list_.clear();
     O_C0C1_list_.clear();
@@ -1176,8 +1240,8 @@ private:
       const Eigen::Matrix4d& T_AB0 = T_AB_all_[i];
       const Eigen::Matrix4d& T_AB1 = T_AB_all_[i+1];
 
-      const Eigen::Matrix4d& T_DC0 = T_DC_all_[i];
-      const Eigen::Matrix4d& T_DC1 = T_DC_all_[i+1];
+      const Eigen::Matrix4d& T_DC0 = T_DC_adj_all[i];
+      const Eigen::Matrix4d& T_DC1 = T_DC_adj_all[i+1];
 
       const Eigen::Matrix4d T_B0B1 = invT(T_AB0) * T_AB1;
       const Eigen::Matrix4d T_C0C1 = invT(T_DC0) * T_DC1;
@@ -1263,7 +1327,7 @@ private:
     T_FIX_ = computeZPlaneFix(
       T_AD_avg,
       have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity(),
-      T_CE_);
+      T_BC);
 
     // Decide final T_SA to save:
     // - keep mode: always save old
@@ -1311,7 +1375,7 @@ private:
     ofs << "  t_sa_w_des_z: " << std::fixed << std::setprecision(prec) << t_sa_w_des_z_ << "\n";
     ofs << "  z_fix_enable: " << (z_fix_enable_ ? "true" : "false") << "\n";
     ofs << "  z_fix_max_tilt_deg: " << std::fixed << std::setprecision(prec) << z_fix_max_tilt_deg_ << "\n";
-    ofs << "  note: \"T_SA is right-multiplied in vive_tracker (M_cal = ... @ T_SA)\"\n\n";
+    ofs << "  note: \"Runtime tool correction uses inv(T_BC); T_SA is right-multiplied.\"\n\n";
 
     auto writeMat4 = [&](const std::string& key, const Eigen::Matrix4d& T){
       ofs << key << ":\n";
@@ -1348,7 +1412,7 @@ private:
     ofs << "# left-multiplied rigid z-plane correction (M_cal = T_FIX @ M_cal)\n";
     writeMat4("T_FIX", T_FIX);
 
-    ofs << "# constant offset: tune here if needed\n";
+    ofs << "# optional extra constant offset; runtime ignores this unless apply_T_CE_extra=true or tool_correction_mode=t_ce\n";
     writeMat4("T_CE", T_CE);
 
     ofs << "# spatial-angle frame alignment (right-multiply)\n";
