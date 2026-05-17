@@ -179,7 +179,7 @@ public:
     if (!home) throw std::runtime_error("HOME env not set");
 
     waypoint_file_ =
-      std::string(home) + "/nrs_imitation/behavior_ws/src/vr_calibration/data/for_vr_calibration_point.txt";
+      std::string(home) + "/nrs_imitation/behavior_ws/src/vr_calibration/data/for_vr_calibration_point_v3.txt";
 
     ee_path_ =
       "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/vr_calibration/ur10_ee.txt";
@@ -224,8 +224,9 @@ public:
     this->declare_parameter<bool>("z_fix_enable", true);
     this->declare_parameter<double>("z_fix_max_tilt_deg", 5.0);
     this->declare_parameter<std::string>("waypoint_file", waypoint_file_);
-    this->declare_parameter<int>("radj_sample_count", 8);
+    this->declare_parameter<int>("radj_sample_count", 32);
     this->declare_parameter<double>("capture_hold_time_s", hold_time_s_);
+    this->declare_parameter<double>("max_calib_position_rms_mm", 50.0);
 
     t_sa_w_des_z_        = this->get_parameter("t_sa_w_des_z").as_double();
     t_sa_wait_timeout_s_ = this->get_parameter("t_sa_wait_timeout_s").as_double();
@@ -240,6 +241,7 @@ public:
     waypoint_file_       = this->get_parameter("waypoint_file").as_string();
     radj_sample_count_   = static_cast<size_t>(std::max<int64_t>(3, this->get_parameter("radj_sample_count").as_int()));
     hold_time_s_         = std::max(0.1, this->get_parameter("capture_hold_time_s").as_double());
+    max_calib_position_rms_mm_ = std::max(1.0, this->get_parameter("max_calib_position_rms_mm").as_double());
 
     // ----------------------------
     // Waypoints
@@ -465,6 +467,7 @@ private:
   double t_sa_hold_s_{0.25};
   double t_sa_fresh_s_{1.0};
   size_t radj_sample_count_{8};
+  double max_calib_position_rms_mm_{50.0};
 
   // ✅ NEW
   std::string t_sa_mode_{"keep"};     // keep/update
@@ -476,6 +479,8 @@ private:
 
   // ---------- units ----------
   bool wp_rotvec_in_degrees_{false};
+  bool cp_pos_unit_decided_{false};
+  bool cp_pos_in_meters_{false};
   bool cp_rotvec_unit_decided_{false};
   bool cp_rotvec_in_degrees_{false};
   size_t cp_probe_cnt_{0};
@@ -555,6 +560,24 @@ private:
 
     std::lock_guard<std::mutex> lk(mtx_);
     for (int i=0;i<6;i++) last_cp_[i] = msg->data[i];
+
+    if (!cp_pos_unit_decided_) {
+      double mabs = 0.0;
+      mabs = std::max(mabs, std::fabs(last_cp_[0]));
+      mabs = std::max(mabs, std::fabs(last_cp_[1]));
+      mabs = std::max(mabs, std::fabs(last_cp_[2]));
+      cp_pos_in_meters_ = (mabs < 10.0);
+      cp_pos_unit_decided_ = true;
+      RCLCPP_INFO(get_logger(),
+        "currentP position unit decided (heuristic): %s (max_abs=%.3f)",
+        cp_pos_in_meters_ ? "M" : "MM", mabs);
+    }
+
+    // Internally currentP positions are kept in mm because waypoints are mm.
+    if (cp_pos_in_meters_) {
+      for (int i=0;i<3;i++) last_cp_[i] *= 1000.0;
+    }
+
     have_cp_ = true;
     last_cp_time_ = ts;
     cp_seq_++;
@@ -1202,6 +1225,52 @@ private:
     return T_fix;
   }
 
+  double validateCalibrationFitMm(const Eigen::Matrix4d& T_AD,
+                                  const Eigen::Matrix3d& R_Adj,
+                                  const Eigen::Matrix4d& T_BC,
+                                  const Eigen::Matrix4d& T_FIX)
+  {
+    const size_t N = T_AB_all_.size();
+    if (N == 0 || T_DC_all_.size() != N) {
+      throw std::runtime_error("No samples available for calibration validation.");
+    }
+
+    Eigen::Matrix4d T_Adj = Eigen::Matrix4d::Identity();
+    T_Adj.block<3,3>(0,0) = R_Adj.transpose();
+    const Eigen::Matrix4d T_CB = invT(T_BC);
+
+    double sum2 = 0.0;
+    double max_err = 0.0;
+    size_t max_i = 0;
+
+    for (size_t i=0; i<N; ++i) {
+      const Eigen::Matrix4d M_cal = T_FIX * T_AD * T_Adj * T_DC_all_[i] * T_CB;
+      const Eigen::Vector3d p_cal = M_cal.block<3,1>(0,3);
+      const Eigen::Vector3d p_ref = T_AB_all_[i].block<3,1>(0,3);
+      const double err = (p_ref - p_cal).norm();
+      sum2 += err * err;
+      if (err > max_err) {
+        max_err = err;
+        max_i = i;
+      }
+    }
+
+    const double rms_mm = std::sqrt(sum2 / static_cast<double>(N)) * 1000.0;
+    RCLCPP_INFO(get_logger(),
+      "[CALIB_VALIDATE] runtime-chain position fit: rms=%.3fmm max=%.3fmm at sample=%zu/%zu",
+      rms_mm, max_err * 1000.0, max_i + 1, N);
+
+    if (rms_mm > max_calib_position_rms_mm_) {
+      std::ostringstream oss;
+      oss << "Calibration rejected: position RMS " << std::fixed << std::setprecision(3)
+          << rms_mm << "mm exceeds limit " << max_calib_position_rms_mm_
+          << "mm. YAML was not overwritten.";
+      throw std::runtime_error(oss.str());
+    }
+
+    return rms_mm;
+  }
+
   // ---------- compute T_BC / T_AD_avg and save yaml ----------
   void finalizeCalibrationAndSaveYaml()
   {
@@ -1328,6 +1397,12 @@ private:
       T_AD_avg,
       have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity(),
       T_BC);
+
+    validateCalibrationFitMm(
+      T_AD_avg,
+      have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity(),
+      T_BC,
+      T_FIX_);
 
     // Decide final T_SA to save:
     // - keep mode: always save old
