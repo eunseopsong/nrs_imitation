@@ -197,10 +197,10 @@ class ViveTracker(Node):
         self.declare_parameter("debug_print_T_SA", False)
 
         # Tool-center correction.
-        # t_bc: use solved EE->tracker transform from calibration (recommended)
+        # t_bc: publish EE/TCP pose by removing solved EE->tracker offset
         # t_ce: legacy constant YAML T_CE offset
-        # none: publish calibrated tracker/world pose without tool correction
-        self.declare_parameter("tool_correction_mode", "t_bc")
+        # none: publish calibrated tracker/world pose without tool correction (default)
+        self.declare_parameter("tool_correction_mode", "none")
         self.declare_parameter("apply_T_CE_extra", False)
 
         # --- rotvec 연속화 (π 근처 튐 완화)

@@ -224,8 +224,13 @@ public:
     this->declare_parameter<bool>("z_fix_enable", true);
     this->declare_parameter<double>("z_fix_max_tilt_deg", 5.0);
     this->declare_parameter<std::string>("waypoint_file", waypoint_file_);
-    this->declare_parameter<int>("radj_sample_count", 32);
+    this->declare_parameter<int>("radj_sample_count", 0); // <=0: use all captured samples
     this->declare_parameter<double>("capture_hold_time_s", hold_time_s_);
+    this->declare_parameter<double>("capture_window_s", 0.5);
+    this->declare_parameter<int>("capture_min_clean_samples", 20);
+    this->declare_parameter<double>("vr_capture_age_s", 0.2);
+    this->declare_parameter<double>("max_capture_sync_dt_s", 0.05);
+    this->declare_parameter<double>("capture_max_vr_std_mm", 10.0);
     this->declare_parameter<double>("max_calib_position_rms_mm", 50.0);
 
     t_sa_w_des_z_        = this->get_parameter("t_sa_w_des_z").as_double();
@@ -239,8 +244,18 @@ public:
     z_fix_enable_        = this->get_parameter("z_fix_enable").as_bool();
     z_fix_max_tilt_deg_  = this->get_parameter("z_fix_max_tilt_deg").as_double();
     waypoint_file_       = this->get_parameter("waypoint_file").as_string();
-    radj_sample_count_   = static_cast<size_t>(std::max<int64_t>(3, this->get_parameter("radj_sample_count").as_int()));
+    const int64_t radj_sample_count_param = this->get_parameter("radj_sample_count").as_int();
+    radj_use_all_samples_ = (radj_sample_count_param <= 0);
+    radj_sample_count_ = radj_use_all_samples_
+      ? 0
+      : static_cast<size_t>(std::max<int64_t>(3, radj_sample_count_param));
     hold_time_s_         = std::max(0.1, this->get_parameter("capture_hold_time_s").as_double());
+    capture_window_s_    = std::max(0.05, this->get_parameter("capture_window_s").as_double());
+    capture_min_clean_samples_ =
+      static_cast<size_t>(std::max<int64_t>(1, this->get_parameter("capture_min_clean_samples").as_int()));
+    vr_capture_age_s_    = std::max(0.01, this->get_parameter("vr_capture_age_s").as_double());
+    max_capture_sync_dt_s_ = std::max(0.0, this->get_parameter("max_capture_sync_dt_s").as_double());
+    capture_max_vr_std_mm_ = std::max(0.0, this->get_parameter("capture_max_vr_std_mm").as_double());
     max_calib_position_rms_mm_ = std::max(1.0, this->get_parameter("max_calib_position_rms_mm").as_double());
 
     // ----------------------------
@@ -293,6 +308,13 @@ public:
     RCLCPP_INFO(get_logger(),
       "[CAPTURE_HOLD] capture_hold_time_s=%.2f, stop_threshold=(%.1fmm/s, %.1fdeg/s)",
       hold_time_s_, vel_thresh_mms_, angvel_thresh_dps_);
+    RCLCPP_INFO(get_logger(),
+      "[CLEAN_CAPTURE] window=%.2fs, min_samples=%zu, vr_fresh<=%.2fs, sync_dt<=%.3fs, max_vr_std=%.1fmm",
+      capture_window_s_, capture_min_clean_samples_, vr_capture_age_s_,
+      max_capture_sync_dt_s_, capture_max_vr_std_mm_);
+    const std::string radj_sample_count_log =
+      radj_use_all_samples_ ? "all" : std::to_string(radj_sample_count_);
+    RCLCPP_INFO(get_logger(), "[R_ADJ] sample_count=%s", radj_sample_count_log.c_str());
   }
 
   void run()
@@ -365,6 +387,7 @@ public:
           hold_active = false;
           resetMotionDetector();
           target_start_time = tnow();
+          resetCleanCaptureBuffer();
 
           RCLCPP_INFO(get_logger(),
             "[IN] target %zu/%zu (wp line %zu) | dist=%.2fmm ang=%.2fdeg",
@@ -378,6 +401,7 @@ public:
         state = State::WAIT_ENTER;
         hold_active = false;
         resetMotionDetector();
+        resetCleanCaptureBuffer();
         RCLCPP_WARN(get_logger(),
           "[OUT] left region -> WAIT_ENTER | dist=%.2fmm ang=%.2fdeg",
           dist_mm, ang_deg);
@@ -387,6 +411,7 @@ public:
 
       if (!(dist_mm <= pos_enter_mm_ && ang_deg <= ori_enter_deg_)) {
         hold_active = false;
+        resetCleanCaptureBuffer();
       }
 
       updateMotionIfNew(cp, cp_t, cp_seq);
@@ -394,34 +419,45 @@ public:
       const bool stopped_now = isStoppedNow();
       if (!(dist_mm <= pos_enter_mm_ && ang_deg <= ori_enter_deg_)) {
         hold_active = false;
+        resetCleanCaptureBuffer();
       } else if (!stopped_now) {
         hold_active = false;
+        resetCleanCaptureBuffer();
       } else {
         if (!hold_active) {
           hold_active = true;
           hold_start_time = tnow();
+          resetCleanCaptureBuffer();
         }
       }
 
       if (hold_active) {
+        addCleanCaptureSampleIfNew(cp, vr, cp_t, vr_t, cp_seq, dist_mm, ang_deg);
+
         const double held = (tnow() - hold_start_time).seconds();
         if (held >= hold_time_s_) {
 
-          if (!isVrFreshForCapture(vr_t)) {
+          std::array<double,6> cp_avg;
+          std::array<double,7> vr_avg;
+          double dist_avg_mm = 0.0;
+          double ang_avg_deg = 0.0;
+          if (!makeCleanCaptureAverage(cp_avg, vr_avg, dist_avg_mm, ang_avg_deg)) {
             RCLCPP_WARN_THROTTLE(
               get_logger(), steady_clock_, 2000,
-              "[WAIT_VR] VR too old (age=%.2fs). Waiting...",
-              (tnow() - vr_t).seconds());
+              "[WAIT_CLEAN_CAPTURE] clean_samples=%zu/%zu, window=%.3fs/%.3fs. Waiting...",
+              clean_capture_samples_.size(), capture_min_clean_samples_,
+              cleanCaptureWindowS(), capture_window_s_);
             rate.sleep();
             continue;
           }
 
-          captureOnce(target_k, wp_idx, cp, vr, dist_mm, ang_deg);
+          captureOnce(target_k, wp_idx, cp_avg, vr_avg, dist_avg_mm, ang_avg_deg);
 
           target_k++;
           state = State::WAIT_ENTER;
           target_start_time = tnow();
           resetMotionDetector();
+          resetCleanCaptureBuffer();
           hold_active = false;
         }
       }
@@ -457,6 +493,10 @@ private:
   double hold_time_s_{2.0};
   double cp_fresh_s_{1.0};
   double vr_capture_age_s_{30.0};
+  double max_capture_sync_dt_s_{0.05};
+  double capture_window_s_{0.5};
+  size_t capture_min_clean_samples_{20};
+  double capture_max_vr_std_mm_{10.0};
   double target_timeout_s_{300.0};
   double loop_hz_{200.0};
   size_t cp_unit_probe_N_{30};
@@ -467,6 +507,7 @@ private:
   double t_sa_hold_s_{0.25};
   double t_sa_fresh_s_{1.0};
   size_t radj_sample_count_{8};
+  bool radj_use_all_samples_{false};
   double max_calib_position_rms_mm_{50.0};
 
   // ✅ NEW
@@ -516,6 +557,22 @@ private:
   uint64_t prev_motion_seq_{0};
   double last_vnorm_mms_{1e9};
   double last_omega_dps_{1e9};
+
+  struct CaptureSample
+  {
+    std::array<double,6> cp{};
+    std::array<double,7> vr{};
+    rclcpp::Time cp_t;
+    rclcpp::Time vr_t;
+    uint64_t cp_seq{0};
+    double dist_mm{0.0};
+    double ang_deg{0.0};
+    double vnorm_mms{0.0};
+    double omega_dps{0.0};
+  };
+
+  std::vector<CaptureSample> clean_capture_samples_;
+  uint64_t last_clean_capture_cp_seq_{0};
 
   // ---------- ROS ----------
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr sub_currentP_;
@@ -826,6 +883,140 @@ private:
     return (last_vnorm_mms_ <= vel_thresh_mms_) && (last_omega_dps_ <= angvel_thresh_dps_);
   }
 
+  // ---------- clean capture buffer ----------
+  void resetCleanCaptureBuffer()
+  {
+    clean_capture_samples_.clear();
+    last_clean_capture_cp_seq_ = 0;
+  }
+
+  double captureSyncDtS(const rclcpp::Time& cp_t, const rclcpp::Time& vr_t) const
+  {
+    return std::fabs((cp_t - vr_t).seconds());
+  }
+
+  double cleanCaptureWindowS() const
+  {
+    if (clean_capture_samples_.size() < 2) return 0.0;
+    return (clean_capture_samples_.back().cp_t - clean_capture_samples_.front().cp_t).seconds();
+  }
+
+  void addCleanCaptureSampleIfNew(const std::array<double,6>& cp,
+                                  const std::array<double,7>& vr,
+                                  const rclcpp::Time& cp_t,
+                                  const rclcpp::Time& vr_t,
+                                  uint64_t cp_seq,
+                                  double dist_mm,
+                                  double ang_deg)
+  {
+    if (cp_seq == last_clean_capture_cp_seq_) return;
+    last_clean_capture_cp_seq_ = cp_seq;
+
+    if (!isCpFresh(cp_t) || !isVrFreshForCapture(vr_t)) return;
+    if (max_capture_sync_dt_s_ > 0.0 && captureSyncDtS(cp_t, vr_t) > max_capture_sync_dt_s_) return;
+    if (dist_mm > pos_enter_mm_ || ang_deg > ori_enter_deg_) return;
+    if (!isStoppedNow()) return;
+
+    CaptureSample s;
+    s.cp = cp;
+    s.vr = vr;
+    s.cp_t = cp_t;
+    s.vr_t = vr_t;
+    s.cp_seq = cp_seq;
+    s.dist_mm = dist_mm;
+    s.ang_deg = ang_deg;
+    s.vnorm_mms = last_vnorm_mms_;
+    s.omega_dps = last_omega_dps_;
+    clean_capture_samples_.push_back(s);
+  }
+
+  bool makeCleanCaptureAverage(std::array<double,6>& cp_avg,
+                               std::array<double,7>& vr_avg,
+                               double& dist_avg_mm,
+                               double& ang_avg_deg)
+  {
+    const size_t N = clean_capture_samples_.size();
+    if (N < capture_min_clean_samples_) return false;
+    if (cleanCaptureWindowS() < capture_window_s_) return false;
+
+    cp_avg = {0,0,0,0,0,0};
+    vr_avg = {0,0,0,0,0,0,1};
+    dist_avg_mm = 0.0;
+    ang_avg_deg = 0.0;
+
+    Eigen::Vector3d vr_pos_sum_m = Eigen::Vector3d::Zero();
+    Eigen::Vector3d vr_pos_sum_raw = Eigen::Vector3d::Zero();
+    Eigen::Vector4d q_sum = Eigen::Vector4d::Zero(); // coeffs: x,y,z,w
+    bool have_q_ref = false;
+    Eigen::Quaterniond q_ref(1,0,0,0);
+
+    for (const auto& s : clean_capture_samples_) {
+      for (int i=0; i<6; ++i) cp_avg[i] += s.cp[i];
+
+      double vx = s.vr[0], vy = s.vr[1], vz = s.vr[2];
+      if (vr_pos_unit_decided_ && vr_pos_in_mm_) {
+        vx *= 1e-3; vy *= 1e-3; vz *= 1e-3;
+      }
+      vr_pos_sum_m += Eigen::Vector3d(vx, vy, vz);
+      vr_pos_sum_raw += Eigen::Vector3d(s.vr[0], s.vr[1], s.vr[2]);
+
+      Eigen::Quaterniond q(s.vr[6], s.vr[3], s.vr[4], s.vr[5]);
+      q.normalize();
+      if (!have_q_ref) {
+        q_ref = q;
+        have_q_ref = true;
+      }
+      if (q_ref.coeffs().dot(q.coeffs()) < 0.0) {
+        q.coeffs() *= -1.0;
+      }
+      q_sum += q.coeffs();
+
+      dist_avg_mm += s.dist_mm;
+      ang_avg_deg += s.ang_deg;
+    }
+
+    const double invN = 1.0 / static_cast<double>(N);
+    for (int i=0; i<6; ++i) cp_avg[i] *= invN;
+    dist_avg_mm *= invN;
+    ang_avg_deg *= invN;
+
+    const Eigen::Vector3d vr_pos_mean_m = vr_pos_sum_m * invN;
+    const Eigen::Vector3d vr_pos_mean_raw = vr_pos_sum_raw * invN;
+    double vr_var = 0.0;
+    for (const auto& s : clean_capture_samples_) {
+      double vx = s.vr[0], vy = s.vr[1], vz = s.vr[2];
+      if (vr_pos_unit_decided_ && vr_pos_in_mm_) {
+        vx *= 1e-3; vy *= 1e-3; vz *= 1e-3;
+      }
+      vr_var += (Eigen::Vector3d(vx, vy, vz) - vr_pos_mean_m).squaredNorm();
+    }
+    const double vr_std_mm = std::sqrt(vr_var * invN) * 1000.0;
+    if (capture_max_vr_std_mm_ > 0.0 && vr_std_mm > capture_max_vr_std_mm_) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), steady_clock_, 2000,
+        "[WAIT_CLEAN_CAPTURE] VR position std %.2fmm exceeds %.2fmm. Waiting...",
+        vr_std_mm, capture_max_vr_std_mm_);
+      return false;
+    }
+
+    Eigen::Quaterniond q_avg;
+    q_avg.coeffs() = q_sum * invN;
+    q_avg.normalize();
+
+    vr_avg[0] = vr_pos_mean_raw.x();
+    vr_avg[1] = vr_pos_mean_raw.y();
+    vr_avg[2] = vr_pos_mean_raw.z();
+    vr_avg[3] = q_avg.x();
+    vr_avg[4] = q_avg.y();
+    vr_avg[5] = q_avg.z();
+    vr_avg[6] = q_avg.w();
+
+    RCLCPP_INFO(get_logger(),
+      "[CLEAN_CAPTURE] averaged %zu samples over %.3fs | dist=%.2fmm ang=%.2fdeg vr_std=%.2fmm",
+      N, cleanCaptureWindowS(), dist_avg_mm, ang_avg_deg, vr_std_mm);
+    return true;
+  }
+
   // ==========================================================
   // T_SA computation (right-multiply)
   // ==========================================================
@@ -1079,7 +1270,9 @@ private:
       return false;
     }
 
-    const size_t N = std::min(radj_sample_count_, N_all);
+    const size_t N = radj_use_all_samples_
+      ? N_all
+      : std::min(radj_sample_count_, N_all);
     Eigen::Vector3d p_arm_mean = Eigen::Vector3d::Zero();
     Eigen::Vector3d p_vr_mean = Eigen::Vector3d::Zero();
 
