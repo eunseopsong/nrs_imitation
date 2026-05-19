@@ -67,7 +67,8 @@ ros2 run vr_calibration vr_calibration
 현재 기본값은 다음과 같다.
 
 ```text
-t_sa_mode = keep
+t_sa_mode = update
+t_sa_max_delta_deg = 180.0
 radj_sample_count = 0        # 0 또는 음수면 전체 captured sample 사용
 capture_hold_time_s = 2.0
 capture_min_hold_time_s = 1.5
@@ -77,6 +78,8 @@ vr_capture_age_s = 0.2
 max_capture_sync_dt_s = 0.05
 capture_max_vr_std_mm = 10.0
 z_fix_enable = true
+z_residual_enable = true
+z_residual_max_correction_mm = 10.0
 max_calib_position_rms_mm = 50.0
 ```
 
@@ -113,6 +116,8 @@ best window는 VR position std, robot linear/angular velocity, target dist/angle
 - VR position: clean sample 평균
 - VR orientation: quaternion sign-align 평균
 - VR position std가 `capture_max_vr_std_mm`를 넘으면 캡처를 보류
+- `T_FIX` 뒤에도 XY 위치별 Z 오차가 남으면 `Z_RESIDUAL` quadratic_xy 모델을 저장한다.
+  runtime은 이 모델이 있으면 `T_FIX` 적용 직후 z값만 `z += f(x,y)`로 보정한다.
 
 캡처 로그 예:
 

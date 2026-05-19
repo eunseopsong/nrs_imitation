@@ -348,6 +348,7 @@ class ViveTracker(Node):
         self.T_CE = np.array(data.get("T_CE", np.eye(4)), dtype=np.float64)
         self.R_Adj = np.array(data.get("R_Adj", np.eye(3)), dtype=np.float64)
         T_FIX_loaded = self._to_T44(data.get("T_FIX", None))
+        self.Z_RESIDUAL = self._load_z_residual(data.get("Z_RESIDUAL", None))
         self.T_BC_INV = np.eye(4, dtype=np.float64)
         self.T_BC_valid = self._is_valid_T(self.T_BC)
         if self.T_BC_valid:
@@ -393,6 +394,54 @@ class ViveTracker(Node):
             self.get_logger().info("T_SA=\n" + np.array2string(self.T_SA, precision=6, suppress_small=True))
             self.get_logger().info("T_FIX=\n" + np.array2string(self.T_FIX, precision=6, suppress_small=True))
             self.get_logger().info("T_BC_INV=\n" + np.array2string(self.T_BC_INV, precision=6, suppress_small=True))
+
+    def _load_z_residual(self, node):
+        disabled = {"enabled": False}
+        if not isinstance(node, dict) or not bool(node.get("enabled", False)):
+            return disabled
+        if str(node.get("model", "")).lower() != "quadratic_xy":
+            self.get_logger().warn("[Z_RESIDUAL] unsupported model. Disabled.")
+            return disabled
+        try:
+            coeff = np.array(node.get("coeff", []), dtype=np.float64)
+            if coeff.shape != (6,) or not np.all(np.isfinite(coeff)):
+                raise ValueError("coeff must be finite length-6")
+            out = {
+                "enabled": True,
+                "center_x": float(node.get("center_x", 0.0)),
+                "center_y": float(node.get("center_y", 0.0)),
+                "scale_xy": max(1e-6, float(node.get("scale_xy", 1.0))),
+                "max_abs_correction_m": max(0.0, float(node.get("max_abs_correction_m", 0.0))),
+                "coeff": coeff,
+            }
+            self.get_logger().info(
+                "[Z_RESIDUAL] loaded quadratic_xy z correction "
+                f"(clamp={out['max_abs_correction_m'] * 1000.0:.1f}mm)."
+            )
+            return out
+        except Exception as e:
+            self.get_logger().warn(f"[Z_RESIDUAL] invalid yaml entry. Disabled. error={e}")
+            return disabled
+
+    def _apply_z_residual(self, M_cal: np.ndarray) -> np.ndarray:
+        if not self.Z_RESIDUAL.get("enabled", False):
+            return M_cal
+        x = float(M_cal[0, 3])
+        y = float(M_cal[1, 3])
+        s = self.Z_RESIDUAL["scale_xy"]
+        xn = (x - self.Z_RESIDUAL["center_x"]) / s
+        yn = (y - self.Z_RESIDUAL["center_y"]) / s
+        c = self.Z_RESIDUAL["coeff"]
+        dz = (
+            c[0] + c[1] * xn + c[2] * yn +
+            c[3] * xn * xn + c[4] * xn * yn + c[5] * yn * yn
+        )
+        clamp = self.Z_RESIDUAL["max_abs_correction_m"]
+        if clamp > 0.0:
+            dz = float(np.clip(dz, -clamp, clamp))
+        out = M_cal.copy()
+        out[2, 3] += dz
+        return out
 
     # ------------------------------------------------------------------
     # service
@@ -604,6 +653,7 @@ class ViveTracker(Node):
 
             # out_fix + z-plane correction: left-multiplied in base/world frame.
             M_cal = self.T_FIX @ M_cal
+            M_cal = self._apply_z_residual(M_cal)
 
             # ✅ spatial-angle alignment
             M_cal = self._apply_T_SA_to_M_cal(M_cal)

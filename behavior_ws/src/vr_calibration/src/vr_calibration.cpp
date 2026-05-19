@@ -216,13 +216,15 @@ public:
     this->declare_parameter<double>("t_sa_hold_s", 0.25);
     this->declare_parameter<double>("t_sa_fresh_s", 1.0);
 
-    // ✅ NEW: T_SA update mode
-    // - keep   : YAML의 기존 T_SA 유지(덮어쓰기 방지, 기본)
+    // T_SA update mode
+    // - keep   : YAML의 기존 T_SA 유지
     // - update : pre-phase에서 /calibrated_pose 기반으로 T_SA 재계산
-    this->declare_parameter<std::string>("t_sa_mode", "keep"); // "keep" or "update"
-    this->declare_parameter<double>("t_sa_max_delta_deg", 20.0); // update 시 old->new 변화량 제한
+    this->declare_parameter<std::string>("t_sa_mode", "update"); // "keep" or "update"
+    this->declare_parameter<double>("t_sa_max_delta_deg", 180.0); // update 시 old->new 변화량 제한
     this->declare_parameter<bool>("z_fix_enable", true);
     this->declare_parameter<double>("z_fix_max_tilt_deg", 5.0);
+    this->declare_parameter<bool>("z_residual_enable", true);
+    this->declare_parameter<double>("z_residual_max_correction_mm", 10.0);
     this->declare_parameter<std::string>("waypoint_file", waypoint_file_);
     this->declare_parameter<int>("radj_sample_count", 0); // <=0: use all captured samples
     this->declare_parameter<double>("capture_hold_time_s", hold_time_s_);
@@ -244,6 +246,9 @@ public:
     t_sa_max_delta_deg_  = this->get_parameter("t_sa_max_delta_deg").as_double();
     z_fix_enable_        = this->get_parameter("z_fix_enable").as_bool();
     z_fix_max_tilt_deg_  = this->get_parameter("z_fix_max_tilt_deg").as_double();
+    z_residual_enable_   = this->get_parameter("z_residual_enable").as_bool();
+    z_residual_max_correction_m_ =
+      std::max(0.0, this->get_parameter("z_residual_max_correction_mm").as_double()) * 1e-3;
     waypoint_file_       = this->get_parameter("waypoint_file").as_string();
     const int64_t radj_sample_count_param = this->get_parameter("radj_sample_count").as_int();
     radj_use_all_samples_ = (radj_sample_count_param <= 0);
@@ -530,12 +535,14 @@ private:
   double max_calib_position_rms_mm_{50.0};
 
   // ✅ NEW
-  std::string t_sa_mode_{"keep"};     // keep/update
-  double t_sa_max_delta_deg_{20.0};   // update guard
+  std::string t_sa_mode_{"update"};   // keep/update
+  double t_sa_max_delta_deg_{180.0};  // update guard
 
   // z-plane correction: left-multiplied rigid fix after base calibration
   bool z_fix_enable_{true};
   double z_fix_max_tilt_deg_{5.0};
+  bool z_residual_enable_{true};
+  double z_residual_max_correction_m_{0.010};
 
   // ---------- units ----------
   bool wp_rotvec_in_degrees_{false};
@@ -625,6 +632,19 @@ private:
   bool have_radj_{false};
   Eigen::Matrix3d R_adj_ = Eigen::Matrix3d::Identity();
   Eigen::Matrix4d T_FIX_ = Eigen::Matrix4d::Identity();
+
+  struct ZResidualModel
+  {
+    bool valid{false};
+    double center_x{0.0};
+    double center_y{0.0};
+    double scale_xy{1.0};
+    double max_abs_correction_m{0.012};
+    std::array<double,6> coeff{{0.0, 0.0, 0.0, 0.0, 0.0, 0.0}};
+    double rms_before_m{0.0};
+    double rms_after_m{0.0};
+  };
+  ZResidualModel z_residual_model_;
 
   bool t_sa_computed_{false};
   Eigen::Matrix4d T_SA_new_ = Eigen::Matrix4d::Identity();
@@ -1614,6 +1634,139 @@ private:
     return T_fix;
   }
 
+  double evalZResidualCorrectionM(const ZResidualModel& model, double x, double y) const
+  {
+    if (!model.valid) return 0.0;
+    const double s = std::max(1e-6, model.scale_xy);
+    const double xn = (x - model.center_x) / s;
+    const double yn = (y - model.center_y) / s;
+    const auto& c = model.coeff;
+    const double dz =
+      c[0] + c[1] * xn + c[2] * yn + c[3] * xn * xn + c[4] * xn * yn + c[5] * yn * yn;
+    return clampd(dz, -model.max_abs_correction_m, model.max_abs_correction_m);
+  }
+
+  Eigen::Vector3d applyZResidualToPoint(const Eigen::Vector3d& p) const
+  {
+    Eigen::Vector3d out = p;
+    out.z() += evalZResidualCorrectionM(z_residual_model_, p.x(), p.y());
+    return out;
+  }
+
+  ZResidualModel computeZResidualModel(const Eigen::Matrix4d& T_AD,
+                                       const Eigen::Matrix3d& R_Adj,
+                                       const Eigen::Matrix4d& T_BC,
+                                       const Eigen::Matrix4d& T_FIX)
+  {
+    ZResidualModel model;
+    model.max_abs_correction_m = z_residual_max_correction_m_;
+    const size_t N = T_AB_all_.size();
+    if (!z_residual_enable_) {
+      RCLCPP_INFO(get_logger(), "[Z_RESIDUAL] z_residual_enable=false. Saving disabled model.");
+      return model;
+    }
+    if (N < 6 || T_DC_all_.size() != N) {
+      RCLCPP_WARN(get_logger(), "[Z_RESIDUAL] Need >=6 samples for quadratic z residual fit. Saving disabled model.");
+      return model;
+    }
+    if (model.max_abs_correction_m <= 0.0) {
+      RCLCPP_WARN(get_logger(), "[Z_RESIDUAL] max correction is zero. Saving disabled model.");
+      return model;
+    }
+
+    Eigen::Matrix4d T_Adj = Eigen::Matrix4d::Identity();
+    T_Adj.block<3,3>(0,0) = R_Adj.transpose();
+    const Eigen::Matrix4d T_CB = invT(T_BC);
+
+    std::vector<Eigen::Vector3d> p_list;
+    std::vector<double> dz_list;
+    p_list.reserve(N);
+    dz_list.reserve(N);
+
+    Eigen::Vector2d xy_mean = Eigen::Vector2d::Zero();
+    for (size_t i=0; i<N; ++i) {
+      const Eigen::Matrix4d M_cal = T_FIX * T_AD * T_Adj * T_DC_all_[i] * T_CB;
+      const Eigen::Vector3d p_cal = M_cal.block<3,1>(0,3);
+      const double z_ref = T_AB_all_[i](2,3);
+      p_list.push_back(p_cal);
+      dz_list.push_back(z_ref - p_cal.z());
+      xy_mean += p_cal.head<2>();
+    }
+    xy_mean /= static_cast<double>(N);
+
+    double max_radius = 0.0;
+    for (const auto& p : p_list) {
+      max_radius = std::max(max_radius, (p.head<2>() - xy_mean).norm());
+    }
+    model.center_x = xy_mean.x();
+    model.center_y = xy_mean.y();
+    model.scale_xy = std::max(0.05, max_radius);
+
+    Eigen::MatrixXd A(static_cast<Eigen::Index>(N), 6);
+    Eigen::VectorXd b(static_cast<Eigen::Index>(N));
+    for (size_t i=0; i<N; ++i) {
+      const double xn = (p_list[i].x() - model.center_x) / model.scale_xy;
+      const double yn = (p_list[i].y() - model.center_y) / model.scale_xy;
+      A(static_cast<Eigen::Index>(i), 0) = 1.0;
+      A(static_cast<Eigen::Index>(i), 1) = xn;
+      A(static_cast<Eigen::Index>(i), 2) = yn;
+      A(static_cast<Eigen::Index>(i), 3) = xn * xn;
+      A(static_cast<Eigen::Index>(i), 4) = xn * yn;
+      A(static_cast<Eigen::Index>(i), 5) = yn * yn;
+      b(static_cast<Eigen::Index>(i)) = dz_list[i];
+    }
+
+    const Eigen::VectorXd coeff = A.colPivHouseholderQr().solve(b);
+    if (coeff.size() != 6 || !coeff.allFinite()) {
+      RCLCPP_WARN(get_logger(), "[Z_RESIDUAL] quadratic solve failed. Saving disabled model.");
+      return model;
+    }
+    for (int i=0; i<6; ++i) model.coeff[static_cast<size_t>(i)] = coeff(i);
+    model.valid = true;
+
+    double max_abs_fit = 0.0;
+    double rms_before = 0.0;
+    for (size_t i=0; i<N; ++i) {
+      const double dz_fit = evalZResidualCorrectionM(model, p_list[i].x(), p_list[i].y());
+      max_abs_fit = std::max(max_abs_fit, std::fabs(dz_fit));
+      rms_before += dz_list[i] * dz_list[i];
+    }
+    if (max_abs_fit > model.max_abs_correction_m && max_abs_fit > 1e-12) {
+      const double scale = model.max_abs_correction_m / max_abs_fit;
+      for (double& c : model.coeff) c *= scale;
+      RCLCPP_WARN(get_logger(),
+        "[Z_RESIDUAL] fitted correction %.3fmm exceeds clamp %.3fmm. Scaling coefficients.",
+        max_abs_fit * 1000.0, model.max_abs_correction_m * 1000.0);
+    }
+
+    double rms_after = 0.0;
+    double max_after = 0.0;
+    for (size_t i=0; i<N; ++i) {
+      const double dz_after =
+        dz_list[i] - evalZResidualCorrectionM(model, p_list[i].x(), p_list[i].y());
+      rms_after += dz_after * dz_after;
+      max_after = std::max(max_after, std::fabs(dz_after));
+    }
+    model.rms_before_m = std::sqrt(rms_before / static_cast<double>(N));
+    model.rms_after_m = std::sqrt(rms_after / static_cast<double>(N));
+
+    if (model.rms_after_m >= model.rms_before_m) {
+      RCLCPP_WARN(get_logger(),
+        "[Z_RESIDUAL] no improvement (z_rms %.3fmm -> %.3fmm). Saving disabled model.",
+        model.rms_before_m * 1000.0, model.rms_after_m * 1000.0);
+      model.valid = false;
+      return model;
+    }
+
+    RCLCPP_INFO(get_logger(),
+      "[Z_RESIDUAL] quadratic xy z-correction fitted: z_rms %.3fmm -> %.3fmm, max_after=%.3fmm, clamp=%.1fmm",
+      model.rms_before_m * 1000.0,
+      model.rms_after_m * 1000.0,
+      max_after * 1000.0,
+      model.max_abs_correction_m * 1000.0);
+    return model;
+  }
+
   double validateCalibrationFitMm(const Eigen::Matrix4d& T_AD,
                                   const Eigen::Matrix3d& R_Adj,
                                   const Eigen::Matrix4d& T_BC,
@@ -1634,7 +1787,7 @@ private:
 
     for (size_t i=0; i<N; ++i) {
       const Eigen::Matrix4d M_cal = T_FIX * T_AD * T_Adj * T_DC_all_[i] * T_CB;
-      const Eigen::Vector3d p_cal = M_cal.block<3,1>(0,3);
+      const Eigen::Vector3d p_cal = applyZResidualToPoint(M_cal.block<3,1>(0,3));
       const Eigen::Vector3d p_ref = T_AB_all_[i].block<3,1>(0,3);
       const double err = (p_ref - p_cal).norm();
       sum2 += err * err;
@@ -1786,6 +1939,11 @@ private:
       T_AD_avg,
       have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity(),
       T_BC);
+    z_residual_model_ = computeZResidualModel(
+      T_AD_avg,
+      have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity(),
+      T_BC,
+      T_FIX_);
 
     validateCalibrationFitMm(
       T_AD_avg,
@@ -1839,6 +1997,9 @@ private:
     ofs << "  t_sa_w_des_z: " << std::fixed << std::setprecision(prec) << t_sa_w_des_z_ << "\n";
     ofs << "  z_fix_enable: " << (z_fix_enable_ ? "true" : "false") << "\n";
     ofs << "  z_fix_max_tilt_deg: " << std::fixed << std::setprecision(prec) << z_fix_max_tilt_deg_ << "\n";
+    ofs << "  z_residual_enable: " << (z_residual_enable_ ? "true" : "false") << "\n";
+    ofs << "  z_residual_max_correction_mm: " << std::fixed << std::setprecision(prec)
+        << z_residual_max_correction_m_ * 1000.0 << "\n";
     ofs << "  note: \"Runtime tool correction uses inv(T_BC); T_SA is right-multiplied.\"\n\n";
 
     auto writeMat4 = [&](const std::string& key, const Eigen::Matrix4d& T){
@@ -1875,6 +2036,24 @@ private:
 
     ofs << "# left-multiplied rigid z-plane correction (M_cal = T_FIX @ M_cal)\n";
     writeMat4("T_FIX", T_FIX);
+
+    ofs << "# optional z-only residual correction after T_FIX: z += f((x-center_x)/scale_xy, (y-center_y)/scale_xy)\n";
+    ofs << "Z_RESIDUAL:\n";
+    ofs << "  enabled: " << (z_residual_model_.valid ? "true" : "false") << "\n";
+    ofs << std::fixed << std::setprecision(prec);
+    ofs << "  model: quadratic_xy\n";
+    ofs << "  center_x: " << z_residual_model_.center_x << "\n";
+    ofs << "  center_y: " << z_residual_model_.center_y << "\n";
+    ofs << "  scale_xy: " << z_residual_model_.scale_xy << "\n";
+    ofs << "  max_abs_correction_m: " << z_residual_model_.max_abs_correction_m << "\n";
+    ofs << "  rms_before_m: " << z_residual_model_.rms_before_m << "\n";
+    ofs << "  rms_after_m: " << z_residual_model_.rms_after_m << "\n";
+    ofs << "  coeff: [";
+    for (size_t i=0; i<z_residual_model_.coeff.size(); ++i) {
+      ofs << z_residual_model_.coeff[i];
+      if (i + 1 < z_residual_model_.coeff.size()) ofs << ", ";
+    }
+    ofs << "]\n\n";
 
     ofs << "# optional extra constant offset; runtime ignores this unless apply_T_CE_extra=true or tool_correction_mode=t_ce\n";
     writeMat4("T_CE", T_CE);
