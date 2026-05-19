@@ -590,6 +590,17 @@ private:
     double omega_dps{0.0};
   };
 
+  struct CaptureWindowStats
+  {
+    double window_s{0.0};
+    double vr_std_mm{0.0};
+    double avg_v_mms{0.0};
+    double avg_w_dps{0.0};
+    double avg_dist_mm{0.0};
+    double avg_ang_deg{0.0};
+    double score{0.0};
+  };
+
   std::vector<CaptureSample> clean_capture_samples_;
   uint64_t last_clean_capture_cp_seq_{0};
 
@@ -949,6 +960,65 @@ private:
     clean_capture_samples_.push_back(s);
   }
 
+  bool computeCaptureWindowStats(size_t first_idx,
+                                 size_t last_idx,
+                                 CaptureWindowStats& stats) const
+  {
+    const size_t N = clean_capture_samples_.size();
+    if (N == 0 || first_idx >= N || last_idx >= N || first_idx > last_idx) return false;
+
+    const size_t K = last_idx - first_idx + 1;
+    const double invK = 1.0 / static_cast<double>(K);
+    stats = CaptureWindowStats{};
+    stats.window_s =
+      (K >= 2) ? (clean_capture_samples_[last_idx].cp_t - clean_capture_samples_[first_idx].cp_t).seconds() : 0.0;
+
+    Eigen::Vector3d vr_pos_sum_m = Eigen::Vector3d::Zero();
+    for (size_t sample_idx = first_idx; sample_idx <= last_idx; ++sample_idx) {
+      const auto& s = clean_capture_samples_[sample_idx];
+      double vx = s.vr[0], vy = s.vr[1], vz = s.vr[2];
+      if (vr_pos_unit_decided_ && vr_pos_in_mm_) {
+        vx *= 1e-3; vy *= 1e-3; vz *= 1e-3;
+      }
+      vr_pos_sum_m += Eigen::Vector3d(vx, vy, vz);
+      stats.avg_v_mms += s.vnorm_mms;
+      stats.avg_w_dps += s.omega_dps;
+      stats.avg_dist_mm += s.dist_mm;
+      stats.avg_ang_deg += s.ang_deg;
+    }
+
+    const Eigen::Vector3d vr_pos_mean_m = vr_pos_sum_m * invK;
+    double vr_var = 0.0;
+    for (size_t sample_idx = first_idx; sample_idx <= last_idx; ++sample_idx) {
+      const auto& s = clean_capture_samples_[sample_idx];
+      double vx = s.vr[0], vy = s.vr[1], vz = s.vr[2];
+      if (vr_pos_unit_decided_ && vr_pos_in_mm_) {
+        vx *= 1e-3; vy *= 1e-3; vz *= 1e-3;
+      }
+      vr_var += (Eigen::Vector3d(vx, vy, vz) - vr_pos_mean_m).squaredNorm();
+    }
+
+    stats.vr_std_mm = std::sqrt(vr_var * invK) * 1000.0;
+    stats.avg_v_mms *= invK;
+    stats.avg_w_dps *= invK;
+    stats.avg_dist_mm *= invK;
+    stats.avg_ang_deg *= invK;
+
+    const double vr_norm = (capture_max_vr_std_mm_ > 0.0) ? stats.vr_std_mm / capture_max_vr_std_mm_ : 0.0;
+    const double v_norm = (vel_thresh_mms_ > 0.0) ? stats.avg_v_mms / vel_thresh_mms_ : 0.0;
+    const double w_norm = (angvel_thresh_dps_ > 0.0) ? stats.avg_w_dps / angvel_thresh_dps_ : 0.0;
+    const double dist_norm = (pos_enter_mm_ > 0.0) ? stats.avg_dist_mm / pos_enter_mm_ : 0.0;
+    const double ang_norm = (ori_enter_deg_ > 0.0) ? stats.avg_ang_deg / ori_enter_deg_ : 0.0;
+
+    stats.score =
+      3.0 * vr_norm +
+      2.0 * v_norm +
+      1.5 * w_norm +
+      1.0 * dist_norm +
+      0.5 * ang_norm;
+    return true;
+  }
+
   bool averageCaptureSampleRange(const std::array<double,6>& target_pose,
                                  size_t first_idx,
                                  size_t last_idx,
@@ -1051,17 +1121,50 @@ private:
     if (N < capture_min_clean_samples_) return false;
     if (cleanCaptureWindowS() < capture_window_s_) return false;
 
-    const rclcpp::Time newest_t = clean_capture_samples_.back().cp_t;
-    size_t first_idx = N - 1;
-    while (first_idx > 0 &&
-           (newest_t - clean_capture_samples_[first_idx].cp_t).seconds() < capture_window_s_) {
-      --first_idx;
+    bool have_best = false;
+    size_t best_first_idx = 0;
+    size_t best_last_idx = 0;
+    CaptureWindowStats best_stats;
+
+    for (size_t last_idx = capture_min_clean_samples_ - 1; last_idx < N; ++last_idx) {
+      size_t first_idx = last_idx;
+      while (first_idx > 0 &&
+             (clean_capture_samples_[last_idx].cp_t - clean_capture_samples_[first_idx].cp_t).seconds() < capture_window_s_) {
+        --first_idx;
+      }
+
+      const size_t K = last_idx - first_idx + 1;
+      if (K < capture_min_clean_samples_) continue;
+      const double window_s =
+        (clean_capture_samples_[last_idx].cp_t - clean_capture_samples_[first_idx].cp_t).seconds();
+      if (window_s < capture_window_s_) continue;
+
+      CaptureWindowStats stats;
+      if (!computeCaptureWindowStats(first_idx, last_idx, stats)) continue;
+      if (capture_max_vr_std_mm_ > 0.0 && stats.vr_std_mm > capture_max_vr_std_mm_) continue;
+
+      if (!have_best || stats.score < best_stats.score) {
+        have_best = true;
+        best_first_idx = first_idx;
+        best_last_idx = last_idx;
+        best_stats = stats;
+      }
     }
 
-    const size_t K = N - first_idx;
-    if (K < capture_min_clean_samples_) return false;
+    if (!have_best) return false;
 
-    return averageCaptureSampleRange(target_pose, first_idx, N - 1, true, "CLEAN_CAPTURE",
+    RCLCPP_INFO(get_logger(),
+      "[BEST_WINDOW] samples=%zu, window=%.3fs, score=%.3f | vr_std=%.2fmm v=%.2fmm/s w=%.2fdeg/s dist=%.2fmm ang=%.2fdeg",
+      best_last_idx - best_first_idx + 1,
+      best_stats.window_s,
+      best_stats.score,
+      best_stats.vr_std_mm,
+      best_stats.avg_v_mms,
+      best_stats.avg_w_dps,
+      best_stats.avg_dist_mm,
+      best_stats.avg_ang_deg);
+
+    return averageCaptureSampleRange(target_pose, best_first_idx, best_last_idx, true, "CLEAN_CAPTURE",
                                      cp_avg, vr_avg, dist_avg_mm, ang_avg_deg);
   }
 

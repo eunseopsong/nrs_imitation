@@ -105,7 +105,9 @@ ros2 run vr_calibration vr_calibration --ros-args \
 - robot이 target region 안에 있음
 - robot이 stopped 상태임
 
-그 뒤 clean sample이 최소 `capture_min_clean_samples`개 이상이고, buffer 시간 폭이 `capture_window_s` 이상이면 평균 pose를 하나 만든다.
+그 뒤 clean sample이 최소 `capture_min_clean_samples`개 이상이고, buffer 시간 폭이 `capture_window_s` 이상이면
+buffer 안에서 가장 안정적인 `capture_window_s` 구간을 골라 평균 pose를 하나 만든다.
+best window는 VR position std, robot linear/angular velocity, target dist/angle을 함께 점수화해서 선택한다.
 
 - robot pose: clean sample 평균
 - VR position: clean sample 평균
