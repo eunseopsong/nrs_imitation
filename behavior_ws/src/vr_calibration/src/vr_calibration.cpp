@@ -226,6 +226,7 @@ public:
     this->declare_parameter<std::string>("waypoint_file", waypoint_file_);
     this->declare_parameter<int>("radj_sample_count", 0); // <=0: use all captured samples
     this->declare_parameter<double>("capture_hold_time_s", hold_time_s_);
+    this->declare_parameter<double>("capture_min_hold_time_s", min_hold_time_s_);
     this->declare_parameter<double>("capture_window_s", 0.5);
     this->declare_parameter<int>("capture_min_clean_samples", 20);
     this->declare_parameter<double>("vr_capture_age_s", 0.2);
@@ -250,6 +251,8 @@ public:
       ? 0
       : static_cast<size_t>(std::max<int64_t>(3, radj_sample_count_param));
     hold_time_s_         = std::max(0.1, this->get_parameter("capture_hold_time_s").as_double());
+    min_hold_time_s_     = std::max(0.0, this->get_parameter("capture_min_hold_time_s").as_double());
+    min_hold_time_s_     = std::min(min_hold_time_s_, hold_time_s_);
     capture_window_s_    = std::max(0.05, this->get_parameter("capture_window_s").as_double());
     capture_min_clean_samples_ =
       static_cast<size_t>(std::max<int64_t>(1, this->get_parameter("capture_min_clean_samples").as_int()));
@@ -306,8 +309,8 @@ public:
       "[T_SA_MODE] t_sa_mode=%s, t_sa_max_delta_deg=%.1f",
       t_sa_mode_.c_str(), t_sa_max_delta_deg_);
     RCLCPP_INFO(get_logger(),
-      "[CAPTURE_HOLD] capture_hold_time_s=%.2f, stop_threshold=(%.1fmm/s, %.1fdeg/s)",
-      hold_time_s_, vel_thresh_mms_, angvel_thresh_dps_);
+      "[CAPTURE_HOLD] min_hold_time_s=%.2f, fallback_hold_time_s=%.2f, stop_threshold=(%.1fmm/s, %.1fdeg/s)",
+      min_hold_time_s_, hold_time_s_, vel_thresh_mms_, angvel_thresh_dps_);
     RCLCPP_INFO(get_logger(),
       "[CLEAN_CAPTURE] window=%.2fs, min_samples=%zu, vr_fresh<=%.2fs, sync_dt<=%.3fs, max_vr_std=%.1fmm",
       capture_window_s_, capture_min_clean_samples_, vr_capture_age_s_,
@@ -435,20 +438,35 @@ public:
         addCleanCaptureSampleIfNew(cp, vr, cp_t, vr_t, cp_seq, dist_mm, ang_deg);
 
         const double held = (tnow() - hold_start_time).seconds();
-        if (held >= hold_time_s_) {
+        if (held >= min_hold_time_s_) {
 
           std::array<double,6> cp_avg;
           std::array<double,7> vr_avg;
           double dist_avg_mm = 0.0;
           double ang_avg_deg = 0.0;
-          if (!makeCleanCaptureAverage(cp_avg, vr_avg, dist_avg_mm, ang_avg_deg)) {
-            RCLCPP_WARN_THROTTLE(
-              get_logger(), steady_clock_, 2000,
-              "[WAIT_CLEAN_CAPTURE] clean_samples=%zu/%zu, window=%.3fs/%.3fs. Waiting...",
-              clean_capture_samples_.size(), capture_min_clean_samples_,
-              cleanCaptureWindowS(), capture_window_s_);
-            rate.sleep();
-            continue;
+          if (!makeCleanCaptureAverage(target_pose, cp_avg, vr_avg, dist_avg_mm, ang_avg_deg)) {
+            if (held < hold_time_s_) {
+              RCLCPP_WARN_THROTTLE(
+                get_logger(), steady_clock_, 2000,
+                "[WAIT_CLEAN_CAPTURE] held=%.2fs/%.2fs, clean_samples=%zu/%zu, window=%.3fs/%.3fs",
+                held, hold_time_s_,
+                clean_capture_samples_.size(), capture_min_clean_samples_,
+                cleanCaptureWindowS(), capture_window_s_);
+              rate.sleep();
+              continue;
+            }
+
+            if (!makeBestEffortCaptureAverage(target_pose, cp, vr, cp_t, vr_t, cp_seq,
+                                              dist_mm, ang_deg,
+                                              cp_avg, vr_avg, dist_avg_mm, ang_avg_deg)) {
+              RCLCPP_WARN_THROTTLE(
+                get_logger(), steady_clock_, 2000,
+                "[WAIT_CAPTURE] no usable capture sample yet | clean_samples=%zu/%zu, window=%.3fs/%.3fs",
+                clean_capture_samples_.size(), capture_min_clean_samples_,
+                cleanCaptureWindowS(), capture_window_s_);
+              rate.sleep();
+              continue;
+            }
           }
 
           captureOnce(target_k, wp_idx, cp_avg, vr_avg, dist_avg_mm, ang_avg_deg);
@@ -491,6 +509,7 @@ private:
   double vel_thresh_mms_{15.0};
   double angvel_thresh_dps_{8.0};
   double hold_time_s_{2.0};
+  double min_hold_time_s_{1.5};
   double cp_fresh_s_{1.0};
   double vr_capture_age_s_{30.0};
   double max_capture_sync_dt_s_{0.05};
@@ -930,19 +949,25 @@ private:
     clean_capture_samples_.push_back(s);
   }
 
-  bool makeCleanCaptureAverage(std::array<double,6>& cp_avg,
-                               std::array<double,7>& vr_avg,
-                               double& dist_avg_mm,
-                               double& ang_avg_deg)
+  bool averageCaptureSampleRange(const std::array<double,6>& target_pose,
+                                 size_t first_idx,
+                                 size_t last_idx,
+                                 bool enforce_vr_std,
+                                 const char* log_tag,
+                                 std::array<double,6>& cp_avg,
+                                 std::array<double,7>& vr_avg,
+                                 double& dist_avg_mm,
+                                 double& ang_avg_deg)
   {
     const size_t N = clean_capture_samples_.size();
-    if (N < capture_min_clean_samples_) return false;
-    if (cleanCaptureWindowS() < capture_window_s_) return false;
+    if (N == 0 || first_idx >= N || last_idx >= N || first_idx > last_idx) return false;
+
+    const size_t K = last_idx - first_idx + 1;
+    const double avg_window_s =
+      (K >= 2) ? (clean_capture_samples_[last_idx].cp_t - clean_capture_samples_[first_idx].cp_t).seconds() : 0.0;
 
     cp_avg = {0,0,0,0,0,0};
     vr_avg = {0,0,0,0,0,0,1};
-    dist_avg_mm = 0.0;
-    ang_avg_deg = 0.0;
 
     Eigen::Vector3d vr_pos_sum_m = Eigen::Vector3d::Zero();
     Eigen::Vector3d vr_pos_sum_raw = Eigen::Vector3d::Zero();
@@ -950,7 +975,8 @@ private:
     bool have_q_ref = false;
     Eigen::Quaterniond q_ref(1,0,0,0);
 
-    for (const auto& s : clean_capture_samples_) {
+    for (size_t sample_idx = first_idx; sample_idx <= last_idx; ++sample_idx) {
+      const auto& s = clean_capture_samples_[sample_idx];
       for (int i=0; i<6; ++i) cp_avg[i] += s.cp[i];
 
       double vx = s.vr[0], vy = s.vr[1], vz = s.vr[2];
@@ -970,20 +996,18 @@ private:
         q.coeffs() *= -1.0;
       }
       q_sum += q.coeffs();
-
-      dist_avg_mm += s.dist_mm;
-      ang_avg_deg += s.ang_deg;
     }
 
-    const double invN = 1.0 / static_cast<double>(N);
+    const double invN = 1.0 / static_cast<double>(K);
     for (int i=0; i<6; ++i) cp_avg[i] *= invN;
-    dist_avg_mm *= invN;
-    ang_avg_deg *= invN;
+    dist_avg_mm = posDistMm(cp_avg, target_pose);
+    ang_avg_deg = oriErrDeg(cp_avg, target_pose);
 
     const Eigen::Vector3d vr_pos_mean_m = vr_pos_sum_m * invN;
     const Eigen::Vector3d vr_pos_mean_raw = vr_pos_sum_raw * invN;
     double vr_var = 0.0;
-    for (const auto& s : clean_capture_samples_) {
+    for (size_t sample_idx = first_idx; sample_idx <= last_idx; ++sample_idx) {
+      const auto& s = clean_capture_samples_[sample_idx];
       double vx = s.vr[0], vy = s.vr[1], vz = s.vr[2];
       if (vr_pos_unit_decided_ && vr_pos_in_mm_) {
         vx *= 1e-3; vy *= 1e-3; vz *= 1e-3;
@@ -991,7 +1015,7 @@ private:
       vr_var += (Eigen::Vector3d(vx, vy, vz) - vr_pos_mean_m).squaredNorm();
     }
     const double vr_std_mm = std::sqrt(vr_var * invN) * 1000.0;
-    if (capture_max_vr_std_mm_ > 0.0 && vr_std_mm > capture_max_vr_std_mm_) {
+    if (enforce_vr_std && capture_max_vr_std_mm_ > 0.0 && vr_std_mm > capture_max_vr_std_mm_) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), steady_clock_, 2000,
         "[WAIT_CLEAN_CAPTURE] VR position std %.2fmm exceeds %.2fmm. Waiting...",
@@ -1012,9 +1036,78 @@ private:
     vr_avg[6] = q_avg.w();
 
     RCLCPP_INFO(get_logger(),
-      "[CLEAN_CAPTURE] averaged %zu samples over %.3fs | dist=%.2fmm ang=%.2fdeg vr_std=%.2fmm",
-      N, cleanCaptureWindowS(), dist_avg_mm, ang_avg_deg, vr_std_mm);
+      "[%s] averaged %zu samples over %.3fs | dist=%.2fmm ang=%.2fdeg vr_std=%.2fmm",
+      log_tag, K, avg_window_s, dist_avg_mm, ang_avg_deg, vr_std_mm);
     return true;
+  }
+
+  bool makeCleanCaptureAverage(const std::array<double,6>& target_pose,
+                               std::array<double,6>& cp_avg,
+                               std::array<double,7>& vr_avg,
+                               double& dist_avg_mm,
+                               double& ang_avg_deg)
+  {
+    const size_t N = clean_capture_samples_.size();
+    if (N < capture_min_clean_samples_) return false;
+    if (cleanCaptureWindowS() < capture_window_s_) return false;
+
+    const rclcpp::Time newest_t = clean_capture_samples_.back().cp_t;
+    size_t first_idx = N - 1;
+    while (first_idx > 0 &&
+           (newest_t - clean_capture_samples_[first_idx].cp_t).seconds() < capture_window_s_) {
+      --first_idx;
+    }
+
+    const size_t K = N - first_idx;
+    if (K < capture_min_clean_samples_) return false;
+
+    return averageCaptureSampleRange(target_pose, first_idx, N - 1, true, "CLEAN_CAPTURE",
+                                     cp_avg, vr_avg, dist_avg_mm, ang_avg_deg);
+  }
+
+  bool makeBestEffortCaptureAverage(const std::array<double,6>& target_pose,
+                                    const std::array<double,6>& cp,
+                                    const std::array<double,7>& vr,
+                                    const rclcpp::Time& cp_t,
+                                    const rclcpp::Time& vr_t,
+                                    uint64_t cp_seq,
+                                    double dist_mm,
+                                    double ang_deg,
+                                    std::array<double,6>& cp_avg,
+                                    std::array<double,7>& vr_avg,
+                                    double& dist_avg_mm,
+                                    double& ang_avg_deg)
+  {
+    if (!clean_capture_samples_.empty()) {
+      RCLCPP_WARN(get_logger(),
+        "[FAST_CAPTURE] strict clean capture unavailable; using %zu buffered samples over %.3fs",
+        clean_capture_samples_.size(), cleanCaptureWindowS());
+      return averageCaptureSampleRange(target_pose, 0, clean_capture_samples_.size() - 1,
+                                       false, "FAST_CAPTURE",
+                                       cp_avg, vr_avg, dist_avg_mm, ang_avg_deg);
+    }
+
+    if (!isCpFresh(cp_t) || !isVrFreshForCapture(vr_t)) return false;
+    if (max_capture_sync_dt_s_ > 0.0 && captureSyncDtS(cp_t, vr_t) > max_capture_sync_dt_s_) return false;
+    if (dist_mm > pos_enter_mm_ || ang_deg > ori_enter_deg_) return false;
+    if (!isStoppedNow()) return false;
+
+    CaptureSample s;
+    s.cp = cp;
+    s.vr = vr;
+    s.cp_t = cp_t;
+    s.vr_t = vr_t;
+    s.cp_seq = cp_seq;
+    s.dist_mm = dist_mm;
+    s.ang_deg = ang_deg;
+    s.vnorm_mms = last_vnorm_mms_;
+    s.omega_dps = last_omega_dps_;
+    clean_capture_samples_.push_back(s);
+
+    RCLCPP_WARN(get_logger(),
+      "[FAST_CAPTURE] strict clean capture unavailable; using latest fresh sample");
+    return averageCaptureSampleRange(target_pose, 0, 0, false, "FAST_CAPTURE",
+                                     cp_avg, vr_avg, dist_avg_mm, ang_avg_deg);
   }
 
   // ==========================================================

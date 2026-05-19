@@ -212,6 +212,8 @@ class ViveTracker(Node):
         # rot_x_pi_left, rot_z_pi_left 도 필요하면 사용
         # ✅ 네가 쓰던 flip_x_wx_wz 는 alias로 rot_y_pi_left 처리
         self.declare_parameter("out_fix_mode", "none")
+        self.declare_parameter("log_tracker_battery", True)
+        self.declare_parameter("tracker_battery_log_interval_s", 30.0)
 
         self.publish_tf = bool(self.get_parameter("publish_tf").value)
         self.base_frame = str(self.get_parameter("base_frame").value)
@@ -228,6 +230,10 @@ class ViveTracker(Node):
         self.out_fix_mode = str(self.get_parameter("out_fix_mode").value).lower()
         if self.out_fix_mode == "flip_x_wx_wz":
             self.out_fix_mode = "rot_y_pi_left"
+        self.log_tracker_battery = bool(self.get_parameter("log_tracker_battery").value)
+        self.tracker_battery_log_interval_s = max(
+            1.0, float(self.get_parameter("tracker_battery_log_interval_s").value)
+        )
 
         self.tf_broadcaster = TransformBroadcaster(self)
         # self.timer = self.create_timer(0.008, self.cb_vive_timer) # 125 Hz
@@ -418,6 +424,69 @@ class ViveTracker(Node):
     # ------------------------------------------------------------------
     # trackers update
     # ------------------------------------------------------------------
+    def _read_tracker_battery(self, device_index: int):
+        if self.vr_system is None:
+            return None
+
+        try:
+            provides_prop = getattr(openvr, "Prop_DeviceProvidesBatteryStatus_Bool", None)
+            if provides_prop is not None:
+                provides = self.vr_system.getBoolTrackedDeviceProperty(device_index, provides_prop)
+                if not provides:
+                    return None
+
+            battery = self.vr_system.getFloatTrackedDeviceProperty(
+                device_index, openvr.Prop_DeviceBatteryPercentage_Float
+            )
+        except Exception:
+            return None
+
+        if battery is None:
+            return None
+        battery = float(battery)
+        if not np.isfinite(battery):
+            return None
+        if battery <= 1.0:
+            battery *= 100.0
+        return max(0.0, min(100.0, battery))
+
+    def _read_tracker_is_charging(self, device_index: int):
+        charging_prop = getattr(openvr, "Prop_DeviceIsCharging_Bool", None)
+        if self.vr_system is None or charging_prop is None:
+            return None
+        try:
+            return bool(self.vr_system.getBoolTrackedDeviceProperty(device_index, charging_prop))
+        except Exception:
+            return None
+
+    def _maybe_log_tracker_battery(self, serial: str):
+        if not self.log_tracker_battery:
+            return
+
+        tdata = self.trackers.get(serial)
+        if tdata is None:
+            return
+
+        now_s = self.get_clock().now().nanoseconds * 1e-9
+        last_s = float(tdata.get("last_battery_log_s", -1e9))
+        if now_s - last_s < self.tracker_battery_log_interval_s:
+            return
+
+        device_index = int(tdata["device_index"])
+        battery_pct = self._read_tracker_battery(device_index)
+        if battery_pct is None:
+            return
+
+        charging = self._read_tracker_is_charging(device_index)
+        charging_text = ""
+        if charging is not None:
+            charging_text = ", charging=yes" if charging else ", charging=no"
+
+        self.get_logger().info(
+            f"[tracker_battery] serial={serial} index={device_index} battery={battery_pct:.1f}%{charging_text}"
+        )
+        tdata["last_battery_log_s"] = now_s
+
     def _update_trackers_from_vr(self) -> List[str]:
         if self.vr_system is None:
             return []
@@ -457,11 +526,13 @@ class ViveTracker(Node):
                     "prev_calibrated_matrix": np.eye(4, dtype=np.float64),
                     "prev_rotvec": None,     # 연속 rotvec용
                     "prev_quat_wxyz": None,  # 연속 quat sign용
+                    "last_battery_log_s": -1e9,
                 }
                 self.get_logger().info(f"새 트래커 발견: {serial}")
 
             raw_pose_matrix = openvr_pose_to_np44(pose)
             self.trackers[serial]["raw_pose_matrix"] = raw_pose_matrix
+            self._maybe_log_tracker_battery(serial)
             current_ids.append(serial)
 
         return current_ids

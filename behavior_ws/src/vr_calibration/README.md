@@ -70,6 +70,7 @@ ros2 run vr_calibration vr_calibration
 t_sa_mode = keep
 radj_sample_count = 0        # 0 또는 음수면 전체 captured sample 사용
 capture_hold_time_s = 2.0
+capture_min_hold_time_s = 1.5
 capture_window_s = 0.5
 capture_min_clean_samples = 20
 vr_capture_age_s = 0.2
