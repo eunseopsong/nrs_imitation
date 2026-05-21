@@ -5,7 +5,7 @@
 orientation 오차가 크지 않을 때, 기존 `T_SA`를 유지하고 position/base calibration만 갱신:
 
 ```bash
-cd /home/eunseop/nrs_imitation/behavior_ws
+cd <your_ros2_workspace>
 source install/setup.bash
 ros2 run vr_calibration vr_calibration
 ```
@@ -13,7 +13,7 @@ ros2 run vr_calibration vr_calibration
 orientation 오차가 클 때, `/calibrated_pose` 기준 rotation도 다시 맞춤:
 
 ```bash
-cd /home/eunseop/nrs_imitation/behavior_ws
+cd <your_ros2_workspace>
 source install/setup.bash
 ros2 run vr_calibration vr_calibration --ros-args \
   -p t_sa_mode:=update \
@@ -34,10 +34,10 @@ ros2 run vr_calibration vr_calibration --ros-args \
 
 주요 파일:
 
-- `data/for_vr_calibration_point_v3.txt`: target waypoint 파일
-- `/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/vr_calibration/ur10_ee.txt`: 캡처된 EE pose 기록
-- `/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/vr_calibration/ur10_vr.txt`: 캡처된 VR pose 기록
-- `/home/eunseop/nrs_imitation/behavior_ws/src/vive_tracker_ros2/yaml/calibration_matrix.yaml`: 최종 calibration YAML
+- `vr_calibration/txt/for_vr_calibration_point_v3.txt`: target waypoint 파일
+- `vr_calibration/txt/ur10_ee.txt`: 캡처된 EE pose 기록
+- `vr_calibration/txt/ur10_vr.txt`: 캡처된 VR pose 기록
+- `vive_tracker_ros2/yaml/calibration_matrix.yaml`: 최종 calibration YAML
 
 생성되는 YAML 행렬:
 
@@ -53,7 +53,7 @@ ros2 run vr_calibration vr_calibration --ros-args \
 빌드:
 
 ```bash
-cd /home/eunseop/nrs_imitation/behavior_ws
+cd <your_ros2_workspace>
 colcon build --packages-select vr_calibration
 source install/setup.bash
 ```

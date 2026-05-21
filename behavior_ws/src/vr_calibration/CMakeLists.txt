@@ -9,6 +9,7 @@ endif()
 # Dependencies
 # =========================
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -22,6 +23,8 @@ find_package(yaml-cpp REQUIRED)
 add_library(vr_calibration_solver
   src/vr_calibration_solver.cpp
 )
+
+target_compile_features(vr_calibration_solver PUBLIC cxx_std_17)
 
 target_include_directories(vr_calibration_solver PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -47,12 +50,15 @@ add_executable(vr_calibration
   src/vr_calibration.cpp
 )
 
+target_compile_features(vr_calibration PUBLIC cxx_std_17)
+
 target_include_directories(vr_calibration PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 
 ament_target_dependencies(vr_calibration
+  ament_index_cpp
   rclcpp
   std_msgs
   geometry_msgs
@@ -80,6 +86,10 @@ install(DIRECTORY include/
 
 install(DIRECTORY data/
   DESTINATION share/${PROJECT_NAME}/yaml
+)
+
+install(DIRECTORY txt/
+  DESTINATION share/${PROJECT_NAME}/txt
 )
 
 ament_package()

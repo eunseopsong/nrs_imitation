@@ -4,11 +4,13 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include <yaml-cpp/yaml.h>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -55,6 +57,14 @@ static std::string nowLocalString()
       << std::setw(2) << tm.tm_hour << ":"
       << std::setw(2) << tm.tm_min;
   return oss.str();
+}
+
+static void ensureParentDirectoryExists(const std::string& file_path)
+{
+  const auto parent = std::filesystem::path(file_path).parent_path();
+  if (!parent.empty()) {
+    std::filesystem::create_directories(parent);
+  }
 }
 
 // ================= Rodrigues (rotvec -> R) =================
@@ -175,16 +185,16 @@ public:
     // ----------------------------
     // Files
     // ----------------------------
-    const char* home = std::getenv("HOME");
-    if (!home) throw std::runtime_error("HOME env not set");
+    const std::string vr_calibration_share =
+      ament_index_cpp::get_package_share_directory("vr_calibration");
+    const std::string vive_tracker_share =
+      ament_index_cpp::get_package_share_directory("vive_tracker_ros2");
+    const std::string txt_dir = vr_calibration_share + "/txt";
 
-    waypoint_file_ =
-      std::string(home) + "/nrs_imitation/behavior_ws/src/vr_calibration/data/for_vr_calibration_point_v3.txt";
-
-    ee_path_ =
-      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/vr_calibration/ur10_ee.txt";
-    vr_path_ =
-      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/vr_calibration/ur10_vr.txt";
+    waypoint_file_ = txt_dir + "/for_vr_calibration_point_v3.txt";
+    ee_path_ = txt_dir + "/ur10_ee.txt";
+    vr_path_ = txt_dir + "/ur10_vr.txt";
+    calib_yaml_path_ = vive_tracker_share + "/yaml/calibration_matrix.yaml";
 
     // ----------------------------
     // Tunables
@@ -226,6 +236,9 @@ public:
     this->declare_parameter<bool>("z_residual_enable", true);
     this->declare_parameter<double>("z_residual_max_correction_mm", 10.0);
     this->declare_parameter<std::string>("waypoint_file", waypoint_file_);
+    this->declare_parameter<std::string>("ee_output_file", ee_path_);
+    this->declare_parameter<std::string>("vr_output_file", vr_path_);
+    this->declare_parameter<std::string>("calib_yaml_file", calib_yaml_path_);
     this->declare_parameter<int>("radj_sample_count", 0); // <=0: use all captured samples
     this->declare_parameter<double>("capture_hold_time_s", hold_time_s_);
     this->declare_parameter<double>("capture_min_hold_time_s", min_hold_time_s_);
@@ -250,6 +263,9 @@ public:
     z_residual_max_correction_m_ =
       std::max(0.0, this->get_parameter("z_residual_max_correction_mm").as_double()) * 1e-3;
     waypoint_file_       = this->get_parameter("waypoint_file").as_string();
+    ee_path_             = this->get_parameter("ee_output_file").as_string();
+    vr_path_             = this->get_parameter("vr_output_file").as_string();
+    calib_yaml_path_     = this->get_parameter("calib_yaml_file").as_string();
     const int64_t radj_sample_count_param = this->get_parameter("radj_sample_count").as_int();
     radj_use_all_samples_ = (radj_sample_count_param <= 0);
     radj_sample_count_ = radj_use_all_samples_
@@ -273,6 +289,8 @@ public:
     buildTargetIndices();
 
     // ---- output file refresh ----
+    ensureParentDirectoryExists(ee_path_);
+    ensureParentDirectoryExists(vr_path_);
     ee_ofs_.open(ee_path_, std::ios::out | std::ios::trunc);
     vr_ofs_.open(vr_path_, std::ios::out | std::ios::trunc);
 
@@ -297,11 +315,6 @@ public:
       create_subscription<std_msgs::msg::Float64MultiArray>(
         "/calibrated_pose", 10,
         std::bind(&VrCalibration::cbCalibratedPose, this, std::placeholders::_1));
-
-    // ----------------------------
-    // yaml path
-    // ----------------------------
-    calib_yaml_path_ = std::string(home) + "/nrs_imitation/behavior_ws/src/vive_tracker_ros2/yaml/calibration_matrix.yaml";
 
     // load existing constants (T_CE, T_SA_old)
     loadExistingYamlConstants();
@@ -1984,6 +1997,7 @@ private:
                                const Eigen::Matrix4d& T_CE,
                                const Eigen::Matrix4d& T_SA)
   {
+    ensureParentDirectoryExists(calib_yaml_path_);
     std::ofstream ofs(calib_yaml_path_, std::ios::out | std::ios::trunc);
     if (!ofs.is_open()) throw std::runtime_error("Failed to open yaml: " + calib_yaml_path_);
 
