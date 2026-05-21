@@ -20,7 +20,7 @@ for p in [_PROJECT_ROOT, _SOURCE_DIR]:
 import torch
 
 from training.engine import train_bc, make_policy
-from common.fs import find_latest_timestamped_subdir
+from common.fs import CHECKPOINTS_ROOT, DATASETS_ACT_ROOT, find_latest_timestamped_subdir
 from data.loader import load_data
 
 
@@ -51,7 +51,7 @@ def _count_episodes(dataset_dir: str) -> int:
     return len(_episode_files(dataset_dir))
 
 
-def find_latest_episode_dir(root_dir: str = "/home/eunseop/nrs_imitation/datasets/ACT", subdir_name: str = "episodes_ft") -> str:
+def find_latest_episode_dir(root_dir: str = str(DATASETS_ACT_ROOT), subdir_name: str = "episodes_ft") -> str:
     root = Path(root_dir).expanduser()
     if not root.exists():
         raise FileNotFoundError(f"Dataset root does not exist: {root}")
@@ -95,7 +95,7 @@ def resolve_dataset_dir(dataset_dir: Optional[str], cam_preprocess: str, task_na
         if os.path.isdir(resolved) and _count_episodes(resolved) > 0:
             return resolved
 
-    latest = find_latest_episode_dir("/home/eunseop/nrs_imitation/datasets/ACT", subdir_name=subdir)
+    latest = find_latest_episode_dir(str(DATASETS_ACT_ROOT), subdir_name=subdir)
     print(f"[AUTO] dataset_dir not provided -> using latest {subdir}: {latest}")
     return latest
 
@@ -259,7 +259,7 @@ def main(args):
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--eval", action="store_true")
-    p.add_argument("--ckpt_dir", type=str, default="/home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing")
+    p.add_argument("--ckpt_dir", type=str, default=str(CHECKPOINTS_ROOT / "diffusion" / "ur10e_swing"))
     p.add_argument("--task_name", type=str, default="ur10e_swing")
     p.add_argument("--batch_size", type=int, default=6)
     p.add_argument("--seed", type=int, default=0)

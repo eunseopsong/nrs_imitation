@@ -26,6 +26,9 @@ Expected merged HDF5 layout:
       │   │   ├── combined              (T,14)
       │   │   ├── id0_quat              (T, 8) optional
       │   │   └── id1_quat              (T, 8) optional
+      │   ├── gripper/
+      │   │   ├── present_position      (T,)
+      │   │   └── present_current_mA    (T,)
       │   └── marker                    (T,14) optional top-level alias
       └── ep_0001/
           └── ...
@@ -35,7 +38,8 @@ Output per-episode HDF5 layout:
   episode_0.hdf5
   ├── action/
   │   ├── position                      (T_out, 6)
-  │   └── force                         (T_out, 3)
+  │   ├── force                         (T_out, 3)
+  │   └── gripper_present_position      (T_out,)
   ├── observations/
   │   ├── position                      (T_out, 6)
   │   ├── force                         (T_out, 3)
@@ -44,6 +48,9 @@ Output per-episode HDF5 layout:
   │   ├── marker_id1                    (T_out, 7)
   │   ├── marker_id0_quat               (T_out, 8), if available
   │   ├── marker_id1_quat               (T_out, 8), if available
+  │   ├── gripper/
+  │   │   ├── present_position          (T_out,)
+  │   │   └── present_current_mA        (T_out,)
   │   ├── images/
   │   │   ├── cam0                      (T_out,H,W,3)
   │   │   └── cam1                      (T_out,H,W,3)
@@ -167,6 +174,17 @@ def _ensure_image4(arr: np.ndarray, name: str) -> np.ndarray:
     if arr.dtype != np.uint8:
         # Clip instead of failing. Some recorders may save float RGB.
         arr = np.clip(arr, 0, 255).astype(np.uint8)
+    return arr
+
+
+def _ensure_vector1(arr: np.ndarray, name: str) -> np.ndarray:
+    arr = np.asarray(arr)
+    if arr.ndim == 0:
+        arr = arr.reshape(1)
+    if arr.ndim == 2 and arr.shape[1] == 1:
+        arr = arr[:, 0]
+    if arr.ndim != 1:
+        raise ValueError(f"{name} must be (T,) or (T,1), got {arr.shape}")
     return arr
 
 
@@ -402,9 +420,33 @@ def load_input_episode(
     if require_cam1 and cam1 is None:
         raise KeyError(f"require_cam1=True but cam1/global image missing in {g_ep.name}")
 
+    gripper_position, gripper_position_path = _first_existing_array(
+        g_ep,
+        [
+            "gripper/present_position",
+            "observations/gripper/present_position",
+        ],
+        dtype=np.int32,
+    )
+    if gripper_position is None:
+        raise KeyError(f"Missing gripper present_position in {g_ep.name}")
+
+    gripper_current_mA, gripper_current_path = _first_existing_array(
+        g_ep,
+        [
+            "gripper/present_current_mA",
+            "observations/gripper/present_current_mA",
+        ],
+        dtype=np.float32,
+    )
+    if gripper_current_mA is None:
+        raise KeyError(f"Missing gripper present_current_mA in {g_ep.name}")
+
     position = _ensure_2d(position, 6, "position").astype(np.float32)
     force = _ensure_2d(force[:, :3], 3, "force").astype(np.float32)
     cam0 = _ensure_image4(cam0, "cam0")
+    gripper_position = _ensure_vector1(gripper_position, "gripper present_position").astype(np.int32)
+    gripper_current_mA = _ensure_vector1(gripper_current_mA, "gripper present_current_mA").astype(np.float32)
 
     if cam1 is not None:
         cam1 = _ensure_image4(cam1, "cam1")
@@ -420,12 +462,16 @@ def load_input_episode(
             "force": force,
             "cam0": cam0,
             "cam1": cam1,
+            "gripper_position": gripper_position,
+            "gripper_current_mA": gripper_current_mA,
         }
     )
     position = core["position"]
     force = core["force"]
     cam0 = core["cam0"]
     cam1 = core["cam1"]
+    gripper_position = core["gripper_position"]
+    gripper_current_mA = core["gripper_current_mA"]
 
     id0, id1, marker, id0q, id1q, marker_paths = load_marker_pair(
         g_ep,
@@ -438,6 +484,8 @@ def load_input_episode(
         "force": force_path,
         "cam0": cam0_path,
         "cam1": cam1_path,
+        "gripper_position": gripper_position_path,
+        "gripper_current_mA": gripper_current_path,
     }
     source_paths.update(marker_paths)
 
@@ -446,6 +494,8 @@ def load_input_episode(
         "force": force.astype(np.float32),
         "cam0": cam0.astype(np.uint8),
         "cam1": cam1.astype(np.uint8),
+        "gripper_present_position": gripper_position.astype(np.int32),
+        "gripper_present_current_mA": gripper_current_mA.astype(np.float32),
         "marker_id0": id0.astype(np.float32),
         "marker_id1": id1.astype(np.float32),
         "marker": marker.astype(np.float32),
@@ -501,18 +551,19 @@ def write_output_episode(
         arr_kwargs = dict(compression="lzf", shuffle=True)
 
     with h5py.File(out_path, "w") as f:
-        f.attrs["schema_version"] = "episode_multimodal_v1"
+        f.attrs["schema_version"] = "episode_multimodal_v2"
         f.attrs["source_h5"] = str(source_h5)
         f.attrs["source_episode"] = str(ep_name)
         f.attrs["camera_names_json"] = json.dumps(camera_names)
         f.attrs["marker_format"] = "[id0: x,y,z,rx,ry,rz,valid] + [id1: x,y,z,rx,ry,rz,valid]"
         f.attrs["marker_dim"] = int(data["marker"].shape[1])
         f.attrs["qpos_dim"] = 9
-        f.attrs["action_dim"] = 9
+        f.attrs["action_dim"] = 10
 
         g_action = f.create_group("action")
         g_action.create_dataset("position", data=data["position"].astype(np.float32), **arr_kwargs)
         g_action.create_dataset("force", data=data["force"].astype(np.float32), **arr_kwargs)
+        g_action.create_dataset("gripper_present_position", data=data["gripper_present_position"].astype(np.int32), **arr_kwargs)
 
         g_obs = f.create_group("observations")
         g_obs.create_dataset("position", data=data["position"].astype(np.float32), **arr_kwargs)
@@ -525,6 +576,10 @@ def write_output_episode(
             g_obs.create_dataset("marker_id0_quat", data=data["marker_id0_quat"].astype(np.float32), **arr_kwargs)
         if data.get("marker_id1_quat") is not None:
             g_obs.create_dataset("marker_id1_quat", data=data["marker_id1_quat"].astype(np.float32), **arr_kwargs)
+
+        g_gripper = g_obs.create_group("gripper")
+        g_gripper.create_dataset("present_position", data=data["gripper_present_position"].astype(np.int32), **arr_kwargs)
+        g_gripper.create_dataset("present_current_mA", data=data["gripper_present_current_mA"].astype(np.float32), **arr_kwargs)
 
         g_img = g_obs.create_group("images")
         g_img.create_dataset("cam0", data=data["cam0"].astype(np.uint8), **img_kwargs)
@@ -542,12 +597,25 @@ def write_output_episode(
         g_meta.attrs["source_h5"] = str(source_h5)
         g_meta.attrs["source_episode"] = str(ep_name)
         g_meta.attrs["marker_dim"] = int(data["marker"].shape[1])
+        g_meta.attrs["gripper_position_dtype"] = "int32"
+        g_meta.attrs["gripper_current_dtype"] = "float32"
 
-        # Compatibility aliases for older quick inspection scripts.  The flat
+        # Compatibility aliases for older quick inspection scripts. The flat
         # action alias cannot be named "action" because /action is the
         # canonical group containing position and force datasets.
         f.create_dataset("qpos", data=np.concatenate([data["position"], data["force"]], axis=1).astype(np.float32), **arr_kwargs)
-        f.create_dataset("action_flat", data=np.concatenate([data["position"], data["force"]], axis=1).astype(np.float32), **arr_kwargs)
+        f.create_dataset(
+            "action_flat",
+            data=np.concatenate(
+                [
+                    data["position"],
+                    data["force"],
+                    data["gripper_present_position"].reshape(-1, 1).astype(np.float32),
+                ],
+                axis=1,
+            ).astype(np.float32),
+            **arr_kwargs,
+        )
 
 
 def convert_merged_h5(
@@ -637,7 +705,9 @@ def convert_merged_h5(
                 print(
                     f"[OK] {ep_name} -> episode_{out_idx}.hdf5 | "
                     f"T={T_out}, cam0={data['cam0'].shape}, cam1={data['cam1'].shape}, "
-                    f"marker={data['marker'].shape}, id0_valid={m0_valid}/{T_out}, id1_valid={m1_valid}/{T_out}"
+                    f"marker={data['marker'].shape}, id0_valid={m0_valid}/{T_out}, id1_valid={m1_valid}/{T_out}, "
+                    f"gripper_position={data['gripper_present_position'].shape}, "
+                    f"gripper_current_mA={data['gripper_present_current_mA'].shape}"
                 )
 
                 written.append(out_path)
@@ -660,7 +730,7 @@ def convert_merged_h5(
         "failed": [{"episode": ep, "error": err} for ep, err in failed],
         "require_cam1": bool(require_cam1),
         "require_marker": bool(require_marker),
-        "schema_version": "episode_multimodal_v1",
+        "schema_version": "episode_multimodal_v2",
     }
     with open(summary_path, "w", encoding="utf-8") as fp:
         json.dump(summary, fp, indent=2, ensure_ascii=False)

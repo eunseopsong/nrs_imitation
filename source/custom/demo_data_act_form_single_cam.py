@@ -50,7 +50,8 @@ except Exception:
     cv2 = None
 
 
-ROOT_DEFAULT = "/home/eunseop/nrs_imitation/datasets/ACT"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ROOT_DEFAULT = str(PROJECT_ROOT / "datasets" / "ACT")
 MERGED_SUBDIR = "merged_hdf5"
 EPISODES_SUBDIR_RAW = "episodes_ft"
 EPISODES_SUBDIR_CAMPROC = "episodes_ft_camproc"

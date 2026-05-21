@@ -3,7 +3,14 @@
 
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATASETS_ACT_ROOT = PROJECT_ROOT / "datasets" / "ACT"
+CHECKPOINTS_ROOT = PROJECT_ROOT / "checkpoints"
+ANALYSIS_LOGS_ROOT = PROJECT_ROOT / "analysis_logs"
 
 
 def find_latest_timestamped_subdir(root_dir: str) -> Optional[str]:

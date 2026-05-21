@@ -8,32 +8,41 @@ Multimodal ACT/Flow-compatible HDF5 dataloader for nrs_imitation.
 Supported observation modes:
   - single_cam       : cam0 + qpos + optional force_history
   - dual_cam         : cam0/cam1 + qpos + optional force_history
-  - dual_cam_marker  : cam0/cam1 + marker + qpos + optional force_history
+  - single_cam_marker: cam0 + marker + qpos + optional force_history
 
 Canonical episode layout:
   episode_0.hdf5
   ├── action/position        (T,6)
   ├── action/force           (T,3)
+  ├── action/gripper_present_position (T,), optional
   ├── observations/position  (T,6)
   ├── observations/force     (T,3)
   ├── observations/marker    (T,M), optional
+  ├── observations/gripper/present_position, optional
+  ├── observations/gripper/present_current_mA, optional
   ├── observations/images/cam0
   ├── observations/images/cam1, optional
   └── observations/is_pad, optional
 
 Return tuple:
-  without marker:
+  default without marker:
     image, qpos, action, is_pad, force_history
-  with marker:
+  default with marker:
     image, qpos, action, is_pad, force_history, marker
+  include_gripper=True without marker:
+    image, qpos, action, is_pad, force_history, gripper_position, gripper_current
+  include_gripper=True with marker:
+    image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current
 
 Shapes:
   image         : (K,3,H,W), float32 in [0,1]
   qpos          : (9,), normalized
-  action        : (seq_len,9), normalized
+  action        : (seq_len,9) or (seq_len,10), normalized
   is_pad        : (seq_len,), bool
   force_history : (L,3), normalized, if requested
-  marker        : (M,), normalized, only if obs_mode == dual_cam_marker
+  marker        : (M,), normalized, only if obs_mode is a marker mode
+  gripper_position : (1,), float32, raw position value cast from int when include_gripper=True
+  gripper_current  : (1,), float32, normalized when include_gripper=True
 """
 
 from __future__ import annotations
@@ -69,10 +78,17 @@ def _episode_files(dataset_dir: str | Path, num_episodes: int = 0) -> List[Path]
 
 
 def _read_dataset(f: h5py.File, keys: Sequence[str], required: bool = True):
+    ds = _find_dataset(f, keys, required=required)
+    if ds is None:
+        return None
+    return np.asarray(ds)
+
+
+def _find_dataset(f: h5py.File, keys: Sequence[str], required: bool = True):
     for k in keys:
         try:
             if k in f:
-                return np.asarray(f[k])
+                return f[k]
         except Exception:
             pass
     if required:
@@ -104,7 +120,7 @@ def _read_force(f: h5py.File, T: int) -> np.ndarray:
 
 
 def _read_marker(f: h5py.File, T: int, marker_dim: int) -> np.ndarray:
-    arr = _read_dataset(f, ["observations/marker", "marker/combined", "marker", "aruco/combined", "aruco", "aruco_pose"], required=False)
+    arr = _read_dataset(f, ["observations/marker", "marker", "aruco", "aruco_pose"], required=False)
     if arr is None:
         return np.zeros((T, marker_dim), dtype=np.float32)
     arr = np.asarray(arr, dtype=np.float32)
@@ -120,20 +136,67 @@ def _read_marker(f: h5py.File, T: int, marker_dim: int) -> np.ndarray:
     return out
 
 
-def _read_action(f: h5py.File, fallback_pos: np.ndarray, fallback_force: np.ndarray) -> np.ndarray:
+def _read_gripper_state(f: h5py.File, T: int) -> Tuple[np.ndarray, np.ndarray]:
+    position = _read_dataset(
+        f,
+        [
+            "observations/gripper/present_position",
+            "gripper/present_position",
+        ],
+        required=True,
+    )
+    current = _read_dataset(
+        f,
+        [
+            "observations/gripper/present_current_mA",
+            "gripper/present_current_mA",
+        ],
+        required=True,
+    )
+    position = np.asarray(position, dtype=np.float32).reshape(-1)
+    current = np.asarray(current, dtype=np.float32).reshape(-1)
+    if position.shape[0] == 1 and T > 1:
+        position = np.repeat(position, T, axis=0)
+    if current.shape[0] == 1 and T > 1:
+        current = np.repeat(current, T, axis=0)
+    return position, current
+
+
+def _read_action(
+    f: h5py.File,
+    fallback_pos: np.ndarray,
+    fallback_force: np.ndarray,
+    fallback_gripper_position: Optional[np.ndarray] = None,
+    include_gripper: bool = False,
+) -> np.ndarray:
     pos = _read_dataset(f, ["action/position", "actions/position"], required=False)
     force = _read_dataset(f, ["action/force", "actions/force"], required=False)
+    gripper_pos = _read_dataset(
+        f,
+        ["action/gripper_present_position", "actions/gripper_present_position"],
+        required=False,
+    )
     if pos is None:
         pos = fallback_pos
     if force is None:
         force = fallback_force
+    if include_gripper and gripper_pos is None:
+        if fallback_gripper_position is None:
+            raise KeyError("Missing action/gripper_present_position and no fallback provided")
+        gripper_pos = fallback_gripper_position
     pos = np.asarray(pos, dtype=np.float32)
     force = np.asarray(force, dtype=np.float32)
     if pos.ndim == 1:
         pos = pos.reshape(1, -1)
     if force.ndim == 1:
         force = force.reshape(1, -1)
-    return np.concatenate([pos[:, :6], force[:, :3]], axis=-1).astype(np.float32)
+    out = [pos[:, :6], force[:, :3]]
+    if include_gripper and gripper_pos is not None:
+        gripper_pos = np.asarray(gripper_pos, dtype=np.float32).reshape(-1, 1)
+        if gripper_pos.shape[0] == 1 and pos.shape[0] > 1:
+            gripper_pos = np.repeat(gripper_pos, pos.shape[0], axis=0)
+        out.append(gripper_pos[:, :1])
+    return np.concatenate(out, axis=-1).astype(np.float32)
 
 
 def _read_image(f: h5py.File, camera_name: str) -> np.ndarray:
@@ -146,6 +209,23 @@ def _read_image(f: h5py.File, camera_name: str) -> np.ndarray:
         keys += ["observations/image", "image", "rgb", "color"]
     arr = _read_dataset(f, keys, required=True)
     return np.asarray(arr)
+
+
+def _read_image_frame(f: h5py.File, camera_name: str, frame_idx: int) -> np.ndarray:
+    keys = [
+        f"observations/images/{camera_name}",
+        f"images/{camera_name}",
+        camera_name,
+    ]
+    if camera_name == "cam0":
+        keys += ["observations/image", "image", "rgb", "color"]
+    ds = _find_dataset(f, keys, required=True)
+    if ds.ndim == 3:
+        return np.asarray(ds)
+    if ds.ndim != 4:
+        raise ValueError(f"image dataset must be 3D or 4D, got {ds.shape}")
+    idx = int(np.clip(frame_idx, 0, max(ds.shape[0] - 1, 0)))
+    return np.asarray(ds[idx])
 
 
 def _image_frame_to_chw_float(frame: np.ndarray) -> torch.Tensor:
@@ -217,34 +297,51 @@ def compute_dataset_stats(
     qpos_norm_mode: str = "minmax_m11",
     action_norm_mode: str = "minmax_m11",
     marker_norm_mode: str = "minmax_m11",
+    include_gripper: bool = False,
 ) -> Dict[str, np.ndarray | str | int]:
     qpos_all = []
     action_all = []
     marker_all = []
+    gripper_current_all = []
 
     for p in episode_paths:
         with h5py.File(str(p), "r") as f:
             pos = _read_position(f)
             force = _read_force(f, T=pos.shape[0])
-            T = min(pos.shape[0], force.shape[0])
+            if include_gripper:
+                gripper_position, gripper_current = _read_gripper_state(f, T=pos.shape[0])
+                T = min(pos.shape[0], force.shape[0], gripper_position.shape[0], gripper_current.shape[0])
+                gripper_position = gripper_position[:T]
+                gripper_current = gripper_current[:T]
+            else:
+                gripper_position = None
+                gripper_current = None
+                T = min(pos.shape[0], force.shape[0])
             pos = pos[:T]
             force = force[:T]
             qpos = np.concatenate([pos[:, :6], force[:, :3]], axis=-1).astype(np.float32)
-            action = _read_action(f, fallback_pos=pos, fallback_force=force)[:T]
+            action = _read_action(
+                f,
+                fallback_pos=pos,
+                fallback_force=force,
+                fallback_gripper_position=gripper_position,
+                include_gripper=include_gripper,
+            )[:T]
             marker = _read_marker(f, T=T, marker_dim=marker_dim)[:T]
             qpos_all.append(qpos)
             action_all.append(action)
             marker_all.append(marker)
+            if include_gripper and gripper_current is not None:
+                gripper_current_all.append(gripper_current.reshape(-1, 1).astype(np.float32))
 
     q = np.concatenate(qpos_all, axis=0)
     a = np.concatenate(action_all, axis=0)
     m = np.concatenate(marker_all, axis=0)
-
     qmin, qmax = _sanitize_minmax(q.min(axis=0), q.max(axis=0))
     amin, amax = _sanitize_minmax(a.min(axis=0), a.max(axis=0))
     mmin, mmax = _sanitize_minmax(m.min(axis=0), m.max(axis=0))
 
-    return {
+    stats = {
         "qpos_min": qmin.astype(np.float32),
         "qpos_max": qmax.astype(np.float32),
         "action_min": amin.astype(np.float32),
@@ -255,8 +352,15 @@ def compute_dataset_stats(
         "action_norm_mode": action_norm_mode,
         "marker_norm_mode": marker_norm_mode,
         "marker_dim": int(marker_dim),
+        "include_gripper": bool(include_gripper),
         "num_total_timesteps": int(q.shape[0]),
     }
+    if include_gripper and gripper_current_all:
+        gc = np.concatenate(gripper_current_all, axis=0)
+        gcmin, gcmax = _sanitize_minmax(gc.min(axis=0), gc.max(axis=0))
+        stats["gripper_current_min"] = gcmin.astype(np.float32)
+        stats["gripper_current_max"] = gcmax.astype(np.float32)
+    return stats
 
 
 # =============================================================================
@@ -279,6 +383,7 @@ class ImitationEpisodeDataset(Dataset):
         qpos_norm_mode: str = "minmax_m11",
         action_norm_mode: str = "minmax_m11",
         marker_norm_mode: str = "minmax_m11",
+        include_gripper: bool = False,
     ):
         super().__init__()
         self.episode_paths = list(episode_paths)
@@ -294,8 +399,9 @@ class ImitationEpisodeDataset(Dataset):
         self.qpos_norm_mode = str(qpos_norm_mode)
         self.action_norm_mode = str(action_norm_mode)
         self.marker_norm_mode = str(marker_norm_mode)
+        self.include_gripper = bool(include_gripper)
 
-        self.return_marker = self.obs_mode == "dual_cam_marker"
+        self.return_marker = self.obs_mode in ("dual_cam_marker", "single_cam_marker")
         self.index = []
         for ep_i in range(len(self.episode_paths)):
             for s_i in range(max(1, self.samples_per_episode)):
@@ -317,24 +423,44 @@ class ImitationEpisodeDataset(Dataset):
         with h5py.File(str(path), "r") as f:
             pos = _read_position(f)
             force = _read_force(f, T=pos.shape[0])
-            action = _read_action(f, fallback_pos=pos, fallback_force=force)
+            if self.include_gripper:
+                gripper_position, gripper_current = _read_gripper_state(f, T=pos.shape[0])
+            else:
+                gripper_position = None
+                gripper_current = None
+            action = _read_action(
+                f,
+                fallback_pos=pos,
+                fallback_force=force,
+                fallback_gripper_position=gripper_position,
+                include_gripper=self.include_gripper,
+            )
             marker = _read_marker(f, T=pos.shape[0], marker_dim=self.marker_dim)
 
-            T = min(pos.shape[0], force.shape[0], action.shape[0], marker.shape[0])
+            if self.include_gripper:
+                T = min(
+                    pos.shape[0],
+                    force.shape[0],
+                    action.shape[0],
+                    marker.shape[0],
+                    gripper_position.shape[0],
+                    gripper_current.shape[0],
+                )
+            else:
+                T = min(pos.shape[0], force.shape[0], action.shape[0], marker.shape[0])
             pos = pos[:T]
             force = force[:T]
             action = action[:T]
             marker = marker[:T]
+            if self.include_gripper:
+                gripper_position = gripper_position[:T]
+                gripper_current = gripper_current[:T]
             start = self._choose_start(T, idx)
 
             # Images use the frame at the current qpos time.
             imgs = []
             for cam in self.camera_names:
-                arr = _read_image(f, cam)
-                if arr.ndim == 3:
-                    frame = arr
-                else:
-                    frame = arr[min(start, arr.shape[0] - 1)]
+                frame = _read_image_frame(f, cam, start)
                 imgs.append(_image_frame_to_chw_float(frame))
             image = torch.stack(imgs, dim=0)  # (K,3,H,W)
 
@@ -354,7 +480,25 @@ class ImitationEpisodeDataset(Dataset):
         is_pad_t = torch.from_numpy(is_pad).bool()
         fh_t = torch.from_numpy(fh_norm).float()
         marker_t = torch.from_numpy(marker_norm).float()
+        if self.include_gripper:
+            gripper_position_raw = np.asarray([gripper_position[start]], dtype=np.float32)
+            gripper_current_raw = np.asarray([gripper_current[start]], dtype=np.float32)
+            gripper_current_norm = normalize_minmax(
+                gripper_current_raw,
+                self.stats["gripper_current_min"],
+                self.stats["gripper_current_max"],
+                self.qpos_norm_mode,
+            )
+            gripper_position_t = torch.from_numpy(gripper_position_raw).float()
+            gripper_current_t = torch.from_numpy(gripper_current_norm).float()
+        else:
+            gripper_position_t = None
+            gripper_current_t = None
 
+        if self.include_gripper and self.return_marker:
+            return image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t, gripper_position_t, gripper_current_t
+        if self.include_gripper:
+            return image_t, qpos_t, action_t, is_pad_t, fh_t, gripper_position_t, gripper_current_t
         if self.return_marker:
             return image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t
         return image_t, qpos_t, action_t, is_pad_t, fh_t
@@ -386,6 +530,7 @@ def make_loaders(
     action_norm_mode: str = "minmax_m11",
     marker_norm_mode: str = "minmax_m11",
     marker_dim: int = 7,
+    include_gripper: bool = False,
 ):
     paths = _episode_files(dataset_dir, num_episodes=num_episodes)
     n = len(paths)
@@ -407,6 +552,7 @@ def make_loaders(
         qpos_norm_mode=qpos_norm_mode,
         action_norm_mode=action_norm_mode,
         marker_norm_mode=marker_norm_mode,
+        include_gripper=include_gripper,
     )
     stats["dataset_dir"] = str(Path(dataset_dir).expanduser())
     stats["camera_names"] = list(camera_names)
@@ -423,6 +569,7 @@ def make_loaders(
         qpos_norm_mode=qpos_norm_mode,
         action_norm_mode=action_norm_mode,
         marker_norm_mode=marker_norm_mode,
+        include_gripper=include_gripper,
     )
     train_ds = ImitationEpisodeDataset(train_paths, seq_len=seq_len_train, seed=seed, **common)
     val_ds = ImitationEpisodeDataset(val_paths, seq_len=seq_len_val, seed=seed + 12345, **common)
@@ -447,5 +594,7 @@ def make_loaders(
         "camera_names": list(camera_names),
         "obs_mode": obs_mode,
         "marker_dim": int(marker_dim),
+        "include_gripper": bool(include_gripper),
+        "action_dim": int(stats["action_min"].shape[0]),
     }
     return train_loader, val_loader, stats, meta

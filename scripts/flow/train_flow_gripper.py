@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-scripts/flow/train_flow.py
+scripts/flow/train_flow_gripper.py
 
 Flow Matching training entrypoint with three observation modes:
-  1) single_cam         : cam0(local RGB) + qpos + force_history
-  2) dual_cam           : cam0(local RGB) + cam1(global RGB) + qpos + force_history
-  3) single_cam_marker  : cam0(local RGB) + ArUco marker(id0,id1) + qpos + force_history
+  1) single_cam         : cam0(local RGB) + qpos + gripper + force_history
+  2) dual_cam           : cam0(local RGB) + cam1(global RGB) + qpos + gripper + force_history
+  3) single_cam_marker  : cam0(local RGB) + ArUco marker(id0,id1) + qpos + gripper + force_history
 
 Sequential 3-model training:
-  python3 scripts/flow/train_flow.py --train_all_obs_modes
+  python3 scripts/flow/train_flow_gripper.py --train_all_obs_modes
 
 Checkpoint layout:
   <repo>/checkpoints/flow/single_cam/YYYYMMDD_HHMM/
@@ -17,12 +17,12 @@ Checkpoint layout:
   <repo>/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM/
 
 Single-model examples:
-  python3 scripts/flow/train_flow.py --obs_mode single_cam
-  python3 scripts/flow/train_flow.py --obs_mode dual_cam
-  python3 scripts/flow/train_flow.py --obs_mode single_cam_marker
+  python3 scripts/flow/train_flow_gripper.py --obs_mode single_cam
+  python3 scripts/flow/train_flow_gripper.py --obs_mode dual_cam
+  python3 scripts/flow/train_flow_gripper.py --obs_mode single_cam_marker
 
 Eval-load check:
-  python3 scripts/flow/train_flow.py --eval --obs_mode single_cam_marker \
+  python3 scripts/flow/train_flow_gripper.py --eval --obs_mode single_cam_marker \
     --ckpt_dir <repo>/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM
 """
 
@@ -51,7 +51,7 @@ from tqdm import tqdm
 
 from data.loader import load_data
 from common.fs import CHECKPOINTS_ROOT, DATASETS_ACT_ROOT
-from models.flow_core import build_flow_rgb_policy_and_optimizer
+from models.gri_flow_core import build_flow_rgb_policy_and_optimizer
 
 
 # =============================================================================
@@ -194,6 +194,8 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "flow_image_feature_dim": args.flow_image_feature_dim,
         "flow_marker_feature_dim": args.flow_marker_feature_dim,
         "flow_global_cond_dim": args.flow_global_cond_dim,
+        "gripper_encoder_hidden_dim": args.gripper_encoder_hidden_dim,
+        "gripper_feature_dim": args.gripper_feature_dim,
         "flow_time_embed_dim": args.flow_time_embed_dim,
         "flow_down_dims": args.flow_down_dims,
         "flow_kernel_size": args.flow_kernel_size,
@@ -250,7 +252,7 @@ def _print_stats_debug(stats: Dict[str, object], obs_mode: str, camera_names: Se
     print(f"[DBG] marker_norm_mode= {stats.get('marker_norm_mode')}")
     print(f"[DBG] marker_dim      = {stats.get('marker_dim')}")
 
-    for key in ["qpos_min", "qpos_max", "action_min", "action_max", "marker_min", "marker_max"]:
+    for key in ["qpos_min", "qpos_max", "action_min", "action_max", "marker_min", "marker_max", "gripper_current_min", "gripper_current_max"]:
         if key in stats:
             a = np.asarray(stats[key], dtype=np.float32).reshape(-1)
             head = np.array2string(a[: min(6, a.size)], precision=4, separator=", ")
@@ -269,7 +271,7 @@ def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
     print("\n" + "-" * 80)
     print("[DBG] First train batch check")
     batch = next(iter(train_loader))
-    image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, torch.device("cpu"))
+    image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current = _unpack_batch(batch, torch.device("cpu"))
 
     _tensor_debug_line("image", image)
     _tensor_debug_line("qpos", qpos)
@@ -277,6 +279,8 @@ def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
     _tensor_debug_line("is_pad", is_pad.float())
     _tensor_debug_line("force_history", force_history)
     _tensor_debug_line("marker", marker)
+    _tensor_debug_line("gripper_position", gripper_position)
+    _tensor_debug_line("gripper_current", gripper_current)
 
     expected_k = len(list(camera_names))
     actual_k = int(image.shape[1]) if torch.is_tensor(image) and image.dim() >= 2 else -1
@@ -370,15 +374,11 @@ def collect_demo_start_pose_stats(dataset_dir: str, num_episodes: int = 0) -> Di
 # =============================================================================
 
 def _unpack_batch(batch, device: torch.device):
-    if len(batch) == 4:
-        image, qpos, action, is_pad = batch
-        force_history = None
+    if len(batch) == 7:
+        image, qpos, action, is_pad, force_history, gripper_position, gripper_current = batch
         marker = None
-    elif len(batch) == 5:
-        image, qpos, action, is_pad, force_history = batch
-        marker = None
-    elif len(batch) == 6:
-        image, qpos, action, is_pad, force_history, marker = batch
+    elif len(batch) == 8:
+        image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current = batch
     else:
         raise RuntimeError(f"Unexpected batch length: {len(batch)}")
     image = image.to(device, non_blocking=True)
@@ -389,7 +389,9 @@ def _unpack_batch(batch, device: torch.device):
         force_history = force_history.to(device, non_blocking=True)
     if marker is not None:
         marker = marker.to(device, non_blocking=True)
-    return image, qpos, action, is_pad, force_history, marker
+    gripper_position = gripper_position.to(device, non_blocking=True)
+    gripper_current = gripper_current.to(device, non_blocking=True)
+    return image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current
 
 
 def _scalar_dict(loss_dict: Dict[str, torch.Tensor]) -> Dict[str, float]:
@@ -407,10 +409,23 @@ def _mean_dict(items: List[Dict[str, float]]) -> Dict[str, float]:
 def validate(policy, val_loader, device):
     policy.eval()
     outs = []
-    for batch in val_loader:
-        image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
-        out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
-        outs.append(_scalar_dict(out))
+    val_iter = tqdm(val_loader, desc="Val", leave=False)
+    for batch in val_iter:
+        image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current = _unpack_batch(batch, device)
+        out = policy(
+            qpos,
+            image,
+            actions=action,
+            is_pad=is_pad,
+            force_history=force_history,
+            marker=marker,
+            gripper_position=gripper_position,
+            gripper_current=gripper_current,
+        )
+        scalars = _scalar_dict(out)
+        outs.append(scalars)
+        if "loss" in scalars:
+            val_iter.set_postfix(loss=f"{scalars['loss']:.4f}")
     return _mean_dict(outs)
 
 
@@ -425,7 +440,7 @@ def save_checkpoint(path: str, epoch: int, policy, optimizer, train_summary, val
     }, path)
 
 
-def train_flow(train_loader, val_loader, config):
+def train_flow_gripper(train_loader, val_loader, config):
     device = config["device"]
     seed = int(config.get("seed", 0))
     num_epochs = int(config["num_epochs"])
@@ -461,14 +476,27 @@ def train_flow(train_loader, val_loader, config):
 
         policy.train()
         train_outs = []
-        for bi, batch in enumerate(train_loader):
-            image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
+        train_iter = tqdm(train_loader, desc=f"Train {epoch}", leave=False)
+        for bi, batch in enumerate(train_iter):
+            image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current = _unpack_batch(batch, device)
             optimizer.zero_grad(set_to_none=True)
-            out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
+            out = policy(
+                qpos,
+                image,
+                actions=action,
+                is_pad=is_pad,
+                force_history=force_history,
+                marker=marker,
+                gripper_position=gripper_position,
+                gripper_current=gripper_current,
+            )
             loss = out["loss"]
             loss.backward()
             optimizer.step()
-            train_outs.append(_scalar_dict(out))
+            scalars = _scalar_dict(out)
+            train_outs.append(scalars)
+            if "loss" in scalars:
+                train_iter.set_postfix(loss=f"{scalars['loss']:.4f}")
             if bi < debug_batches:
                 print(f"[DEBUG] Epoch {epoch}, batch {bi}, train loss = {float(loss.detach().cpu().item()):.6f}")
 
@@ -513,11 +541,11 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     print(f"[INFO] num_episodes       = {num_episodes}")
     print(f"[INFO] camera_names       = {camera_names}")
     if obs_mode == "single_cam":
-        print("[INFO] policy_obs         = cam0 RGB only")
+        print("[INFO] policy_obs         = cam0 RGB + gripper state")
     elif obs_mode == "dual_cam":
-        print("[INFO] policy_obs         = cam0 RGB + cam1/global RGB")
+        print("[INFO] policy_obs         = cam0 RGB + cam1/global RGB + gripper state")
     elif obs_mode == "single_cam_marker":
-        print("[INFO] policy_obs         = cam0 RGB + ArUco marker(id0,id1)")
+        print("[INFO] policy_obs         = cam0 RGB + ArUco marker(id0,id1) + gripper state")
     print(f"[INFO] marker_dim         = {args.marker_dim}")
     print(f"[INFO] norm_mode          = {args.norm_mode}")
     print(f"[INFO] batch_size         = {args.batch_size}")
@@ -583,7 +611,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         action_norm_mode=args.norm_mode,
         marker_norm_mode=args.norm_mode,
         marker_dim=args.marker_dim,
-        include_gripper=False,
+        include_gripper=True,
     )
     print(f"[INFO] data meta: {meta}")
 
@@ -609,7 +637,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         "obs_mode": obs_mode,
         "policy_config": policy_config,
     }
-    train_flow(train_loader, val_loader, config)
+    train_flow_gripper(train_loader, val_loader, config)
 
 
 def main(args):
@@ -641,7 +669,7 @@ if __name__ == "__main__":
     parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
     parser.add_argument("--marker_dim", type=int, default=14)
 
-    parser.add_argument("--batch_size", type=int, default=12)
+    parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -656,7 +684,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_every", type=int, default=100)
 
     parser.add_argument("--state_dim", type=int, default=9)
-    parser.add_argument("--action_dim", type=int, default=9)
+    parser.add_argument("--action_dim", type=int, default=10)
     parser.add_argument("--force_dim", type=int, default=3)
 
     parser.add_argument("--use_force_history", dest="use_force_history", action="store_true", default=True)
@@ -670,6 +698,8 @@ if __name__ == "__main__":
     parser.add_argument("--flow_obs_hidden_dim", type=int, default=256)
     parser.add_argument("--flow_image_feature_dim", type=int, default=512)
     parser.add_argument("--flow_marker_feature_dim", type=int, default=128)
+    parser.add_argument("--gripper_encoder_hidden_dim", type=int, default=32)
+    parser.add_argument("--gripper_feature_dim", type=int, default=64)
     parser.add_argument("--flow_global_cond_dim", type=int, default=256)
     parser.add_argument("--flow_time_embed_dim", type=int, default=256)
     parser.add_argument("--flow_down_dims", type=str, default="256,512,1024")

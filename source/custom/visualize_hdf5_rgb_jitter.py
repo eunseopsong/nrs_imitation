@@ -6,7 +6,7 @@ visualize_hdf5_rgb_jitter.py
 Analyze and visualize single-camera RGB hand-shake / jitter in ACT-format HDF5 episodes.
 
 Default target:
-    /home/eunseop/nrs_imitation/datasets/ACT/<latest_timestamp>/episodes_ft/*.hdf5
+    <repo>/datasets/ACT/<latest_timestamp>/episodes_ft/*.hdf5
 
 Expected HDF5 image key candidates:
     /observations/images/cam0
@@ -15,7 +15,7 @@ Expected HDF5 image key candidates:
     /cam0
 
 Outputs:
-    /home/eunseop/nrs_imitation/analysis_logs/camera_jitter/<timestamp_dataset>/
+    <repo>/analysis_logs/camera_jitter/<timestamp_dataset>/
         jitter_summary.csv
         jitter_summary_by_index.png
         jitter_summary_ranking.png
@@ -51,6 +51,11 @@ try:
     import cv2
 except Exception as e:
     cv2 = None
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ACT_ROOT_DEFAULT = str(PROJECT_ROOT / "datasets" / "ACT")
+OUTPUT_ROOT_DEFAULT = str(PROJECT_ROOT / "analysis_logs" / "camera_jitter")
 
 
 # =============================================================================
@@ -564,13 +569,13 @@ def save_report(results: Sequence[EpisodeJitterResult], out_path: Path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--act_root", type=str, default="/home/eunseop/nrs_imitation/datasets/ACT")
+    parser.add_argument("--act_root", type=str, default=ACT_ROOT_DEFAULT)
     parser.add_argument("--dataset_dir", type=str, default=None,
                         help="Direct path to episodes_ft. If omitted, latest ACT/<timestamp>/episodes_ft is used.")
     parser.add_argument("--subdir_name", type=str, default="episodes_ft",
                         help="Usually episodes_ft or episodes_ft_camproc.")
     parser.add_argument("--camera_name", type=str, default="cam0")
-    parser.add_argument("--output_root", type=str, default="/home/eunseop/nrs_imitation/analysis_logs/camera_jitter")
+    parser.add_argument("--output_root", type=str, default=OUTPUT_ROOT_DEFAULT)
     parser.add_argument("--max_episodes", type=int, default=0,
                         help="0 means all episodes.")
     parser.add_argument("--max_frames", type=int, default=0,

@@ -8,10 +8,36 @@ This repository now supports **three parallel policy branches** on top of the sa
 - **Diffusion Policy-style branch**
 - **Flow Matching Policy-style branch**
 
+It also supports two task families in the same repository:
+
+- **Polishing task**: force-aware 9D action training with the original recorder and training scripts.
+- **Gripper task**: force-aware 10D action training with gripper position/current added to the observation/action pipeline.
+
 All branches share the same demonstration format:
 
 - observation = `position(6) + force(3) + image(cam0)`
 - action = `position(6) + force(3)`
+
+For gripper data, the shared HDF5 format additionally includes:
+
+- observation = `gripper/present_position + gripper/present_current_mA`
+- action = `position(6) + force(3) + gripper_present_position`
+
+Use these task-specific entrypoints:
+
+```bash
+# Polishing / original flow training
+python3 scripts/flow/train_flow.py --obs_mode single_cam
+
+# Gripper flow training
+python3 scripts/flow/train_flow_gripper.py --obs_mode single_cam
+
+# Convert gripper recorder output to training episodes
+python3 source/custom/gripper_data_imitation_form.py
+
+# ROS 2 gripper recorder entrypoint, after rebuilding behavior_ws
+ros2 run nrs_imitation gripper_hdf5_recorder
+```
 
 The current workflow is designed so that you can go from **VR teaching / demonstration recording** all the way to **ACT / Diffusion / Flow Matching training, evaluation, and inference** by following this README only.
 

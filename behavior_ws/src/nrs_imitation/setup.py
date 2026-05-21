@@ -42,6 +42,7 @@ setup(
             # Demonstration recording - current integrated recorder
             'vr_demo_hdf5_recorder = nrs_imitation.vr_demo_hdf5_recorder:main',
             'vr_demo_txt_recorder = nrs_imitation.vr_demo_txt_recorder:main',
+            'gripper_hdf5_recorder = nrs_imitation.gripper_hdf5_recorder:main',
 
             # Stage-1 / Stage-2 separated workflow
             'vr_stage1_hdf5_recorder = nrs_imitation.vr_stage1_hdf5_recorder:main',
