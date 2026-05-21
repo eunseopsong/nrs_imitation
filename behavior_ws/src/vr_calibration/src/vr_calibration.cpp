@@ -239,6 +239,7 @@ public:
     this->declare_parameter<std::string>("ee_output_file", ee_path_);
     this->declare_parameter<std::string>("vr_output_file", vr_path_);
     this->declare_parameter<std::string>("calib_yaml_file", calib_yaml_path_);
+    this->declare_parameter<bool>("radj_enable", false);
     this->declare_parameter<int>("radj_sample_count", 0); // <=0: use all captured samples
     this->declare_parameter<double>("capture_hold_time_s", hold_time_s_);
     this->declare_parameter<double>("capture_min_hold_time_s", min_hold_time_s_);
@@ -266,6 +267,7 @@ public:
     ee_path_             = this->get_parameter("ee_output_file").as_string();
     vr_path_             = this->get_parameter("vr_output_file").as_string();
     calib_yaml_path_     = this->get_parameter("calib_yaml_file").as_string();
+    radj_enable_         = this->get_parameter("radj_enable").as_bool();
     const int64_t radj_sample_count_param = this->get_parameter("radj_sample_count").as_int();
     radj_use_all_samples_ = (radj_sample_count_param <= 0);
     radj_sample_count_ = radj_use_all_samples_
@@ -335,7 +337,8 @@ public:
       max_capture_sync_dt_s_, capture_max_vr_std_mm_);
     const std::string radj_sample_count_log =
       radj_use_all_samples_ ? "all" : std::to_string(radj_sample_count_);
-    RCLCPP_INFO(get_logger(), "[R_ADJ] sample_count=%s", radj_sample_count_log.c_str());
+    RCLCPP_INFO(get_logger(), "[R_ADJ] enable=%s sample_count=%s",
+      radj_enable_ ? "true" : "false", radj_sample_count_log.c_str());
   }
 
   void run()
@@ -543,6 +546,7 @@ private:
   double t_sa_wait_timeout_s_{15.0};
   double t_sa_hold_s_{0.25};
   double t_sa_fresh_s_{1.0};
+  bool radj_enable_{false};
   size_t radj_sample_count_{8};
   bool radj_use_all_samples_{false};
   double max_calib_position_rms_mm_{50.0};
@@ -1834,7 +1838,14 @@ private:
       throw std::runtime_error("Not enough samples to compute calibration (need >=2).");
     }
 
-    computeRAdjFromSamples();
+    if (radj_enable_) {
+      computeRAdjFromSamples();
+    } else {
+      R_adj_ = Eigen::Matrix3d::Identity();
+      have_radj_ = false;
+      RCLCPP_INFO(get_logger(),
+        "[R_ADJ] disabled. Using Identity so T_AD directly absorbs the VR world/base-station frame.");
+    }
 
     Eigen::Matrix4d T_Adj = Eigen::Matrix4d::Identity();
     T_Adj.block<3,3>(0,0) =

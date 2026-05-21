@@ -69,6 +69,7 @@ ros2 run vr_calibration vr_calibration
 ```text
 t_sa_mode = update
 t_sa_max_delta_deg = 180.0
+radj_enable = false        # 기본은 raw VR world를 그대로 쓰고 T_AD가 base-station/world frame 차이를 흡수
 radj_sample_count = 0        # 0 또는 음수면 전체 captured sample 사용
 capture_hold_time_s = 2.0
 capture_min_hold_time_s = 1.5
@@ -139,7 +140,9 @@ T_DC[i] = VR world(D) -> tracker(C)
 
 ```text
 1. clean sample set 수집
-2. R_Adj 계산
+2. R_Adj 적용 여부 결정
+   - 기본값 `radj_enable=false`: R_Adj=Identity
+   - legacy/debug `radj_enable=true`: captured position cloud로 R_Adj 계산
 3. T_DC_adj[i] = T_Adj * T_DC[i]
    where T_Adj rotation = R_Adj.T
 4. hand-eye solve로 T_BC 계산
@@ -150,10 +153,16 @@ T_DC[i] = VR world(D) -> tracker(C)
 9. YAML 저장
 ```
 
-`radj_sample_count=0`이면 `R_Adj` 계산에 captured sample 전체를 사용한다. 특정 개수만 쓰고 싶으면 양수로 지정한다.
+기본값은 `radj_enable=false`다. 이 모드에서는 base station 조합이나 새 PC의 SteamVR world frame이 달라도
+raw VR world를 그대로 두고 `T_AD`가 그 차이를 직접 흡수한다. tracker-to-TCP offset이 있는 상태에서 자세가 많이
+바뀌는 waypoint를 쓰면 position-only `R_Adj`가 오히려 틀어질 수 있으므로 일반 캘리브레이션은 이 기본값을 권장한다.
+
+기존 position-cloud `R_Adj` 방식을 실험하려면 `radj_enable=true`를 켠다. 이때 `radj_sample_count=0`이면
+`R_Adj` 계산에 captured sample 전체를 사용한다. 특정 개수만 쓰고 싶으면 양수로 지정한다.
 
 ```bash
 ros2 run vr_calibration vr_calibration --ros-args \
+  -p radj_enable:=true \
   -p radj_sample_count:=32
 ```
 
