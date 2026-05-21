@@ -1,6 +1,6 @@
 vr_demo_txt_recorder:
   ros__parameters:
-    save_dir: "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd"
+    save_dir: "~/nrs_imitation/behavior_ws/src/nrs_imitation/txtcmd"
     file_name: "cmd_continue9D.txt"
 
     start_force_th: 10.0

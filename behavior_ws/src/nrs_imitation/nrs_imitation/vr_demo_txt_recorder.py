@@ -30,6 +30,18 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
+REPO_ROOT = os.path.expanduser("~/nrs_imitation")
+DEFAULT_SAVE_PATH = os.path.join(
+    REPO_ROOT,
+    "behavior_ws",
+    "src",
+    "nrs_imitation",
+    "txtcmd",
+    "cmd_continue9D.txt",
+)
+DEFAULT_VIZ_ROOT = os.path.join(REPO_ROOT, "behavior_ws", "src", "nrs_imitation", "log")
+
+
 # ----------------------------
 # Utility
 # ----------------------------
@@ -590,17 +602,17 @@ class VrDemoTxtRecorder(Node):
         # save path
         self.declare_parameter(
             "save_path",
-            "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/cmd_continue9D.txt"
+            DEFAULT_SAVE_PATH
         )
 
         # viz
-        self.declare_parameter("viz_root", "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/log")
+        self.declare_parameter("viz_root", DEFAULT_VIZ_ROOT)
 
         # SCP transfer
         self.declare_parameter("transfer_enable", True)
         self.declare_parameter("remote_user", "nrs_forcecon")
         self.declare_parameter("remote_ip", "192.168.0.151")
-        self.declare_parameter("remote_dir", "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/")
+        self.declare_parameter("remote_dir", "dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/")
 
         # force
         self.declare_parameter("zero_xy_forces", True)
@@ -666,8 +678,8 @@ class VrDemoTxtRecorder(Node):
         self.dt = 1.0 / max(1e-9, self.record_hz)
         self.require_fresh_sec = float(self.get_parameter("require_fresh_sec").value)
 
-        self.save_path = str(self.get_parameter("save_path").value)
-        self.viz_root = str(self.get_parameter("viz_root").value)
+        self.save_path = os.path.expanduser(str(self.get_parameter("save_path").value))
+        self.viz_root = os.path.expanduser(str(self.get_parameter("viz_root").value))
 
         self.start_abs_fx = float(self.get_parameter("start_abs_fx").value)
         self.stop_abs_fy = float(self.get_parameter("stop_abs_fy").value)

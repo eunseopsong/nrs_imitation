@@ -1,4 +1,24 @@
 #include "FT_Processing.hpp"
+#include <cstdlib>
+
+namespace {
+std::string expand_repo_path(const std::string& path) {
+  if (path.empty()) {
+    return path;
+  }
+  const char* home = std::getenv("HOME");
+  if (home == nullptr || std::string(home).empty()) {
+    return path;
+  }
+  if (path.rfind("~/", 0) == 0) {
+    return std::string(home) + path.substr(1);
+  }
+  if (path[0] != '/') {
+    return std::string(home) + "/nrs_imitation/" + path;
+  }
+  return path;
+}
+}
 #include <cmath>
 #include <iostream>
 
@@ -50,8 +70,9 @@ FT_processing::FT_processing(std::shared_ptr<rclcpp::Node> node,
   }
   if (!node_->get_parameter("Data1_path", YamlData1_path)) {
     RCLCPP_ERROR(node_->get_logger(), "Can't find Data1_path!");
-    YamlData1_path = "/tmp/data1.txt";
+    YamlData1_path = "tmp/data1.txt";
   }
+  YamlData1_path = expand_repo_path(YamlData1_path);
   if (!node_->get_parameter("Data1_switch", YamlData1_switch)) {
     RCLCPP_ERROR(node_->get_logger(), "Can't find Data1_switch!");
     YamlData1_switch = 0;

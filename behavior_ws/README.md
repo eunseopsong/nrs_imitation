@@ -47,8 +47,8 @@ ros2 run nrs_imitation robot_playback_act_hdf5_recorder
 
 ### 6) ACT training with the dataset generated through steps 3), 4), and 5)
 ```bash
-cd /home/eunseop/nrs_act && python3 scripts/act/train_act.py \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/ur10e_swing \
+cd ~/nrs_imitation && python3 scripts/act/train_act.py \
+  --ckpt_dir ~/nrs_imitation/checkpoints/ur10e_swing \
   --policy_class ACT \
   --task_name ur10e_swing \
   --batch_size 6 \
@@ -66,8 +66,8 @@ cd /home/eunseop/nrs_act && python3 scripts/act/train_act.py \
 
 ### 7) Evaluation after training
 ```bash
-cd /home/eunseop/nrs_act && python3 scripts/act/train_act.py \
-  --ckpt_dir /home/eunseop/nrs_act/checkpoints/ur10e_swing \
+cd ~/nrs_imitation && python3 scripts/act/train_act.py \
+  --ckpt_dir ~/nrs_imitation/checkpoints/ur10e_swing \
   --policy_class ACT \
   --task_name ur10e_swing \
   --batch_size 6 \
@@ -87,8 +87,8 @@ cd /home/eunseop/nrs_act && python3 scripts/act/train_act.py \
 ### 8) Load the trained checkpoint and run online inference
 ```bash
 ros2 run nrs_imitation node_act_cmdmotion_infer --ros-args \
-  -p act_root:=/home/eunseop/nrs_act \
-  -p ckpt_dir:=/home/eunseop/nrs_act/checkpoints/ur10e_swing/20260317_0043 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/ur10e_swing/20260317_0043 \
   -p use_force_history:=true \
   -p force_history_len:=10
 ```

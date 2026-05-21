@@ -32,7 +32,7 @@ Command topic:
     terminate_node
 
 Output merged HDF5:
-  /home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
+  ~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
     robot_playback_merged_YYYYMMDD_HHMM.hdf5
 
 Layout compatible with demo_data_imitation_form.py:
@@ -61,6 +61,10 @@ from rclpy.qos import QoSProfile, HistoryPolicy, ReliabilityPolicy, DurabilityPo
 from std_msgs.msg import Float64MultiArray, String
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Image
+
+
+REPO_ROOT = os.path.expanduser("~/nrs_imitation")
+DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
 
 
 def make_qos(depth: int = 10, best_effort: bool = False) -> QoSProfile:
@@ -174,7 +178,7 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         super().__init__("robot_playback_multimodal_hdf5_recorder")
 
         # Save.
-        self.declare_parameter("act_root_dir", "/home/eunseop/nrs_imitation/datasets/ACT")
+        self.declare_parameter("act_root_dir", DEFAULT_ACT_ROOT_DIR)
         self.declare_parameter("merged_subdir", "merged_hdf5")
         self.declare_parameter("file_prefix", "robot_playback_merged")
         self.declare_parameter("run_timestamp", "")  # empty -> now
@@ -199,7 +203,7 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         # Keyboard.
         self.declare_parameter("enable_keyboard", True)
 
-        self.act_root_dir = str(self.get_parameter("act_root_dir").value)
+        self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
         self.merged_subdir = str(self.get_parameter("merged_subdir").value)
         self.file_prefix = str(self.get_parameter("file_prefix").value)
         ts = str(self.get_parameter("run_timestamp").value).strip()
@@ -550,7 +554,8 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
             return
 
         ep = self.last_saved_ep
-        tmp_path = os.path.join("/tmp", f"{ep}_undo_copy.hdf5")
+        tmp_path = os.path.join(REPO_ROOT, "tmp", f"{ep}_undo_copy.hdf5")
+        os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
         with h5py.File(tmp_path, "w") as tf:
             self.h5.copy(self.grp_eps[ep], tf, name=ep)
         del self.grp_eps[ep]

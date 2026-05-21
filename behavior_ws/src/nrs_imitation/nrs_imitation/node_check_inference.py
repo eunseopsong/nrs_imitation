@@ -22,8 +22,8 @@ Why previous crash happened:
 
 Usage:
 ros2 run nrs_imitation node_check_inference --ros-args \
-  -p ckpt_dir:=/home/eunseop/nrs_lab2/checkpoints/ur10e_swing/20260208_1536 \
-  -p act_root:=/home/eunseop/nrs_lab2/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/ur10e_swing/20260208_1536 \
+  -p act_root:=~/nrs_imitation \
   -p chunk_size:=100 \
   -p image_qos:=reliable \
   -p dump_full:=False \
@@ -244,8 +244,8 @@ class NodeCheckInference(Node):
         self.declare_parameter("force_indices", [0, 1, 2])  # pick 3 from 6D currentF
 
         # ---- read params ----
-        self.ckpt_dir = str(self.get_parameter("ckpt_dir").value)
-        self.act_root = str(self.get_parameter("act_root").value)
+        self.ckpt_dir = os.path.expanduser(str(self.get_parameter("ckpt_dir").value))
+        self.act_root = os.path.expanduser(str(self.get_parameter("act_root").value))
         self.chunk_size = int(self.get_parameter("chunk_size").value)
 
         self.pose_topic = str(self.get_parameter("pose_topic").value)
@@ -508,4 +508,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-    

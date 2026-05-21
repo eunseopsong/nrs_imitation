@@ -18,7 +18,7 @@ Contact detection rule requested by user:
     first contact index = first index where fz > 0
 
 Input episode file:
-  /home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/stage1_vr_episodes/
+  ~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/stage1_vr_episodes/
     episode_0000.hdf5
     episode_0001.hdf5
     ...
@@ -27,7 +27,7 @@ Required dataset:
   traj (T,9) = [x_mm y_mm z_mm wx wy wz fx fy fz]
 
 Output:
-  /tmp/cmd_continue9D.txt
+  ~/nrs_imitation/tmp/cmd_continue9D.txt
   optionally scp to robot playback PC
 
 Keyboard:
@@ -86,6 +86,12 @@ import h5py
 
 import rclpy
 from rclpy.node import Node
+
+
+REPO_ROOT = os.path.expanduser("~/nrs_imitation")
+DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
+DEFAULT_LOCAL_TXT_PATH = os.path.join(REPO_ROOT, "tmp", "cmd_continue9D.txt")
+DEFAULT_DEBUG_TXT_DIR = os.path.join(REPO_ROOT, "tmp", "stage1_pusher_debug")
 
 
 # ============================================================
@@ -336,7 +342,7 @@ class VRStage1EpisodePusher(Node):
         # -------------------------
         # Input episode directory
         # -------------------------
-        self.declare_parameter("act_root_dir", "/home/eunseop/nrs_imitation/datasets/ACT")
+        self.declare_parameter("act_root_dir", DEFAULT_ACT_ROOT_DIR)
         self.declare_parameter("episode_dir", "")  # empty -> latest <act_root>/*/stage1_vr_episodes
         self.declare_parameter("output_subdir", "stage1_vr_episodes")
         self.declare_parameter("traj_dataset", "traj")
@@ -344,12 +350,12 @@ class VRStage1EpisodePusher(Node):
         # -------------------------
         # Local/remote txt
         # -------------------------
-        self.declare_parameter("local_txt_path", "/tmp/cmd_continue9D.txt")
+        self.declare_parameter("local_txt_path", DEFAULT_LOCAL_TXT_PATH)
         self.declare_parameter("remote_user", "nrs_forcecon")
         self.declare_parameter("remote_ip", "192.168.0.151")
         self.declare_parameter(
             "remote_txt_path",
-            "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/cmd_continue9D.txt",
+            "dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/cmd_continue9D.txt",
         )
         self.declare_parameter("txt_fmt", "%.10f")
         self.declare_parameter("use_atomic_remote_replace", True)
@@ -376,19 +382,19 @@ class VRStage1EpisodePusher(Node):
 
         # Optional processed txt copy for debugging.
         self.declare_parameter("save_debug_txt_copy", True)
-        self.declare_parameter("debug_txt_dir", "/tmp/stage1_pusher_debug")
+        self.declare_parameter("debug_txt_dir", DEFAULT_DEBUG_TXT_DIR)
 
         # -------------------------
         # Load params
         # -------------------------
-        self.act_root_dir = str(self.get_parameter("act_root_dir").value)
+        self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
         self.output_subdir = str(self.get_parameter("output_subdir").value)
         episode_dir = str(self.get_parameter("episode_dir").value).strip()
         self.episode_dir = episode_dir if episode_dir else find_latest_stage1_dir(self.act_root_dir, self.output_subdir)
 
         self.traj_dataset = str(self.get_parameter("traj_dataset").value)
 
-        self.local_txt_path = str(self.get_parameter("local_txt_path").value)
+        self.local_txt_path = os.path.expanduser(str(self.get_parameter("local_txt_path").value))
         self.remote_user = str(self.get_parameter("remote_user").value)
         self.remote_ip = str(self.get_parameter("remote_ip").value)
         self.remote_txt_path = str(self.get_parameter("remote_txt_path").value)
@@ -407,7 +413,7 @@ class VRStage1EpisodePusher(Node):
         self.default_record_hz = float(self.get_parameter("default_record_hz").value)
 
         self.save_debug_txt_copy = bool(self.get_parameter("save_debug_txt_copy").value)
-        self.debug_txt_dir = str(self.get_parameter("debug_txt_dir").value)
+        self.debug_txt_dir = os.path.expanduser(str(self.get_parameter("debug_txt_dir").value))
 
         # -------------------------
         # Episode list

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import csv
+from pathlib import Path
 import numpy as np
 import rclpy
 from rclpy.node import Node
@@ -40,8 +41,7 @@ class CalibrationTestNode(Node):
     def run_calibration_test(self, robot_file, vive_file):
         """로봇 포즈와 바이브 트래커 포즈를 읽어서 캘리브레이션 서비스를 호출합니다."""
         # 파일 경로 설정vive_tracker_ros2/config/calibration_matrix_temp.json
-        # package_dir = "/home/hwpark/workspace/vive_tracker_ros2/src/vive_tracker_ros2"
-        package_dir = "/home/vision/ros2_ws/src/vive_tracker_ros2/vive_tracker_ros2"
+        package_dir = Path(__file__).resolve().parents[1]
         robot_path = os.path.join(package_dir, "data", robot_file)
         vive_path = os.path.join(package_dir, "data", vive_file)
 

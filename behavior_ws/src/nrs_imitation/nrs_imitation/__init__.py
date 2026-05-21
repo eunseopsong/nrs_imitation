@@ -1,5 +1,8 @@
-from datetime import datetime  # 파일 상단 import 부분에 추가
 import os
+from datetime import datetime  # 파일 상단 import 부분에 추가
+
+
+REPO_ROOT = os.path.expanduser("~/nrs_imitation")
 
 class ActPolicyInfer:
     def __init__(self):
@@ -11,7 +14,7 @@ class ActPolicyInfer:
         # ======================
         # 🔴 Inference 로그 파일 준비
         # ======================
-        log_dir = "/home/eunseop/nrs_lab2/analysis_logs"
+        log_dir = os.path.join(REPO_ROOT, "analysis_logs")
         os.makedirs(log_dir, exist_ok=True)
         ts = datetime.now().strftime("%m%d_%H%M%S")
         self.log_path = os.path.join(log_dir, f"act_infer_{ts}.csv")

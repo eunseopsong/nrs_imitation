@@ -21,7 +21,7 @@ Marker convention:
   id1 = workpiece/surface marker
 
 Saved merged HDF5 layout:
-  /home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
+  ~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
     vr_demo_merged_YYYYMMDD_HHMM.hdf5
 
   episodes/
@@ -61,6 +61,10 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from std_msgs.msg import Float64MultiArray, String
 from geometry_msgs.msg import Wrench, PoseStamped
 from sensor_msgs.msg import Image
+
+
+REPO_ROOT = os.path.expanduser("~/nrs_imitation")
+DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
 
 
 # ============================================================
@@ -302,7 +306,7 @@ class VRDemoHDF5Recorder(Node):
         super().__init__("vr_demo_hdf5_recorder")
 
         # Save parameters
-        self.declare_parameter("act_root_dir", "/home/eunseop/nrs_imitation/datasets/ACT")
+        self.declare_parameter("act_root_dir", DEFAULT_ACT_ROOT_DIR)
         self.declare_parameter("merged_subdir", "merged_hdf5")
         self.declare_parameter("file_prefix", "vr_demo_merged")
         self.declare_parameter("overwrite_file", False)
@@ -363,7 +367,7 @@ class VRDemoHDF5Recorder(Node):
         self.declare_parameter("image_gzip_level", 4)
 
         # Load parameters
-        self.act_root_dir = str(self.get_parameter("act_root_dir").value)
+        self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
         self.merged_subdir = str(self.get_parameter("merged_subdir").value)
         self.file_prefix = str(self.get_parameter("file_prefix").value)
         self.overwrite_file = bool(self.get_parameter("overwrite_file").value)

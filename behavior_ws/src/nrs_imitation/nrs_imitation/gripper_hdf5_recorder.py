@@ -398,7 +398,7 @@ class VRDemoHDF5Recorder(Node):
         self.declare_parameter("image_gzip_level", 4)
 
         # Load parameters
-        self.act_root_dir = str(self.get_parameter("act_root_dir").value)
+        self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
         self.merged_subdir = str(self.get_parameter("merged_subdir").value)
         self.file_prefix = str(self.get_parameter("file_prefix").value)
         self.overwrite_file = bool(self.get_parameter("overwrite_file").value)

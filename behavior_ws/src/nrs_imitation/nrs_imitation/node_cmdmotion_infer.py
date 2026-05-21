@@ -32,7 +32,7 @@ This default run is equivalent to the recommended Flow baseline. If ckpt_dir is
 not provided, the node automatically selects the newest timestamped checkpoint
 folder under:
 
-    /home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/
+    ~/nrs_imitation/checkpoints/flow/ur10e_swing/
 
 You can still override any parameter with --ros-args -p name:=value.
 
@@ -64,6 +64,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 
 from std_msgs.msg import Float64MultiArray
 from sensor_msgs.msg import Image
+
+
+DEFAULT_ACT_ROOT = os.path.expanduser("~/nrs_imitation")
 
 
 # ============================================================
@@ -649,7 +652,7 @@ class NodeCmdMotionInfer(Node):
         # Parameters (paths / IO)
         # -----------------------------
         self.declare_parameter("ckpt_dir", "")  # empty -> auto latest checkpoint
-        self.declare_parameter("act_root", "/home/eunseop/nrs_imitation")
+        self.declare_parameter("act_root", DEFAULT_ACT_ROOT)
         self.declare_parameter("policy_class", "FLOW")  # ACT | DIFFUSION | FLOW
         self.declare_parameter("phase_mode", "pure")  # kept for recommended Flow command compatibility
         self.declare_parameter("chunk_size", 200)
@@ -840,7 +843,7 @@ class NodeCmdMotionInfer(Node):
         # Read params
         # -----------------------------
         self.ckpt_dir = str(self.get_parameter("ckpt_dir").value)
-        self.act_root = str(self.get_parameter("act_root").value)
+        self.act_root = os.path.expanduser(str(self.get_parameter("act_root").value))
         self.policy_class = str(self.get_parameter("policy_class").value).strip().upper()
         self.phase_mode = str(self.get_parameter("phase_mode").value).strip().lower()
         self.chunk_size = int(self.get_parameter("chunk_size").value)

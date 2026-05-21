@@ -304,7 +304,7 @@ ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=rob
 Recorder output path:
 
 ```text
-/home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
+~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
 └── vr_demo_merged_YYYYMMDD_HHMM.hdf5
 ```
 
@@ -345,7 +345,7 @@ python3 demo_data_act_form_single_cam.py \
 This creates:
 
 ```text
-/home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft/
+~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft/
 ```
 
 ### B. Camera-preprocessed version (recommended if hand jitter is visible)
@@ -363,7 +363,7 @@ python3 demo_data_act_form_single_cam.py \
 This creates:
 
 ```text
-/home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc/
+~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc/
 ```
 
 By default, after successful conversion the merged HDF5 is deleted to save disk space.
@@ -443,7 +443,7 @@ python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
 Default Flow checkpoint path:
 
 ```text
-/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
+~/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
 ```
 
 ---
@@ -485,8 +485,8 @@ source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=ACT \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -501,8 +501,8 @@ source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=DIFFUSION \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -521,8 +521,8 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=FLOW \
   -p phase_mode:=pure \
   -p camera_preprocess_mode:=stabilize \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1056,7 +1056,7 @@ This will automatically use the latest `episodes_ft_camproc` dataset.
 Current practical defaults:
 
 ```text
-ckpt_dir        = /home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing
+ckpt_dir        = ~/nrs_imitation/checkpoints/act/ur10e_swing
 policy_class    = ACT
 task_name       = ur10e_swing
 camera_names    = ["cam0"]
@@ -1093,7 +1093,7 @@ Specific dataset:
 
 ```bash
 python3 train_act.py \
-  --dataset_dir /home/eunseop/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc
+  --dataset_dir ~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc
 ```
 
 ---
@@ -1110,7 +1110,7 @@ Specific checkpoint root:
 ```bash
 python3 train_act.py \
   --eval \
-  --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing
+  --ckpt_dir ~/nrs_imitation/checkpoints/act/ur10e_swing
 ```
 
 ---
@@ -1174,7 +1174,7 @@ This automatically uses the latest `episodes_ft_camproc` dataset.
 ## 9-5. Important Diffusion defaults
 
 ```text
-ckpt_dir              = /home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing
+ckpt_dir              = ~/nrs_imitation/checkpoints/diffusion/ur10e_swing
 camera_names          = ["cam0"]
 chunk_size            = 200
 train_seq_len         = 200
@@ -1202,7 +1202,7 @@ Specific checkpoint root:
 ```bash
 python3 scripts/diffusion/train_diffusion.py \
   --eval \
-  --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing
+  --ckpt_dir ~/nrs_imitation/checkpoints/diffusion/ur10e_swing
 ```
 
 ---
@@ -1251,7 +1251,7 @@ Specific checkpoint:
 ```bash
 python3 scripts/flow/train_flow.py \
   --eval \
-  --ckpt_dir /home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM
+  --ckpt_dir ~/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM
 ```
 
 
@@ -1284,8 +1284,8 @@ source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=ACT \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1302,8 +1302,8 @@ source install/setup.bash
 
 ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=DIFFUSION \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1325,8 +1325,8 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=FLOW \
   -p phase_mode:=pure \
   -p camera_preprocess_mode:=stabilize \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1347,8 +1347,8 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=FLOW \
   -p phase_mode:=pure \
   -p camera_preprocess_mode:=stabilize \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \
@@ -1457,7 +1457,7 @@ then the training config and inference config do not match and policy output sho
 ## ACT
 
 ```text
-/home/eunseop/nrs_imitation/checkpoints/act/ur10e_swing/YYYYMMDD_HHMM/
+~/nrs_imitation/checkpoints/act/ur10e_swing/YYYYMMDD_HHMM/
 ├── dataset_stats.pkl
 ├── policy_best.ckpt
 ├── policy_last.ckpt
@@ -1470,7 +1470,7 @@ then the training config and inference config do not match and policy output sho
 ## Diffusion
 
 ```text
-/home/eunseop/nrs_imitation/checkpoints/diffusion/ur10e_swing/YYYYMMDD_HHMM/
+~/nrs_imitation/checkpoints/diffusion/ur10e_swing/YYYYMMDD_HHMM/
 ├── dataset_stats.pkl
 ├── policy_best.ckpt
 ├── policy_last.ckpt
@@ -1483,7 +1483,7 @@ then the training config and inference config do not match and policy output sho
 ## Flow Matching
 
 ```text
-/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
+~/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
 ├── dataset_stats.pkl
 ├── policy_best.ckpt
 ├── policy_last.ckpt
@@ -1538,8 +1538,8 @@ ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
 
 ```bash
 python3 - <<'PY'
-import glob, h5py
-files = sorted(glob.glob('/home/eunseop/nrs_imitation/datasets/ACT/*/episodes_ft/episode_0.hdf5'))
+import glob, h5py, os
+files = sorted(glob.glob(os.path.expanduser('~/nrs_imitation/datasets/ACT/*/episodes_ft/episode_0.hdf5')))
 if not files:
     raise RuntimeError("No episode file found")
 path = files[-1]
@@ -1556,8 +1556,8 @@ PY
 
 ```bash
 python3 - <<'PY'
-import glob, h5py
-files = sorted(glob.glob('/home/eunseop/nrs_imitation/datasets/ACT/*/episodes_ft_camproc/episode_0.hdf5'))
+import glob, h5py, os
+files = sorted(glob.glob(os.path.expanduser('~/nrs_imitation/datasets/ACT/*/episodes_ft_camproc/episode_0.hdf5')))
 if not files:
     raise RuntimeError("No camproc episode file found")
 path = files[-1]
@@ -1761,8 +1761,8 @@ ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
   -p policy_class:=FLOW \
   -p phase_mode:=pure \
   -p camera_preprocess_mode:=stabilize \
-  -p act_root:=/home/eunseop/nrs_imitation \
-  -p ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
+  -p act_root:=~/nrs_imitation \
+  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
   -p image_topic:=/realsense/robot/color/image_raw \
   -p chunk_size:=200 \
   -p use_force_history:=true \

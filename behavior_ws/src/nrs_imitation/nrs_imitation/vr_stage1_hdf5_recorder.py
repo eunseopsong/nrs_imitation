@@ -36,6 +36,10 @@ from std_msgs.msg import Float64MultiArray
 from geometry_msgs.msg import Wrench
 
 
+REPO_ROOT = os.path.expanduser("~/nrs_imitation")
+DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
+
+
 # ============================================================
 # Shared utilities (same as txt_recorder)
 # ============================================================
@@ -424,7 +428,7 @@ class VRStage1HDF5Recorder(Node):
         # -------------------------
         # Output: one HDF5 file per episode
         # -------------------------
-        self.declare_parameter("act_root_dir", "/home/eunseop/nrs_imitation/datasets/ACT")
+        self.declare_parameter("act_root_dir", DEFAULT_ACT_ROOT_DIR)
         self.declare_parameter("output_subdir", "stage1_vr_episodes")
         self.declare_parameter("run_timestamp", "")  # empty -> now YYYYMMDD_HHMM
         self.declare_parameter("overwrite_episode", True)
@@ -520,7 +524,7 @@ class VRStage1HDF5Recorder(Node):
         # -------------------------
         # load params
         # -------------------------
-        self.act_root_dir = str(self.get_parameter("act_root_dir").value)
+        self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
         self.output_subdir = str(self.get_parameter("output_subdir").value)
         ts = str(self.get_parameter("run_timestamp").value).strip()
         self.run_timestamp = ts if ts else time.strftime("%Y%m%d_%H%M", time.localtime())
