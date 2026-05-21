@@ -62,6 +62,8 @@ from std_msgs.msg import Float64MultiArray, String
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Image
 
+from nrs_imitation.pretty_print import block, status
+
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
 DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
@@ -137,7 +139,7 @@ def stack_images(frames: List[Optional[np.ndarray]], logger=None, tag="image") -
         else:
             out[i] = last
     if logger:
-        logger.info(f"[STACK] {tag}: shape={out.shape}, valid={valid}/{len(frames)}")
+        logger.info(status("STACK", [("stream", tag), ("shape", out.shape), ("valid", f"{valid}/{len(frames)}")]))
     return out
 
 
@@ -280,18 +282,17 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         if self.enable_keyboard:
             threading.Thread(target=self._keyboard_loop, daemon=True).start()
 
-        self.get_logger().info(
-            "[READY] RobotPlaybackMultimodalHDF5Recorder\n"
-            f"  h5_path={self.h5_path}\n"
-            f"  position={self.position_topic}\n"
-            f"  force={self.force_topic}\n"
-            f"  cam0={self.cam0_topic}\n"
-            f"  cam1={self.cam1_topic}\n"
-            f"  aruco0={self.aruco_id0_topic}\n"
-            f"  aruco1={self.aruco_id1_topic}\n"
-            f"  strict_sampling=1 sample_hz={self.sample_hz}\n"
-            f"  keyboard: s=start e=end d=discard u=undo q=quit"
-        )
+        self.get_logger().info(block("ROBOT PLAYBACK READY", [
+            ("h5_path", self.h5_path),
+            ("position", self.position_topic),
+            ("force", self.force_topic),
+            ("cam0", self.cam0_topic),
+            ("cam1", self.cam1_topic),
+            ("aruco0", self.aruco_id0_topic),
+            ("aruco1", self.aruco_id1_topic),
+            ("sample_hz", self.sample_hz),
+            ("keyboard", "s=start e=end d=discard u=undo q=quit"),
+        ]))
 
     def _next_ep_index(self) -> int:
         ids = []
@@ -370,10 +371,12 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
             }
             samples = len(self.buf_pos)
 
-        self.get_logger().info(
-            f"[STATUS] recording={int(self.recording)} ep={self.ep_idx:04d} samples={samples} "
-            f"streams={flags}"
-        )
+        self.get_logger().info(status("STATUS", [
+            ("recording", int(self.recording)),
+            ("ep", f"{self.ep_idx:04d}"),
+            ("samples", samples),
+            ("streams", flags),
+        ]))
 
     def _process_cmds(self):
         with self.lock:
@@ -529,10 +532,15 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         self.undo_buffer = None
         self.ep_idx += 1
 
-        self.get_logger().warn(
-            f"[SAVE] {ep} N={N} pos={pos.shape} ft={ft.shape} "
-            f"cam0={cam0.shape} cam1={cam1.shape} marker={marker.shape}"
-        )
+        self.get_logger().warn(block("SAVE", [
+            ("episode", ep),
+            ("samples", N),
+            ("position", pos.shape),
+            ("ft", ft.shape),
+            ("cam0", cam0.shape),
+            ("cam1", cam1.shape),
+            ("marker", marker.shape),
+        ], char="-"))
 
     def _discard(self):
         if self.recording:

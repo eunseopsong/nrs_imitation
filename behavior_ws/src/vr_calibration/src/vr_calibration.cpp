@@ -322,22 +322,27 @@ public:
     loadExistingYamlConstants();
 
     RCLCPP_INFO(get_logger(),
-      "Loaded %zu cmd_6D waypoints (%zu hold targets, holding_time>0). Auto-capture enabled.",
+      "[INIT] wp=%zu hold=%zu auto=on",
       waypoints_.size(), target_indices_.size());
 
     RCLCPP_INFO(get_logger(),
-      "[T_SA_MODE] t_sa_mode=%s, t_sa_max_delta_deg=%.1f",
+      "[T_SA] mode=%s max=%.1fdeg",
       t_sa_mode_.c_str(), t_sa_max_delta_deg_);
     RCLCPP_INFO(get_logger(),
-      "[CAPTURE_HOLD] min_hold_time_s=%.2f, fallback_hold_time_s=%.2f, stop_threshold=(%.1fmm/s, %.1fdeg/s)",
-      min_hold_time_s_, hold_time_s_, vel_thresh_mms_, angvel_thresh_dps_);
+      "[HOLD] min=%.2fs fb=%.2fs",
+      min_hold_time_s_, hold_time_s_);
     RCLCPP_INFO(get_logger(),
-      "[CLEAN_CAPTURE] window=%.2fs, min_samples=%zu, vr_fresh<=%.2fs, sync_dt<=%.3fs, max_vr_std=%.1fmm",
-      capture_window_s_, capture_min_clean_samples_, vr_capture_age_s_,
-      max_capture_sync_dt_s_, capture_max_vr_std_mm_);
+      "[STOP] v<%.1fmm/s w<%.1fdeg/s",
+      vel_thresh_mms_, angvel_thresh_dps_);
+    RCLCPP_INFO(get_logger(),
+      "[CLEAN] win=%.2fs n=%zu std<%.1fmm",
+      capture_window_s_, capture_min_clean_samples_, capture_max_vr_std_mm_);
+    RCLCPP_INFO(get_logger(),
+      "[SYNC] vr<%.2fs dt<%.3fs",
+      vr_capture_age_s_, max_capture_sync_dt_s_);
     const std::string radj_sample_count_log =
       radj_use_all_samples_ ? "all" : std::to_string(radj_sample_count_);
-    RCLCPP_INFO(get_logger(), "[R_ADJ] enable=%s sample_count=%s",
+    RCLCPP_INFO(get_logger(), "[R_ADJ] en=%s n=%s",
       radj_enable_ ? "true" : "false", radj_sample_count_log.c_str());
   }
 
@@ -347,7 +352,7 @@ public:
     exec.add_node(shared_from_this());
 
     if (target_indices_.empty()) {
-      RCLCPP_WARN(get_logger(), "No hold target points (holding_time>0). Nothing to capture.");
+      RCLCPP_WARN(get_logger(), "[INIT] no hold targets");
       return;
     }
 
@@ -391,7 +396,7 @@ public:
 
       if ((tnow() - target_start_time).seconds() > target_timeout_s_) {
         RCLCPP_WARN(get_logger(),
-          "[TIMEOUT] target %zu/%zu (wp line %zu). Skipping.",
+          "[TIMEOUT] target %zu/%zu wp=%zu",
           target_k+1, target_indices_.size(), wp_idx+1);
         target_k++;
         state = State::WAIT_ENTER;
@@ -414,8 +419,11 @@ public:
           resetCleanCaptureBuffer();
 
           RCLCPP_INFO(get_logger(),
-            "[IN] target %zu/%zu (wp line %zu) | dist=%.2fmm ang=%.2fdeg",
-            target_k+1, target_indices_.size(), wp_idx+1, dist_mm, ang_deg);
+            "[IN] target %zu/%zu wp=%zu",
+            target_k+1, target_indices_.size(), wp_idx+1);
+          RCLCPP_INFO(get_logger(),
+            "[IN] d=%.2fmm a=%.2fdeg",
+            dist_mm, ang_deg);
         }
         rate.sleep();
         continue;
@@ -427,7 +435,7 @@ public:
         resetMotionDetector();
         resetCleanCaptureBuffer();
         RCLCPP_WARN(get_logger(),
-          "[OUT] left region -> WAIT_ENTER | dist=%.2fmm ang=%.2fdeg",
+          "[OUT] d=%.2fmm a=%.2fdeg",
           dist_mm, ang_deg);
         rate.sleep();
         continue;
@@ -469,10 +477,9 @@ public:
             if (held < hold_time_s_) {
               RCLCPP_WARN_THROTTLE(
                 get_logger(), steady_clock_, 2000,
-                "[WAIT_CLEAN_CAPTURE] held=%.2fs/%.2fs, clean_samples=%zu/%zu, window=%.3fs/%.3fs",
+                "[WAIT] hold=%.1f/%.1fs n=%zu/%zu",
                 held, hold_time_s_,
-                clean_capture_samples_.size(), capture_min_clean_samples_,
-                cleanCaptureWindowS(), capture_window_s_);
+                clean_capture_samples_.size(), capture_min_clean_samples_);
               rate.sleep();
               continue;
             }
@@ -482,9 +489,9 @@ public:
                                               cp_avg, vr_avg, dist_avg_mm, ang_avg_deg)) {
               RCLCPP_WARN_THROTTLE(
                 get_logger(), steady_clock_, 2000,
-                "[WAIT_CAPTURE] no usable capture sample yet | clean_samples=%zu/%zu, window=%.3fs/%.3fs",
+                "[WAIT] no sample n=%zu/%zu win=%.3fs",
                 clean_capture_samples_.size(), capture_min_clean_samples_,
-                cleanCaptureWindowS(), capture_window_s_);
+                cleanCaptureWindowS());
               rate.sleep();
               continue;
             }
@@ -504,7 +511,7 @@ public:
       rate.sleep();
     }
 
-    RCLCPP_INFO(get_logger(), "All target waypoints processed.");
+    RCLCPP_INFO(get_logger(), "[DONE] all targets processed");
 
     // ==========================================================
     // (final) compute T_BC / T_AD_avg and write YAML ONCE with:
@@ -513,7 +520,8 @@ public:
     try {
       finalizeCalibrationAndSaveYaml();
     } catch (const std::exception& e) {
-      RCLCPP_ERROR(get_logger(), "finalizeCalibrationAndSaveYaml() failed: %s", e.what());
+      RCLCPP_ERROR(get_logger(), "[ERROR] finalize failed");
+      RCLCPP_ERROR(get_logger(), "[ERROR] %s", e.what());
     }
   }
 
@@ -685,7 +693,7 @@ private:
     std::lock_guard<std::mutex> lk(mtx_);
     for (int i=0;i<6;i++) last_cp_[i] = msg->data[i];
 
-    if (!cp_pos_unit_decided_) {
+        if (!cp_pos_unit_decided_) {
       double mabs = 0.0;
       mabs = std::max(mabs, std::fabs(last_cp_[0]));
       mabs = std::max(mabs, std::fabs(last_cp_[1]));
@@ -693,7 +701,7 @@ private:
       cp_pos_in_meters_ = (mabs < 10.0);
       cp_pos_unit_decided_ = true;
       RCLCPP_INFO(get_logger(),
-        "currentP position unit decided (heuristic): %s (max_abs=%.3f)",
+        "[UNIT] currentP pos=%s max=%.3f",
         cp_pos_in_meters_ ? "M" : "MM", mabs);
     }
 
@@ -717,7 +725,7 @@ private:
         cp_rotvec_in_degrees_ = (cp_probe_max_abs_ > 6.0);
         cp_rotvec_unit_decided_ = true;
         RCLCPP_INFO(get_logger(),
-          "currentP rotvec unit decided: %s (max_abs=%.3f over %zu samples)",
+          "[UNIT] currentP rot=%s max=%.3f n=%zu",
           cp_rotvec_in_degrees_ ? "DEG" : "RAD", cp_probe_max_abs_, cp_probe_cnt_);
       }
     }
@@ -745,7 +753,7 @@ private:
       vr_pos_in_mm_ = (mabs > 10.0);
       vr_pos_unit_decided_ = true;
       RCLCPP_INFO(get_logger(),
-        "raw_pose position unit decided (heuristic): %s (max_abs=%.3f)",
+        "[UNIT] raw_pose pos=%s max=%.3f",
         vr_pos_in_mm_ ? "MM" : "M", mabs);
     }
   }
@@ -1125,7 +1133,7 @@ private:
     if (enforce_vr_std && capture_max_vr_std_mm_ > 0.0 && vr_std_mm > capture_max_vr_std_mm_) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), steady_clock_, 2000,
-        "[WAIT_CLEAN_CAPTURE] VR position std %.2fmm exceeds %.2fmm. Waiting...",
+        "[WAIT] vr_std %.2f > %.2fmm",
         vr_std_mm, capture_max_vr_std_mm_);
       return false;
     }
@@ -1143,8 +1151,11 @@ private:
     vr_avg[6] = q_avg.w();
 
     RCLCPP_INFO(get_logger(),
-      "[%s] averaged %zu samples over %.3fs | dist=%.2fmm ang=%.2fdeg vr_std=%.2fmm",
-      log_tag, K, avg_window_s, dist_avg_mm, ang_avg_deg, vr_std_mm);
+      "[%s] n=%zu win=%.3fs",
+      log_tag, K, avg_window_s);
+    RCLCPP_INFO(get_logger(),
+      "[%s] d=%.2fmm a=%.2f std=%.2f",
+      log_tag, dist_avg_mm, ang_avg_deg, vr_std_mm);
     return true;
   }
 
@@ -1191,13 +1202,17 @@ private:
     if (!have_best) return false;
 
     RCLCPP_INFO(get_logger(),
-      "[BEST_WINDOW] samples=%zu, window=%.3fs, score=%.3f | vr_std=%.2fmm v=%.2fmm/s w=%.2fdeg/s dist=%.2fmm ang=%.2fdeg",
+      "[BEST] n=%zu win=%.3fs score=%.3f",
       best_last_idx - best_first_idx + 1,
       best_stats.window_s,
-      best_stats.score,
+      best_stats.score);
+    RCLCPP_INFO(get_logger(),
+      "[BEST] std=%.2f v=%.2f w=%.2f",
       best_stats.vr_std_mm,
       best_stats.avg_v_mms,
-      best_stats.avg_w_dps,
+      best_stats.avg_w_dps);
+    RCLCPP_INFO(get_logger(),
+      "[BEST] d=%.2fmm a=%.2fdeg",
       best_stats.avg_dist_mm,
       best_stats.avg_ang_deg);
 
@@ -1220,7 +1235,7 @@ private:
   {
     if (!clean_capture_samples_.empty()) {
       RCLCPP_WARN(get_logger(),
-        "[FAST_CAPTURE] strict clean capture unavailable; using %zu buffered samples over %.3fs",
+        "[FAST] fallback n=%zu win=%.3fs",
         clean_capture_samples_.size(), cleanCaptureWindowS());
       return averageCaptureSampleRange(target_pose, 0, clean_capture_samples_.size() - 1,
                                        false, "FAST_CAPTURE",
@@ -1245,7 +1260,7 @@ private:
     clean_capture_samples_.push_back(s);
 
     RCLCPP_WARN(get_logger(),
-      "[FAST_CAPTURE] strict clean capture unavailable; using latest fresh sample");
+      "[FAST] fallback latest sample");
     return averageCaptureSampleRange(target_pose, 0, 0, false, "FAST_CAPTURE",
                                      cp_avg, vr_avg, dist_avg_mm, ang_avg_deg);
   }
@@ -1284,7 +1299,7 @@ private:
     const double delta_deg = rotDiffAngleDeg(R_SA_old, R_SA_new);
     if (delta_deg > t_sa_max_delta_deg_) {
       RCLCPP_WARN(get_logger(),
-        "[T_SA_REJECT] delta too large: %.2f deg (limit=%.2f deg). Keeping old T_SA.",
+        "[T_SA_REJECT] d=%.2f limit=%.2f",
         delta_deg, t_sa_max_delta_deg_);
       return false;
     }
@@ -1295,8 +1310,14 @@ private:
     t_sa_computed_ = true;
 
     RCLCPP_INFO(get_logger(),
-      "[T_SA_DONE] Computed T_SA (right-multiply). delta=%.2fdeg, w_meas(rad)=[%.6f %.6f %.6f], w_des=[0 0 %.6f]",
-      delta_deg, w_meas[0], w_meas[1], w_meas[2], t_sa_w_des_z_);
+      "[T_SA_DONE] delta=%.2fdeg",
+      delta_deg);
+    RCLCPP_INFO(get_logger(),
+      "[T_SA_W] meas=[%.4f %.4f %.4f]",
+      w_meas[0], w_meas[1], w_meas[2]);
+    RCLCPP_INFO(get_logger(),
+      "[T_SA_W] des_z=%.4f",
+      t_sa_w_des_z_);
 
     return true;
   }
@@ -1307,14 +1328,17 @@ private:
     if (t_sa_mode_ == "keep") {
       t_sa_computed_ = false;          // "새로 계산"은 안 함
       T_SA_new_ = Eigen::Matrix4d::Identity();
-      RCLCPP_INFO(get_logger(), "[T_SA] mode=keep: will keep existing T_SA from yaml (no recompute).");
+      RCLCPP_INFO(get_logger(), "[T_SA] keep yaml value");
       return;
     }
 
     // update 모드
     RCLCPP_INFO(get_logger(),
-      "[T_SA] mode=update: waiting for /calibrated_pose (fresh<=%.2fs) and robot STOP hold(%.2fs), timeout=%.1fs",
-      t_sa_fresh_s_, t_sa_hold_s_, t_sa_wait_timeout_s_);
+      "[T_SA] wait cal_pose %.2fs",
+      t_sa_fresh_s_);
+    RCLCPP_INFO(get_logger(),
+      "[T_SA] stop hold %.2fs timeout %.1fs",
+      t_sa_hold_s_, t_sa_wait_timeout_s_);
 
     const rclcpp::Time t0 = tnow();
     bool hold_active = false;
@@ -1364,7 +1388,7 @@ private:
       const double held = (tnow() - hold_start).seconds();
       if (held >= t_sa_hold_s_) {
         if (computeTSAFromLatestCalPose()) {
-          RCLCPP_INFO(get_logger(), "[T_SA] Pre-capture update done.");
+          RCLCPP_INFO(get_logger(), "[T_SA] pre-capture done");
           return;
         } else {
           // reject 등으로 실패하면 계속 기다려서 다시 시도
@@ -1376,7 +1400,7 @@ private:
 
     // timeout: update 실패 -> old 유지
     RCLCPP_WARN(get_logger(),
-      "[T_SA_WARN] Pre-capture T_SA update timeout or rejected. Will KEEP existing T_SA from yaml.");
+      "[T_SA_WARN] timeout; keep yaml");
     t_sa_computed_ = false;
   }
 
@@ -1429,9 +1453,14 @@ private:
     T_DC_all_.push_back(makeT(R_dc, p_dc));
 
     RCLCPP_INFO(get_logger(),
-      "[CAPTURE] target %zu/%zu (wp line %zu) | dist=%.2fmm ang=%.2fdeg | v=%.2fmm/s w=%.2fdeg/s",
-      target_k+1, target_indices_.size(), wp_idx+1,
-      dist_mm, ang_deg, last_vnorm_mms_, last_omega_dps_);
+      "[CAPTURE] target %zu/%zu wp=%zu",
+      target_k+1, target_indices_.size(), wp_idx+1);
+    RCLCPP_INFO(get_logger(),
+      "[CAPTURE] d=%.2fmm a=%.2fdeg",
+      dist_mm, ang_deg);
+    RCLCPP_INFO(get_logger(),
+      "[CAPTURE] v=%.2fmm/s w=%.2fdeg/s",
+      last_vnorm_mms_, last_omega_dps_);
   }
 
   // ---------- YAML read (constants) ----------
@@ -1461,11 +1490,12 @@ private:
           RCLCPP_INFO(get_logger(), "[YAML] Loaded existing T_SA (old).");
         }
       } else {
-        RCLCPP_WARN(get_logger(), "[YAML] T_SA not found. Assume Identity (old).");
+        RCLCPP_WARN(get_logger(), "[YAML] T_SA missing; use I");
       }
 
     } catch (...) {
-      RCLCPP_WARN(get_logger(), "[YAML] Cannot load existing yaml. Will create new: %s", calib_yaml_path_.c_str());
+      RCLCPP_WARN(get_logger(), "[YAML] load failed; create new");
+      RCLCPP_WARN(get_logger(), "[YAML] path=%s", calib_yaml_path_.c_str());
     }
   }
 
@@ -1497,7 +1527,7 @@ private:
   {
     const size_t N_all = T_AB_all_.size();
     if (N_all < 3 || T_DC_all_.size() != N_all) {
-      RCLCPP_WARN(get_logger(), "[R_ADJ] Need >=3 matched samples. Using Identity.");
+      RCLCPP_WARN(get_logger(), "[R_ADJ] need >=3; use I");
       R_adj_ = Eigen::Matrix3d::Identity();
       have_radj_ = false;
       return false;
@@ -1525,7 +1555,7 @@ private:
 
     Eigen::JacobiSVD<Eigen::Matrix3d> svd(H, Eigen::ComputeFullU | Eigen::ComputeFullV);
     if (svd.info() != Eigen::Success) {
-      RCLCPP_WARN(get_logger(), "[R_ADJ] SVD failed. Using Identity.");
+      RCLCPP_WARN(get_logger(), "[R_ADJ] SVD failed; use I");
       R_adj_ = Eigen::Matrix3d::Identity();
       have_radj_ = false;
       return false;
@@ -1552,7 +1582,7 @@ private:
     have_radj_ = true;
 
     RCLCPP_INFO(get_logger(),
-      "[R_ADJ_DONE] multi-point position fit using %zu/%zu samples. fit_rms=%.3fmm\n"
+      "[R_ADJ_DONE] n=%zu/%zu rms=%.3fmm\n"
       "R_Adj=\n"
       "[% .6f % .6f % .6f]\n"
       "[% .6f % .6f % .6f]\n"
@@ -1572,11 +1602,11 @@ private:
     Eigen::Matrix4d T_fix = Eigen::Matrix4d::Identity();
     const size_t N = T_AB_all_.size();
     if (!z_fix_enable_) {
-      RCLCPP_INFO(get_logger(), "[T_FIX] z_fix_enable=false. Saving Identity.");
+      RCLCPP_INFO(get_logger(), "[T_FIX] disabled; save I");
       return T_fix;
     }
     if (N < 3 || T_DC_all_.size() != N) {
-      RCLCPP_WARN(get_logger(), "[T_FIX] Need >=3 samples for z-plane fix. Saving Identity.");
+      RCLCPP_WARN(get_logger(), "[T_FIX] need >=3; save I");
       return T_fix;
     }
 
@@ -1618,7 +1648,7 @@ private:
     if (tilt > max_tilt && tilt > 1e-12) {
       const double scale = max_tilt / tilt;
       RCLCPP_WARN(get_logger(),
-        "[T_FIX] fitted tilt %.3fdeg exceeds limit %.3fdeg. Clamping.",
+        "[T_FIX] tilt %.3f > %.3fdeg",
         rad2deg(tilt), z_fix_max_tilt_deg_);
       rx *= scale;
       ry *= scale;
@@ -1645,8 +1675,11 @@ private:
     T_fix(2,3) = tz;
 
     RCLCPP_INFO(get_logger(),
-      "[T_FIX] z-plane rigid fix computed: rx=%.4fdeg ry=%.4fdeg tz=%.3fmm | z_rms %.3fmm -> %.3fmm",
-      rad2deg(rx), rad2deg(ry), tz * 1000.0, rms_before * 1000.0, rms_after * 1000.0);
+      "[T_FIX] rx=%.4f ry=%.4f tz=%.3fmm",
+      rad2deg(rx), rad2deg(ry), tz * 1000.0);
+    RCLCPP_INFO(get_logger(),
+      "[T_FIX] z_rms %.3f -> %.3fmm",
+      rms_before * 1000.0, rms_after * 1000.0);
 
     return T_fix;
   }
@@ -1679,15 +1712,15 @@ private:
     model.max_abs_correction_m = z_residual_max_correction_m_;
     const size_t N = T_AB_all_.size();
     if (!z_residual_enable_) {
-      RCLCPP_INFO(get_logger(), "[Z_RESIDUAL] z_residual_enable=false. Saving disabled model.");
+      RCLCPP_INFO(get_logger(), "[Z_RES] disabled");
       return model;
     }
     if (N < 6 || T_DC_all_.size() != N) {
-      RCLCPP_WARN(get_logger(), "[Z_RESIDUAL] Need >=6 samples for quadratic z residual fit. Saving disabled model.");
+      RCLCPP_WARN(get_logger(), "[Z_RES] need >=6; disabled");
       return model;
     }
     if (model.max_abs_correction_m <= 0.0) {
-      RCLCPP_WARN(get_logger(), "[Z_RESIDUAL] max correction is zero. Saving disabled model.");
+      RCLCPP_WARN(get_logger(), "[Z_RES] max correction zero");
       return model;
     }
 
@@ -1735,7 +1768,7 @@ private:
 
     const Eigen::VectorXd coeff = A.colPivHouseholderQr().solve(b);
     if (coeff.size() != 6 || !coeff.allFinite()) {
-      RCLCPP_WARN(get_logger(), "[Z_RESIDUAL] quadratic solve failed. Saving disabled model.");
+      RCLCPP_WARN(get_logger(), "[Z_RES] solve failed");
       return model;
     }
     for (int i=0; i<6; ++i) model.coeff[static_cast<size_t>(i)] = coeff(i);
@@ -1752,7 +1785,7 @@ private:
       const double scale = model.max_abs_correction_m / max_abs_fit;
       for (double& c : model.coeff) c *= scale;
       RCLCPP_WARN(get_logger(),
-        "[Z_RESIDUAL] fitted correction %.3fmm exceeds clamp %.3fmm. Scaling coefficients.",
+        "[Z_RES] fit %.3f > clamp %.3fmm",
         max_abs_fit * 1000.0, model.max_abs_correction_m * 1000.0);
     }
 
@@ -1769,16 +1802,18 @@ private:
 
     if (model.rms_after_m >= model.rms_before_m) {
       RCLCPP_WARN(get_logger(),
-        "[Z_RESIDUAL] no improvement (z_rms %.3fmm -> %.3fmm). Saving disabled model.",
+        "[Z_RES] no gain %.3f -> %.3fmm",
         model.rms_before_m * 1000.0, model.rms_after_m * 1000.0);
       model.valid = false;
       return model;
     }
 
     RCLCPP_INFO(get_logger(),
-      "[Z_RESIDUAL] quadratic xy z-correction fitted: z_rms %.3fmm -> %.3fmm, max_after=%.3fmm, clamp=%.1fmm",
+      "[Z_RES] z_rms %.3f -> %.3fmm",
       model.rms_before_m * 1000.0,
-      model.rms_after_m * 1000.0,
+      model.rms_after_m * 1000.0);
+    RCLCPP_INFO(get_logger(),
+      "[Z_RES] max=%.3fmm clamp=%.1fmm",
       max_after * 1000.0,
       model.max_abs_correction_m * 1000.0);
     return model;
@@ -1816,8 +1851,11 @@ private:
 
     const double rms_mm = std::sqrt(sum2 / static_cast<double>(N)) * 1000.0;
     RCLCPP_INFO(get_logger(),
-      "[CALIB_VALIDATE] runtime-chain position fit: rms=%.3fmm max=%.3fmm at sample=%zu/%zu",
-      rms_mm, max_err * 1000.0, max_i + 1, N);
+      "[VALID] rms=%.3fmm max=%.3fmm",
+      rms_mm, max_err * 1000.0);
+    RCLCPP_INFO(get_logger(),
+      "[VALID] max_sample=%zu/%zu",
+      max_i + 1, N);
 
     if (rms_mm > max_calib_position_rms_mm_) {
       std::ostringstream oss;
@@ -1844,7 +1882,7 @@ private:
       R_adj_ = Eigen::Matrix3d::Identity();
       have_radj_ = false;
       RCLCPP_INFO(get_logger(),
-        "[R_ADJ] disabled. Using Identity so T_AD directly absorbs the VR world/base-station frame.");
+        "[R_ADJ] disabled; use I");
     }
 
     Eigen::Matrix4d T_Adj = Eigen::Matrix4d::Identity();
@@ -1994,10 +2032,14 @@ private:
     );
 
     RCLCPP_INFO(get_logger(),
-      "[YAML_SAVED] T_AD, T_BC, T_FIX computed. R_Adj=%s. T_SA saved by mode=%s (%s). -> %s",
-      have_radj_ ? "computed" : "IDENTITY(fallback)",
+      "[YAML_SAVED] R_Adj=%s",
+      have_radj_ ? "computed" : "IDENTITY");
+    RCLCPP_INFO(get_logger(),
+      "[YAML_SAVED] T_SA %s %s",
       t_sa_mode_.c_str(),
-      (t_sa_mode_=="update" ? (t_sa_computed_ ? "new(computed)" : "old(fallback)") : "old(kept)"),
+      (t_sa_mode_=="update" ? (t_sa_computed_ ? "new" : "old") : "old"));
+    RCLCPP_INFO(get_logger(),
+      "[YAML_SAVED] %s",
       calib_yaml_path_.c_str());
   }
 
@@ -2093,6 +2135,8 @@ private:
 // ================= main =================
 int main(int argc, char** argv)
 {
+  setenv("RCUTILS_CONSOLE_OUTPUT_FORMAT", "[{severity}] {message}", 0);
+
   rclcpp::init(argc, argv);
   try {
     auto node = std::make_shared<VrCalibration>();

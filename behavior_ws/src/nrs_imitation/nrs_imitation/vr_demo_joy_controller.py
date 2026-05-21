@@ -30,6 +30,8 @@ from rclpy.node import Node
 from sensor_msgs.msg import Joy
 from std_msgs.msg import String
 
+from nrs_imitation.pretty_print import block
+
 
 class VRDemoJoyController(Node):
     def __init__(self):
@@ -66,15 +68,12 @@ class VRDemoJoyController(Node):
         self.cmd_pub = self.create_publisher(String, self.command_topic, 10)
         self.joy_sub = self.create_subscription(Joy, self.joy_topic, self.joy_callback, 20)
 
-        self.get_logger().info("============================================================")
-        self.get_logger().info("VRDemoJoyController initialized")
-        self.get_logger().info(f"  joy_topic     : {self.joy_topic}")
-        self.get_logger().info(f"  command_topic : {self.command_topic}")
-        self.get_logger().info("")
-        self.get_logger().info("  Mapping:")
-        self.get_logger().info(f"    LB button [{self.button_start}] -> start_recording")
-        self.get_logger().info(f"    RB button [{self.button_end}] -> end_recording")
-        self.get_logger().info("============================================================")
+        self.get_logger().info(block("JOY CONTROLLER READY", [
+            ("joy_topic", self.joy_topic),
+            ("command_topic", self.command_topic),
+            ("LB", f"button[{self.button_start}] -> start_recording"),
+            ("RB", f"button[{self.button_end}] -> end_recording"),
+        ]))
 
     def publish_command(self, cmd: str):
         msg = String()

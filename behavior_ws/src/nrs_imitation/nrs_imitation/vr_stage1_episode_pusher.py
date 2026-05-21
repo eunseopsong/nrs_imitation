@@ -87,6 +87,8 @@ import h5py
 import rclpy
 from rclpy.node import Node
 
+from nrs_imitation.pretty_print import block, status
+
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
 DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
@@ -426,21 +428,16 @@ class VRStage1EpisodePusher(Node):
         self.stop_evt = threading.Event()
         self.kbd_thread = threading.Thread(target=self.keyboard_loop, daemon=True)
 
-        self.get_logger().info("============================================================")
-        self.get_logger().info("VRStage1EpisodePusher initialized")
-        self.get_logger().info(f"  episode_dir={self.episode_dir}")
-        self.get_logger().info(f"  episodes={len(self.episodes)}")
-        self.get_logger().info(f"  traj_dataset={self.traj_dataset}")
-        self.get_logger().info(f"  local_txt={self.local_txt_path}")
-        self.get_logger().info(f"  remote={self.remote_user}@{self.remote_ip}:{self.remote_txt_path}")
-        self.get_logger().info(
-            "  extra_contact_slowdown="
-            f"{int(self.extra_contact_slowdown_enable)} "
-            f"rule=(first fz>{self.contact_fz_threshold}, consec={self.contact_consec}), "
-            f"pre={self.contact_pre_sec}s, post={self.contact_post_sec}s, "
-            f"scale_max={self.contact_scale_max}, profile={self.contact_slowdown_profile}"
-        )
-        self.get_logger().info("============================================================")
+        self.get_logger().info(block("STAGE1 PUSHER READY", [
+            ("episode_dir", self.episode_dir),
+            ("episodes", len(self.episodes)),
+            ("traj_dataset", self.traj_dataset),
+            ("local_txt", self.local_txt_path),
+            ("remote", f"{self.remote_user}@{self.remote_ip}:{self.remote_txt_path}"),
+            ("slowdown", f"{int(self.extra_contact_slowdown_enable)} first fz>{self.contact_fz_threshold}, consec={self.contact_consec}"),
+            ("window", f"pre={self.contact_pre_sec}s, post={self.contact_post_sec}s"),
+            ("scale", f"max={self.contact_scale_max}, profile={self.contact_slowdown_profile}"),
+        ]))
         self.print_help()
         self.get_logger().info(self.status_line())
 
@@ -458,21 +455,20 @@ class VRStage1EpisodePusher(Node):
         return os.path.basename(self.ep_path(idx))
 
     def status_line(self) -> str:
-        return f"[STATUS] total={len(self.episodes)} | cur_idx={self.cur_idx} | cur_ep={self.ep_name(self.cur_idx)}"
+        return status("STATUS", [
+            ("total", len(self.episodes)),
+            ("cur_idx", self.cur_idx),
+            ("cur_ep", self.ep_name(self.cur_idx)),
+        ])
 
     def print_help(self):
-        self.get_logger().info("")
-        self.get_logger().info("================= Keyboard Commands =================")
-        self.get_logger().info("  [Enter] : push CURRENT idx episode")
-        self.get_logger().info("  d       : idx + 1")
-        self.get_logger().info("  a       : idx - 1")
-        self.get_logger().info("  r       : re-push current")
-        self.get_logger().info("  g <idx> : go to idx")
-        self.get_logger().info("  l       : list episodes")
-        self.get_logger().info("  s       : status")
-        self.get_logger().info("  h       : help")
-        self.get_logger().info("  q       : quit")
-        self.get_logger().info("=====================================================")
+        self.get_logger().info(block("KEYBOARD", [
+            ("Enter", "push current episode"),
+            ("d / a", "next / previous episode"),
+            ("r", "re-push current"),
+            ("g <idx>", "go to index"),
+            ("l / s / h / q", "list / status / help / quit"),
+        ], char="-"))
 
     def list_episodes(self, max_show: int = 80):
         self.get_logger().info(f"[LIST] total={len(self.episodes)}")
@@ -565,23 +561,24 @@ class VRStage1EpisodePusher(Node):
             consec=self.contact_consec,
         )
 
-        self.get_logger().info(
-            f"[LOAD] raw traj shape={traj.shape}, dt={dt:.6f}s, "
-            f"fz_min={float(np.min(fz)):.4f}, fz_max={float(np.max(fz)):.4f}, "
-            f"first_contact_idx(fz>{self.contact_fz_threshold})={raw_contact_idx}"
-        )
+        self.get_logger().info(status("LOAD", [
+            ("shape", traj.shape),
+            ("dt", f"{dt:.6f}s"),
+            ("fz_min", f"{float(np.min(fz)):.4f}"),
+            ("fz_max", f"{float(np.max(fz)):.4f}"),
+            ("contact_idx", raw_contact_idx),
+        ]))
 
         processed, meta = self.process_traj_for_push(traj, dt)
 
-        self.get_logger().warn(
-            "[SLOW-CONTACT] "
-            f"enabled={meta.get('enabled')} "
-            f"contact_idx={meta.get('contact_idx')} "
-            f"window=[{meta.get('window_start_idx')}, {meta.get('window_end_idx')}] "
-            f"len {meta.get('input_len')} -> {meta.get('output_len')} "
-            f"ratio={float(meta.get('length_ratio', 1.0)):.3f} "
-            f"scale_max_actual={float(meta.get('scale_max_actual', 1.0)):.3f}"
-        )
+        self.get_logger().warn(status("SLOW-CONTACT", [
+            ("enabled", meta.get("enabled")),
+            ("contact_idx", meta.get("contact_idx")),
+            ("window", f"[{meta.get('window_start_idx')}, {meta.get('window_end_idx')}]"),
+            ("len", f"{meta.get('input_len')} -> {meta.get('output_len')}"),
+            ("ratio", f"{float(meta.get('length_ratio', 1.0)):.3f}"),
+            ("scale", f"{float(meta.get('scale_max_actual', 1.0)):.3f}"),
+        ]))
 
         os.makedirs(os.path.dirname(self.local_txt_path) or ".", exist_ok=True)
         np.savetxt(self.local_txt_path, processed, fmt=self.txt_fmt)

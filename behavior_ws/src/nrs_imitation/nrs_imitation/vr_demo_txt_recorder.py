@@ -25,6 +25,8 @@ from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 from geometry_msgs.msg import Wrench
 
+from nrs_imitation.pretty_print import block
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -328,18 +330,16 @@ def eval_qp_proxy(pose6: np.ndarray, dt: float, lim: Limits, safety: float = 1.0
 
 
 def print_eval(logger, title: str, st: EvalStats, lim: Limits, safety: float):
-    logger.info(f"[QP-EVAL] ===== {title} =====")
-    logger.info(
-        f"\n  N={st.N}  dt={st.dt:.6f}s  T={st.T:.3f}s"
-        f"\n  pos |v|: max={st.vpos_max:.3f} (lim {lim.pos_vmax*safety:.3f}), p95={st.vpos_p95:.3f}  [mm/s]"
-        f"\n  pos |a|: max={st.apos_max:.3f} (lim {lim.pos_amax*safety:.3f}), p95={st.apos_p95:.3f}  [mm/s^2]"
-        f"\n  rotvec |r_dot|: max={st.vang_max:.3f} (lim {lim.ang_vmax*safety:.3f}), p95={st.vang_p95:.3f}  [rad/s]"
-        f"\n  rotvec |r_ddot|: max={st.aang_max:.3f} (lim {lim.ang_amax*safety:.3f}), p95={st.aang_p95:.3f}  [rad/s^2]"
-        f"\n  jerk: pos max={st.jpos_max:.3f} (lim {lim.pos_jmax*safety:.3f}), p95={st.jpos_p95:.3f}  [mm/s^3]"
-        f"\n        ang max={st.jang_max:.3f} (lim {lim.ang_jmax*safety:.3f}), p95={st.jang_p95:.3f}  [rad/s^3]"
-        f"\n  violation_rate: vpos={100*st.viol_v:.3f}%, apos={100*st.viol_a:.3f}%, rdot={100*st.viol_w:.3f}%, rddot={100*st.viol_alpha:.3f}%, "
-        f"jpos={100*st.viol_jpos:.3f}%, jang={100*st.viol_jang:.3f}%"
-    )
+    logger.info(block(f"QP-EVAL {title}", [
+        ("samples", f"N={st.N}, dt={st.dt:.6f}s, T={st.T:.3f}s"),
+        ("pos |v|", f"max={st.vpos_max:.3f}, lim={lim.pos_vmax*safety:.3f}, p95={st.vpos_p95:.3f} mm/s"),
+        ("pos |a|", f"max={st.apos_max:.3f}, lim={lim.pos_amax*safety:.3f}, p95={st.apos_p95:.3f} mm/s^2"),
+        ("rot |r_dot|", f"max={st.vang_max:.3f}, lim={lim.ang_vmax*safety:.3f}, p95={st.vang_p95:.3f} rad/s"),
+        ("rot |r_ddot|", f"max={st.aang_max:.3f}, lim={lim.ang_amax*safety:.3f}, p95={st.aang_p95:.3f} rad/s^2"),
+        ("jerk pos", f"max={st.jpos_max:.3f}, lim={lim.pos_jmax*safety:.3f}, p95={st.jpos_p95:.3f} mm/s^3"),
+        ("jerk ang", f"max={st.jang_max:.3f}, lim={lim.ang_jmax*safety:.3f}, p95={st.jang_p95:.3f} rad/s^3"),
+        ("violations", f"vpos={100*st.viol_v:.3f}%, apos={100*st.viol_a:.3f}%, rdot={100*st.viol_w:.3f}%, rddot={100*st.viol_alpha:.3f}%, jpos={100*st.viol_jpos:.3f}%, jang={100*st.viol_jang:.3f}%"),
+    ], char="-"))
 
 
 def constraints_ok(st: EvalStats) -> bool:

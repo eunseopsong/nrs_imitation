@@ -35,6 +35,8 @@ from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 from geometry_msgs.msg import Wrench
 
+from nrs_imitation.pretty_print import block
+
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
 DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
@@ -638,34 +640,20 @@ class VRStage1HDF5Recorder(Node):
         self.timer_stop = self.create_timer(0.05, self._check_stop)
 
         # logs
-        self.get_logger().info("============================================================")
-        self.get_logger().info("VRStage1HDF5Recorder initialized")
-        self.get_logger().info("  Filtering pipeline: IDENTICAL to old vr_demo_hdf5_recorder.py")
-        self.get_logger().info(f"  output_dir={self.output_dir}")
-        self.get_logger().info(f"  Topics: pose={self.pose_topic}, force={self.force_topic}, command={self.command_topic}")
-        self.get_logger().info(f"  record_hz={self.record_hz}, require_fresh_sec={self.require_fresh_sec}")
-        self.get_logger().info(
-            f"  joystick_control=1 commands=start_recording/end_recording"
-        )
-        self.get_logger().info(f"  auto_trigger={int(self.auto_trigger_enable)} start=|fx|>={self.start_abs_fx}, end=|fy|>={self.stop_abs_fy}")
-        self.get_logger().info(f"  Target episodes={self.num_episodes}, next episode={self.episode_count:04d}")
-        self.get_logger().info(
-            f"  Force: clamp_abs={self.force_clamp_abs}, EMA={self.force_ema_alpha}, zero_xy={self.zero_xy_forces}, "
-            f"thr={self.contact_thr_N}, consec_on={self.consec_on}, consec_off={self.consec_off}, "
-            f"fz_contact_smooth={self.fz_contact_smooth_enable}(lam={self.fz_contact_lam_d2})"
-        )
-        self.get_logger().info(
-            f"  Pose pre: Hampel={self.hampel_enable}(win={self.hampel_win}, sig={self.hampel_sig}), "
-            f"D2(lam_pos={self.lam_pos_d2}, lam_ang={self.lam_ang_d2}), PoseEMA={self.pose_ema_enable}(alpha={self.pose_ema_alpha})"
-        )
-        self.get_logger().info(
-            f"  Retime: fixed x2, Approach slow-down: enable={self.approach_slowdown_enable}, pre={self.approach_pre_sec}, post={self.approach_post_sec}, scale_max={self.approach_scale_max}"
-        )
-        self.get_logger().info(
-            f"  Post: D3(lam_pos={self.lam_pos_d3}, lam_ang={self.lam_ang_d3}), QP-guard enable={self.qp_guard_enable} safety={self.qp_guard_safety}"
-        )
-        self.get_logger().info("  Press Ctrl+C to stop node.")
-        self.get_logger().info("============================================================")
+        self.get_logger().info(block("STAGE1 HDF5 READY", [
+            ("pipeline", "same filtering as old vr_demo_hdf5_recorder.py"),
+            ("output_dir", self.output_dir),
+            ("topics", f"pose={self.pose_topic}, force={self.force_topic}, command={self.command_topic}"),
+            ("record", f"hz={self.record_hz}, fresh={self.require_fresh_sec}s"),
+            ("joystick", "start_recording / end_recording"),
+            ("auto_trigger", f"{int(self.auto_trigger_enable)} start=|fx|>={self.start_abs_fx}, end=|fy|>={self.stop_abs_fy}"),
+            ("episodes", f"target={self.num_episodes}, next={self.episode_count:04d}"),
+            ("force", f"clamp={self.force_clamp_abs}, EMA={self.force_ema_alpha}, zero_xy={self.zero_xy_forces}"),
+            ("contact", f"thr={self.contact_thr_N}, on={self.consec_on}, off={self.consec_off}, fz_smooth={self.fz_contact_smooth_enable}"),
+            ("pose_pre", f"Hampel={self.hampel_enable}, D2=({self.lam_pos_d2}, {self.lam_ang_d2}), EMA={self.pose_ema_enable}"),
+            ("retime", f"x2, approach={self.approach_slowdown_enable}, pre={self.approach_pre_sec}, post={self.approach_post_sec}, scale={self.approach_scale_max}"),
+            ("post", f"D3=({self.lam_pos_d3}, {self.lam_ang_d3}), QP={self.qp_guard_enable}, safety={self.qp_guard_safety}"),
+        ]))
 
     # ============================================================
     # Episode file helpers

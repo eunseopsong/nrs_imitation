@@ -38,6 +38,8 @@ from typing import Optional, Tuple, Dict
 
 import numpy as np
 
+from nrs_imitation.pretty_print import block, status
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -315,16 +317,15 @@ def eval_qp_proxy(pose6: np.ndarray, dt: float, lim: Limits, safety: float = 1.0
 
 
 def print_eval(title: str, st: EvalStats, lim: Limits, safety: float):
-    print(f"[QP-EVAL] ===== {title} =====")
-    print(
-        f"\n  N={st.N}  dt={st.dt:.6f}s  T={st.T:.3f}s"
-        f"\n  pos |v|: max={st.vpos_max:.3f} (lim {lim.pos_vmax:.3f}), p95={st.vpos_p95:.3f}, mean={st.vpos_mean:.3f}  [mm/s]"
-        f"\n  pos |a|: max={st.apos_max:.3f} (lim {lim.pos_amax:.3f}), p95={st.apos_p95:.3f}, mean={st.apos_mean:.3f}  [mm/s^2]"
-        f"\n  ang |w|: max={st.vang_max:.3f} (lim {lim.ang_vmax:.3f}), p95={st.vang_p95:.3f}, mean={st.vang_mean:.3f}  [rad/s]"
-        f"\n  ang |alpha|: max={st.aang_max:.3f} (lim {lim.ang_amax:.3f}), p95={st.aang_p95:.3f}, mean={st.aang_mean:.3f}  [rad/s^2]"
-        f"\n  jerk(ref): pos max={st.jpos_max:.3f} [mm/s^3], ang max={st.jang_max:.3f} [rad/s^3]"
-        f"\n  violation_rate(safety={safety:.3f}): vpos={100*st.viol_v:.3f}%, apos={100*st.viol_a:.3f}%, vang={100*st.viol_w:.3f}%, aang={100*st.viol_alpha:.3f}%"
-    )
+    print(block(f"QP-EVAL {title}", [
+        ("samples", f"N={st.N}, dt={st.dt:.6f}s, T={st.T:.3f}s"),
+        ("pos |v|", f"max={st.vpos_max:.3f}, lim={lim.pos_vmax:.3f}, p95={st.vpos_p95:.3f}, mean={st.vpos_mean:.3f} mm/s"),
+        ("pos |a|", f"max={st.apos_max:.3f}, lim={lim.pos_amax:.3f}, p95={st.apos_p95:.3f}, mean={st.apos_mean:.3f} mm/s^2"),
+        ("ang |w|", f"max={st.vang_max:.3f}, lim={lim.ang_vmax:.3f}, p95={st.vang_p95:.3f}, mean={st.vang_mean:.3f} rad/s"),
+        ("ang |alpha|", f"max={st.aang_max:.3f}, lim={lim.ang_amax:.3f}, p95={st.aang_p95:.3f}, mean={st.aang_mean:.3f} rad/s^2"),
+        ("jerk(ref)", f"pos={st.jpos_max:.3f} mm/s^3, ang={st.jang_max:.3f} rad/s^3"),
+        ("violations", f"safety={safety:.3f}, vpos={100*st.viol_v:.3f}%, apos={100*st.viol_a:.3f}%, vang={100*st.viol_w:.3f}%, aang={100*st.viol_alpha:.3f}%"),
+    ], char="-"))
 
 
 # ----------------------------
@@ -723,11 +724,11 @@ def main():
     # (1) read raw
     raw9 = read_txt9(in_path)
     rawN = int(raw9.shape[0])
-    print(f"[INFO] Read raw: {in_path} (N={rawN})")
+    print(status("INFO", [("read_raw", in_path), ("N", rawN)]))
 
     # (2) backup raw
     write_txt9_tab6(backup_path, raw9)
-    print(f"[INFO] Backup saved: {backup_path}")
+    print(status("INFO", [("backup", backup_path)]))
 
     rawP = raw9[:, :6].copy()
     rawF = raw9[:, 6:].copy()
@@ -762,7 +763,7 @@ def main():
     )
     st_sm, _ = eval_qp_proxy(Ps, dt, lim, safety=args.safety)
     print_eval("AFTER pose smoothing", st_sm, lim, args.safety)
-    print(f"[POSE-SMOOTH] used_lams={info}")
+    print(status("POSE-SMOOTH", [("used_lams", info)]))
 
     # (5) retime
     Pr, Fr, k_total = retime_uniform(
@@ -776,13 +777,13 @@ def main():
     st_rt, _ = eval_qp_proxy(Pr, dt, lim, safety=args.safety)
     print_eval("AFTER retiming (pose)", st_rt, lim, args.safety)
     if k_total > 1:
-        print(f"[QP-EVAL] Applied time-scale k_total={k_total} (rows: {Ps.shape[0]} -> {Pr.shape[0]})")
+        print(status("QP-EVAL", [("time_scale", k_total), ("rows", f"{Ps.shape[0]} -> {Pr.shape[0]}")]))
 
     # (6) contact gating
     if bool(args.precontact_gating):
         cidx = detect_contact_idx(Fr[:, 2], args.fz_on, args.fz_off, args.consec_on, args.consec_off)
         if cidx is not None and cidx > 0:
-            print(f"[CONTACT] Detected at idx={cidx}/{Pr.shape[0]} (t={cidx*dt:.3f}s) -> Zeroing forces for [0:{cidx})")
+            print(status("CONTACT", [("idx", f"{cidx}/{Pr.shape[0]}"), ("time", f"{cidx*dt:.3f}s"), ("zero", f"[0:{cidx})")]))
             Fr[:cidx, :] = 0.0
 
     # (7) edge force window
@@ -796,7 +797,7 @@ def main():
     # (8) overwrite filtered -> cmd_continue9D.txt
     filt9 = np.hstack([Pr, Fr])
     write_txt9_tab6(in_path, filt9)
-    print(f"[DONE] Overwrote filtered file: {in_path} (rawN={rawN} -> outN={filt9.shape[0]})")
+    print(status("DONE", [("file", in_path), ("rows", f"{rawN} -> {filt9.shape[0]}")]))
 
     # (9) viz folder + 3 plots only (time-aligned)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -807,10 +808,12 @@ def main():
     save_plot_2_ang_kinematics(viz_dir, dt, rawP, Pr)
     save_plot_3_forces(viz_dir, dt, rawF, Fr)
 
-    print(f"[VIZ] Saved 3 plots to: {viz_dir}")
-    print("      - plot_1_lin_kinematics.png")
-    print("      - plot_2_ang_kinematics.png")
-    print("      - plot_3_forces.png")
+    print(block("VIZ", [
+        ("dir", viz_dir),
+        ("plot 1", "plot_1_lin_kinematics.png"),
+        ("plot 2", "plot_2_ang_kinematics.png"),
+        ("plot 3", "plot_3_forces.png"),
+    ], char="-"))
 
 
 if __name__ == "__main__":

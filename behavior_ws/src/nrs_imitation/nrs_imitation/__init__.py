@@ -9,7 +9,7 @@ class ActPolicyInfer:
         # ... (기존 코드 그대로)
 
         self.policy.to(device).eval()
-        self.node.get_logger().info("✅ ACT model ready for inference")
+        self.node.get_logger().info("[READY] ACT model ready for inference")
 
         # ======================
         # 🔴 Inference 로그 파일 준비

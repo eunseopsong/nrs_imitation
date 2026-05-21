@@ -62,6 +62,8 @@ from std_msgs.msg import Float64MultiArray, String
 from geometry_msgs.msg import Wrench, PoseStamped
 from sensor_msgs.msg import Image
 
+from nrs_imitation.pretty_print import block, status
+
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
 DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
@@ -504,18 +506,17 @@ class VRDemoHDF5Recorder(Node):
 
         atexit.register(self._atexit_close)
 
-        self.get_logger().info(
-            "[READY] vr_demo_hdf5_recorder multimodal\n"
-            f"  h5_path={self.h5_path}\n"
-            f"  recording_mode={self.recording_mode}\n"
-            f"  pose_topic={self.pose_topic}\n"
-            f"  force_topic={self.force_topic}\n"
-            f"  cam0_topic={self.image_topic} -> images/{self.image_dataset_name}\n"
-            f"  enable_global_cam={int(self.enable_global_cam)} cam1_topic={self.global_image_topic} -> images/{self.global_image_dataset_name}\n"
-            f"  enable_aruco_markers={int(self.enable_aruco_markers)} id0={self.aruco_id0_pose_topic} id1={self.aruco_id1_pose_topic}\n"
-            f"  sample_hz={self.sample_hz}\n"
-            f"  command_topic={self.command_topic}"
-        )
+        self.get_logger().info(block("VR DEMO HDF5 READY", [
+            ("h5_path", self.h5_path),
+            ("mode", self.recording_mode),
+            ("pose_topic", self.pose_topic),
+            ("force_topic", self.force_topic),
+            ("cam0", f"{self.image_topic} -> images/{self.image_dataset_name}"),
+            ("cam1", f"{int(self.enable_global_cam)} {self.global_image_topic} -> images/{self.global_image_dataset_name}"),
+            ("aruco", f"{int(self.enable_aruco_markers)} id0={self.aruco_id0_pose_topic}, id1={self.aruco_id1_pose_topic}"),
+            ("sample_hz", self.sample_hz),
+            ("command", self.command_topic),
+        ]))
         self._print_status("READY")
 
     # callbacks
@@ -729,13 +730,17 @@ class VRDemoHDF5Recorder(Node):
             if ep_idx == self.current_ep_idx:
                 self.current_ep_idx += 1
 
-            self.get_logger().info(
-                f"=== EPISODE SAVED ({self._ep_name(ep_idx)}) N={N}, "
-                f"position={P_out.shape}, ft={F_out.shape}, cam0={images0.shape}, "
-                f"cam1={None if images1 is None else images1.shape}, "
-                f"marker0_valid={int(np.sum(marker0[:, -1] > 0.5))}/{N}, "
-                f"marker1_valid={int(np.sum(marker1[:, -1] > 0.5))}/{N}, reason={reason} ==="
-            )
+            self.get_logger().info(block("EPISODE SAVED", [
+                ("episode", self._ep_name(ep_idx)),
+                ("samples", N),
+                ("position", P_out.shape),
+                ("ft", F_out.shape),
+                ("cam0", images0.shape),
+                ("cam1", None if images1 is None else images1.shape),
+                ("marker0_valid", f"{int(np.sum(marker0[:, -1] > 0.5))}/{N}"),
+                ("marker1_valid", f"{int(np.sum(marker1[:, -1] > 0.5))}/{N}"),
+                ("reason", reason),
+            ]))
             self._print_status("SAVED")
         except Exception as e:
             self.get_logger().error(f"Episode processing failed: {repr(e)}")
@@ -824,12 +829,19 @@ class VRDemoHDF5Recorder(Node):
             img1_ok = self.latest_global_image is not None
             m0_ok = self.latest_marker0 is not None
             m1_ok = self.latest_marker1 is not None
-        self.get_logger().info(
-            f"[{tag}] ep={self._ep_name(self.current_ep_idx)} active={int(self.episode_active)} "
-            f"finishing={int(self.finishing)} samples={len(self.P_buf)} saved={sorted(self.saved_indices)} | "
-            f"pose={int(pose_ok)} force={int(force_ok)} cam0={int(img0_ok)} cam1={int(img1_ok)} "
-            f"aruco0={int(m0_ok)} aruco1={int(m1_ok)}"
-        )
+        self.get_logger().info(status(tag, [
+            ("ep", self._ep_name(self.current_ep_idx)),
+            ("active", int(self.episode_active)),
+            ("saving", int(self.finishing)),
+            ("samples", len(self.P_buf)),
+            ("saved", sorted(self.saved_indices)),
+            ("pose", int(pose_ok)),
+            ("force", int(force_ok)),
+            ("cam0", int(img0_ok)),
+            ("cam1", int(img1_ok)),
+            ("aruco0", int(m0_ok)),
+            ("aruco1", int(m1_ok)),
+        ]))
 
     def finalize_and_shutdown(self):
         self.get_logger().warn("[FINALIZE] closing HDF5 and shutting down recorder.")
