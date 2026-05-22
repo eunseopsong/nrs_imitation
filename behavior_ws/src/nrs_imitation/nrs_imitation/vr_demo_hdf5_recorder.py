@@ -339,7 +339,7 @@ class VRDemoHDF5Recorder(Node):
         self.declare_parameter("aruco_id1_pose_topic", "/aruco/id_1/pose")
 
         # Sampling / freshness
-        self.declare_parameter("sample_hz", 20.0)
+        self.declare_parameter("sample_hz", 30.0)
         self.declare_parameter("require_pose_fresh_sec", 0.20)
         self.declare_parameter("require_force_fresh_sec", 0.20)
         self.declare_parameter("require_image_fresh_sec", 0.50)

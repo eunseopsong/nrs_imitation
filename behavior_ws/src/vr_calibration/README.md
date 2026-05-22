@@ -34,7 +34,7 @@ ros2 run vr_calibration vr_calibration --ros-args \
 
 주요 파일:
 
-- `vr_calibration/txt/for_vr_calibration_point_v3.txt`: target waypoint 파일
+- `vr_calibration/txt/for_vr_calibration_point_v4.txt`: target waypoint 파일
 - `vr_calibration/txt/ur10_ee.txt`: 캡처된 EE pose 기록
 - `vr_calibration/txt/ur10_vr.txt`: 캡처된 VR pose 기록
 - `vive_tracker_ros2/yaml/calibration_matrix.yaml`: 최종 calibration YAML
@@ -84,13 +84,7 @@ z_residual_max_correction_mm = 10.0
 max_calib_position_rms_mm = 50.0
 ```
 
-orientation까지 새로 맞춰야 하면 `T_SA` update를 켠다.
-
-```bash
-ros2 run vr_calibration vr_calibration --ros-args \
-  -p t_sa_mode:=update \
-  -p t_sa_max_delta_deg:=180.0
-```
+`T_SA` update는 기본값으로 켜져 있으므로 별도 옵션 없이 실행하면 된다.
 
 ## 캡처 로직
 

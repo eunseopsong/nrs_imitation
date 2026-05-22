@@ -191,7 +191,7 @@ public:
       ament_index_cpp::get_package_share_directory("vive_tracker_ros2");
     const std::string txt_dir = vr_calibration_share + "/txt";
 
-    waypoint_file_ = txt_dir + "/for_vr_calibration_point_v3.txt";
+    waypoint_file_ = txt_dir + "/for_vr_calibration_point_v4.txt";
     ee_path_ = txt_dir + "/ur10_ee.txt";
     vr_path_ = txt_dir + "/ur10_vr.txt";
     calib_yaml_path_ = vive_tracker_share + "/yaml/calibration_matrix.yaml";
@@ -2122,7 +2122,7 @@ private:
     }
     ofs << "]\n\n";
 
-    ofs << "# optional extra constant offset; runtime ignores this unless apply_T_CE_extra=true or tool_correction_mode=t_ce\n";
+    ofs << "# final constant offset; runtime applies this last when apply_T_CE_extra=true\n";
     writeMat4("T_CE", T_CE);
 
     ofs << "# spatial-angle frame alignment (right-multiply)\n";

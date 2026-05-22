@@ -198,10 +198,10 @@ class ViveTracker(Node):
 
         # Tool-center correction.
         # t_bc: publish EE/TCP pose by removing solved EE->tracker offset
-        # t_ce: legacy constant YAML T_CE offset
-        # none: publish calibrated tracker/world pose without tool correction (default)
+        # t_ce: legacy alias; final T_CE is applied after all other corrections
+        # none: publish calibrated tracker/world pose before final T_CE
         self.declare_parameter("tool_correction_mode", "none")
-        self.declare_parameter("apply_T_CE_extra", False)
+        self.declare_parameter("apply_T_CE_extra", True)
 
         # --- rotvec 연속화 (π 근처 튐 완화)
         self.declare_parameter("rotvec_continuous", True)
@@ -620,12 +620,7 @@ class ViveTracker(Node):
             # Calibration solves: T_AB * T_BC = T_AD * T_DC.
             # Therefore the runtime EE/TCP pose is T_AD * T_DC * inv(T_BC).
             M_cal = M_cal @ self.T_BC_INV
-            if self.apply_T_CE_extra:
-                M_cal = M_cal @ self.T_CE
             return M_cal
-
-        if self.tool_correction_mode == "t_ce":
-            return M_cal @ self.T_CE
 
         return M_cal
 
@@ -657,6 +652,10 @@ class ViveTracker(Node):
 
             # ✅ spatial-angle alignment
             M_cal = self._apply_T_SA_to_M_cal(M_cal)
+
+            # Final constant offset. Keep this last so T_CE shifts the final published pose.
+            if self.apply_T_CE_extra:
+                M_cal = M_cal @ self.T_CE
 
             # pose로
             raw_pose = matrix_to_pose(raw_M)
