@@ -155,6 +155,15 @@ static Eigen::Matrix4d invT(const Eigen::Matrix4d& T)
   return Ti;
 }
 
+static double rotAngleBetweenRad(const Eigen::Matrix3d& R1,
+                                 const Eigen::Matrix3d& R2)
+{
+  const Eigen::Matrix3d R = R1.transpose() * R2;
+  double cosang = (R.trace() - 1.0) * 0.5;
+  cosang = clampd(cosang, -1.0, 1.0);
+  return std::acos(cosang);
+}
+
 static Eigen::Matrix<double,9,9> kron3(const Eigen::Matrix3d& A, const Eigen::Matrix3d& B)
 {
   Eigen::Matrix<double,9,9> K;
@@ -191,10 +200,16 @@ public:
       ament_index_cpp::get_package_share_directory("vive_tracker_ros2");
     const std::string txt_dir = vr_calibration_share + "/txt";
 
-    waypoint_file_ = txt_dir + "/for_vr_calibration_point_v4.txt";
+    waypoint_file_ = txt_dir + "/for_vr_calibration_point_v5.txt";
     ee_path_ = txt_dir + "/ur10_ee.txt";
     vr_path_ = txt_dir + "/ur10_vr.txt";
-    calib_yaml_path_ = vive_tracker_share + "/yaml/calibration_matrix.yaml";
+    const char* home_env = std::getenv("HOME");
+    const std::string vive_tracker_src_yaml =
+      std::string(home_env ? home_env : "") +
+      "/nrs_imitation/behavior_ws/src/vive_tracker_ros2/yaml/calibration_matrix.yaml";
+    calib_yaml_path_ = std::filesystem::exists(vive_tracker_src_yaml)
+      ? vive_tracker_src_yaml
+      : vive_tracker_share + "/yaml/calibration_matrix.yaml";
 
     // ----------------------------
     // Tunables
@@ -249,6 +264,9 @@ public:
     this->declare_parameter<double>("max_capture_sync_dt_s", 0.05);
     this->declare_parameter<double>("capture_max_vr_std_mm", 10.0);
     this->declare_parameter<double>("max_calib_position_rms_mm", 50.0);
+    this->declare_parameter<bool>("handeye_auto_trim_low_rotation_prefix", true);
+    this->declare_parameter<double>("handeye_prefix_rotation_span_deg", 5.0);
+    this->declare_parameter<int>("handeye_min_trim_prefix_samples", 4);
 
     t_sa_w_des_z_        = this->get_parameter("t_sa_w_des_z").as_double();
     t_sa_wait_timeout_s_ = this->get_parameter("t_sa_wait_timeout_s").as_double();
@@ -283,6 +301,12 @@ public:
     max_capture_sync_dt_s_ = std::max(0.0, this->get_parameter("max_capture_sync_dt_s").as_double());
     capture_max_vr_std_mm_ = std::max(0.0, this->get_parameter("capture_max_vr_std_mm").as_double());
     max_calib_position_rms_mm_ = std::max(1.0, this->get_parameter("max_calib_position_rms_mm").as_double());
+    handeye_auto_trim_low_rotation_prefix_ =
+      this->get_parameter("handeye_auto_trim_low_rotation_prefix").as_bool();
+    handeye_prefix_rotation_span_deg_ =
+      std::max(0.0, this->get_parameter("handeye_prefix_rotation_span_deg").as_double());
+    handeye_min_trim_prefix_samples_ =
+      static_cast<size_t>(std::max<int64_t>(1, this->get_parameter("handeye_min_trim_prefix_samples").as_int()));
 
     // ----------------------------
     // Waypoints
@@ -324,6 +348,12 @@ public:
     RCLCPP_INFO(get_logger(),
       "[INIT] wp=%zu hold=%zu auto=on",
       waypoints_.size(), target_indices_.size());
+    RCLCPP_INFO(get_logger(),
+      "[FILES] waypoint=%s",
+      waypoint_file_.c_str());
+    RCLCPP_INFO(get_logger(),
+      "[FILES] ee_out=%s vr_out=%s yaml=%s",
+      ee_path_.c_str(), vr_path_.c_str(), calib_yaml_path_.c_str());
 
     RCLCPP_INFO(get_logger(),
       "[T_SA] mode=%s max=%.1fdeg",
@@ -344,6 +374,10 @@ public:
       radj_use_all_samples_ ? "all" : std::to_string(radj_sample_count_);
     RCLCPP_INFO(get_logger(), "[R_ADJ] en=%s n=%s",
       radj_enable_ ? "true" : "false", radj_sample_count_log.c_str());
+    RCLCPP_INFO(get_logger(), "[HAND_EYE] trim_prefix=%s span>=%.1fdeg min_prefix=%zu",
+      handeye_auto_trim_low_rotation_prefix_ ? "true" : "false",
+      handeye_prefix_rotation_span_deg_,
+      handeye_min_trim_prefix_samples_);
   }
 
   void run()
@@ -558,6 +592,9 @@ private:
   size_t radj_sample_count_{8};
   bool radj_use_all_samples_{false};
   double max_calib_position_rms_mm_{50.0};
+  bool handeye_auto_trim_low_rotation_prefix_{true};
+  double handeye_prefix_rotation_span_deg_{5.0};
+  size_t handeye_min_trim_prefix_samples_{4};
 
   // ✅ NEW
   std::string t_sa_mode_{"update"};   // keep/update
@@ -1836,6 +1873,8 @@ private:
     double sum2 = 0.0;
     double max_err = 0.0;
     size_t max_i = 0;
+    Eigen::Vector3d max_p_ref = Eigen::Vector3d::Zero();
+    Eigen::Vector3d max_p_cal = Eigen::Vector3d::Zero();
 
     for (size_t i=0; i<N; ++i) {
       const Eigen::Matrix4d M_cal = T_FIX * T_AD * T_Adj * T_DC_all_[i] * T_CB;
@@ -1846,6 +1885,8 @@ private:
       if (err > max_err) {
         max_err = err;
         max_i = i;
+        max_p_ref = p_ref;
+        max_p_cal = p_cal;
       }
     }
 
@@ -1856,6 +1897,13 @@ private:
     RCLCPP_INFO(get_logger(),
       "[VALID] max_sample=%zu/%zu",
       max_i + 1, N);
+    RCLCPP_INFO(get_logger(),
+      "[VALID] max_ref=[%.1f %.1f %.1f]mm cal=[%.1f %.1f %.1f]mm err=[%.1f %.1f %.1f]mm",
+      max_p_ref.x() * 1000.0, max_p_ref.y() * 1000.0, max_p_ref.z() * 1000.0,
+      max_p_cal.x() * 1000.0, max_p_cal.y() * 1000.0, max_p_cal.z() * 1000.0,
+      (max_p_ref.x() - max_p_cal.x()) * 1000.0,
+      (max_p_ref.y() - max_p_cal.y()) * 1000.0,
+      (max_p_ref.z() - max_p_cal.z()) * 1000.0);
 
     if (rms_mm > max_calib_position_rms_mm_) {
       std::ostringstream oss;
@@ -1868,11 +1916,42 @@ private:
     return rms_mm;
   }
 
+  size_t chooseHandeyeSolveStartIndex() const
+  {
+    const size_t N = T_AB_all_.size();
+    if (!handeye_auto_trim_low_rotation_prefix_ || N < 3) return 0;
+
+    const double span_thresh_rad = deg2rad(handeye_prefix_rotation_span_deg_);
+    if (span_thresh_rad <= 0.0) return 0;
+
+    const Eigen::Matrix3d R0 = T_AB_all_.front().block<3,3>(0,0);
+    for (size_t i = 1; i < N; ++i) {
+      const Eigen::Matrix3d Ri = T_AB_all_[i].block<3,3>(0,0);
+      const double span_rad = rotAngleBetweenRad(R0, Ri);
+      if (span_rad >= span_thresh_rad) {
+        const size_t prefix_count = i;
+        const size_t suffix_count = N - i;
+        if (prefix_count >= handeye_min_trim_prefix_samples_ && suffix_count >= 3) {
+          RCLCPP_WARN(get_logger(),
+            "[HAND_EYE] trim low-rotation prefix samples 1..%zu; solve uses %zu..%zu",
+            prefix_count, i + 1, N);
+          RCLCPP_WARN(get_logger(),
+            "[HAND_EYE] prefix span reached %.2fdeg at sample %zu",
+            rad2deg(span_rad), i + 1);
+          return i;
+        }
+        return 0;
+      }
+    }
+
+    return 0;
+  }
+
   // ---------- compute T_BC / T_AD_avg and save yaml ----------
   void finalizeCalibrationAndSaveYaml()
   {
-    const size_t N = T_AB_all_.size();
-    if (N < 2 || T_DC_all_.size() != N) {
+    const size_t N_all = T_AB_all_.size();
+    if (N_all < 2 || T_DC_all_.size() != N_all) {
       throw std::runtime_error("Not enough samples to compute calibration (need >=2).");
     }
 
@@ -1890,9 +1969,20 @@ private:
       (have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity()).transpose();
 
     std::vector<Eigen::Matrix4d> T_DC_adj_all;
-    T_DC_adj_all.reserve(N);
+    T_DC_adj_all.reserve(N_all);
     for (const auto& T_DC : T_DC_all_) {
       T_DC_adj_all.push_back(T_Adj * T_DC);
+    }
+
+    const size_t solve_start_idx = chooseHandeyeSolveStartIndex();
+    const size_t N = N_all - solve_start_idx;
+    if (N < 2) {
+      throw std::runtime_error("Not enough samples after hand-eye trimming (need >=2).");
+    }
+    if (solve_start_idx > 0) {
+      RCLCPP_WARN(get_logger(),
+        "[HAND_EYE] solving with %zu/%zu samples; validation still uses all samples",
+        N, N_all);
     }
 
     // clear buffers
@@ -1910,11 +2000,13 @@ private:
     const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
 
     for (size_t i=0; i<K; i++) {
-      const Eigen::Matrix4d& T_AB0 = T_AB_all_[i];
-      const Eigen::Matrix4d& T_AB1 = T_AB_all_[i+1];
+      const size_t s0 = solve_start_idx + i;
+      const size_t s1 = s0 + 1;
+      const Eigen::Matrix4d& T_AB0 = T_AB_all_[s0];
+      const Eigen::Matrix4d& T_AB1 = T_AB_all_[s1];
 
-      const Eigen::Matrix4d& T_DC0 = T_DC_adj_all[i];
-      const Eigen::Matrix4d& T_DC1 = T_DC_adj_all[i+1];
+      const Eigen::Matrix4d& T_DC0 = T_DC_adj_all[s0];
+      const Eigen::Matrix4d& T_DC1 = T_DC_adj_all[s1];
 
       const Eigen::Matrix4d T_B0B1 = invT(T_AB0) * T_AB1;
       const Eigen::Matrix4d T_C0C1 = invT(T_DC0) * T_DC1;

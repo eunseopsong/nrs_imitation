@@ -32,7 +32,7 @@ Command topic:
     terminate_node
 
 Output merged HDF5:
-  ~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
+  ~/nrs_imitation/datasets/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/
     robot_playback_merged_YYYYMMDD_HHMM.hdf5
 
 Layout compatible with demo_data_imitation_form.py:
@@ -66,7 +66,17 @@ from nrs_imitation.pretty_print import block, status
 
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
-DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
+DEFAULT_DATASET_ROOT_DIR = os.path.join(REPO_ROOT, "datasets")
+VALID_OBS_MODES = ("single_cam", "multi_cam", "multi_cam_marker")
+
+
+def normalize_obs_mode(obs_mode: str) -> str:
+    mode = str(obs_mode).strip().lower()
+    if mode in ("", "auto"):
+        return "multi_cam_marker"
+    if mode not in VALID_OBS_MODES:
+        raise RuntimeError(f"obs_mode must be one of {VALID_OBS_MODES} or auto, got: {obs_mode}")
+    return mode
 
 
 def make_qos(depth: int = 10, best_effort: bool = False) -> QoSProfile:
@@ -180,9 +190,10 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         super().__init__("robot_playback_multimodal_hdf5_recorder")
 
         # Save.
-        self.declare_parameter("act_root_dir", DEFAULT_ACT_ROOT_DIR)
+        self.declare_parameter("act_root_dir", DEFAULT_DATASET_ROOT_DIR)
         self.declare_parameter("merged_subdir", "merged_hdf5")
         self.declare_parameter("file_prefix", "robot_playback_merged")
+        self.declare_parameter("obs_mode", "multi_cam_marker")
         self.declare_parameter("run_timestamp", "")  # empty -> now
         self.declare_parameter("overwrite_file", False)
 
@@ -208,6 +219,7 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
         self.merged_subdir = str(self.get_parameter("merged_subdir").value)
         self.file_prefix = str(self.get_parameter("file_prefix").value)
+        self.obs_mode = normalize_obs_mode(str(self.get_parameter("obs_mode").value))
         ts = str(self.get_parameter("run_timestamp").value).strip()
         self.run_timestamp = ts if ts else datetime.now().strftime("%Y%m%d_%H%M")
         self.overwrite_file = bool(self.get_parameter("overwrite_file").value)
@@ -228,13 +240,14 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         self.min_samples = int(self.get_parameter("min_samples").value)
         self.enable_keyboard = bool(self.get_parameter("enable_keyboard").value)
 
-        self.save_root = os.path.join(self.act_root_dir, self.run_timestamp, self.merged_subdir)
+        self.save_root = os.path.join(self.act_root_dir, self.obs_mode, self.run_timestamp, self.merged_subdir)
         os.makedirs(self.save_root, exist_ok=True)
         self.h5_path = os.path.join(self.save_root, f"{self.file_prefix}_{self.run_timestamp}.hdf5")
         if os.path.exists(self.h5_path) and self.overwrite_file:
             os.remove(self.h5_path)
 
         self.h5 = h5py.File(self.h5_path, "a")
+        self.h5.attrs["obs_mode"] = str(self.obs_mode)
         self.grp_eps = self.h5.require_group("episodes")
         self.ep_idx = self._next_ep_index()
 
@@ -284,6 +297,7 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
 
         self.get_logger().info(block("ROBOT PLAYBACK READY", [
             ("h5_path", self.h5_path),
+            ("obs_mode", self.obs_mode),
             ("position", self.position_topic),
             ("force", self.force_topic),
             ("cam0", self.cam0_topic),
@@ -502,6 +516,7 @@ class RobotPlaybackMultimodalHDF5Recorder(Node):
         g.attrs["saved_unix"] = float(time.time())
         g.attrs["record_hz"] = float(self.sample_hz)
         g.attrs["schema_version"] = "robot_playback_multimodal_v1"
+        g.attrs["obs_mode"] = str(self.obs_mode)
         g.attrs["position_topic"] = str(self.position_topic)
         g.attrs["force_topic"] = str(self.force_topic)
         g.attrs["cam0_topic"] = str(self.cam0_topic)

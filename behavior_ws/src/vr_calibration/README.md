@@ -34,7 +34,7 @@ ros2 run vr_calibration vr_calibration --ros-args \
 
 주요 파일:
 
-- `vr_calibration/txt/for_vr_calibration_point_v4.txt`: target waypoint 파일
+- `vr_calibration/txt/for_vr_calibration_point_v5.txt`: target waypoint 파일
 - `vr_calibration/txt/ur10_ee.txt`: 캡처된 EE pose 기록
 - `vr_calibration/txt/ur10_vr.txt`: 캡처된 VR pose 기록
 - `vive_tracker_ros2/yaml/calibration_matrix.yaml`: 최종 calibration YAML

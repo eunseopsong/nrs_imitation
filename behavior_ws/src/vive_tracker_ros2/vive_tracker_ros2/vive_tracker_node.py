@@ -337,6 +337,8 @@ class ViveTracker(Node):
         install_yaml = os.path.join(share_dir, "yaml", "calibration_matrix.yaml")
 
         yaml_path = src_yaml if os.path.exists(src_yaml) else install_yaml
+        self.calib_yaml_path = yaml_path
+        self._t_ce_yaml_mtime_ns = self._yaml_mtime_ns(yaml_path)
         self.get_logger().info(f"[vive_tracker_node] load yaml: {yaml_path}")
 
         import yaml
@@ -394,6 +396,40 @@ class ViveTracker(Node):
             self.get_logger().info("T_SA=\n" + np.array2string(self.T_SA, precision=6, suppress_small=True))
             self.get_logger().info("T_FIX=\n" + np.array2string(self.T_FIX, precision=6, suppress_small=True))
             self.get_logger().info("T_BC_INV=\n" + np.array2string(self.T_BC_INV, precision=6, suppress_small=True))
+
+    def _yaml_mtime_ns(self, yaml_path: str) -> int:
+        try:
+            return os.stat(yaml_path).st_mtime_ns
+        except OSError:
+            return -1
+
+    def _reload_T_CE_if_changed(self):
+        yaml_path = getattr(self, "calib_yaml_path", None)
+        if not yaml_path:
+            return
+
+        mtime_ns = self._yaml_mtime_ns(yaml_path)
+        if mtime_ns < 0 or mtime_ns == getattr(self, "_t_ce_yaml_mtime_ns", None):
+            return
+
+        try:
+            import yaml
+            with open(yaml_path, "r") as f:
+                data = yaml.safe_load(f) or {}
+            T_CE = self._to_T44(data.get("T_CE", None))
+            if not self._is_valid_T(T_CE):
+                self.get_logger().warn("[T_CE] yaml changed but T_CE is invalid; keeping previous value.")
+                self._t_ce_yaml_mtime_ns = mtime_ns
+                return
+            self.T_CE = T_CE
+            self._t_ce_yaml_mtime_ns = mtime_ns
+            self.get_logger().info(
+                f"[T_CE] reloaded from yaml: t=[{self.T_CE[0,3]:.4f} "
+                f"{self.T_CE[1,3]:.4f} {self.T_CE[2,3]:.4f}]"
+            )
+        except Exception as exc:
+            self.get_logger().warn(f"[T_CE] reload failed: {exc}")
+            self._t_ce_yaml_mtime_ns = mtime_ns
 
     def _load_z_residual(self, node):
         disabled = {"enabled": False}
@@ -637,6 +673,9 @@ class ViveTracker(Node):
         if not current_ids:
             self.prev_time = now
             return
+
+        if self.apply_T_CE_extra:
+            self._reload_T_CE_if_changed()
 
         for serial in current_ids:
             tdata = self.trackers[serial]

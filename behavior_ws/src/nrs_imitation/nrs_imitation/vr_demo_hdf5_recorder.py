@@ -21,7 +21,7 @@ Marker convention:
   id1 = workpiece/surface marker
 
 Saved merged HDF5 layout:
-  ~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
+  ~/nrs_imitation/datasets/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/
     vr_demo_merged_YYYYMMDD_HHMM.hdf5
 
   episodes/
@@ -66,7 +66,25 @@ from nrs_imitation.pretty_print import block, status
 
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
-DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
+DEFAULT_DATASET_ROOT_DIR = os.path.join(REPO_ROOT, "datasets")
+VALID_OBS_MODES = ("single_cam", "multi_cam", "multi_cam_marker")
+
+
+def infer_obs_mode(enable_global_cam: bool, enable_aruco_markers: bool) -> str:
+    if enable_global_cam and enable_aruco_markers:
+        return "multi_cam_marker"
+    if enable_global_cam:
+        return "multi_cam"
+    return "single_cam"
+
+
+def normalize_obs_mode(obs_mode: str, enable_global_cam: bool, enable_aruco_markers: bool) -> str:
+    mode = str(obs_mode).strip().lower()
+    if mode in ("", "auto"):
+        return infer_obs_mode(enable_global_cam, enable_aruco_markers)
+    if mode not in VALID_OBS_MODES:
+        raise RuntimeError(f"obs_mode must be one of {VALID_OBS_MODES} or auto, got: {obs_mode}")
+    return mode
 
 
 # ============================================================
@@ -308,9 +326,10 @@ class VRDemoHDF5Recorder(Node):
         super().__init__("vr_demo_hdf5_recorder")
 
         # Save parameters
-        self.declare_parameter("act_root_dir", DEFAULT_ACT_ROOT_DIR)
+        self.declare_parameter("act_root_dir", DEFAULT_DATASET_ROOT_DIR)
         self.declare_parameter("merged_subdir", "merged_hdf5")
         self.declare_parameter("file_prefix", "vr_demo_merged")
+        self.declare_parameter("obs_mode", "auto")
         self.declare_parameter("overwrite_file", False)
         self.declare_parameter("allow_overwrite_episode", False)
         self.declare_parameter("flush_each_episode", True)
@@ -327,6 +346,7 @@ class VRDemoHDF5Recorder(Node):
         self.declare_parameter("robot_image_topic", "/realsense/robot/color/image_raw")
         self.declare_parameter("pose_topic", "")
         self.declare_parameter("force_topic", "")
+        self.declare_parameter("force_msg_type", "auto")  # auto | wrench | array
         self.declare_parameter("image_topic", "")
         self.declare_parameter("command_topic", "/vr_demo_recorder/command")
 
@@ -388,6 +408,7 @@ class VRDemoHDF5Recorder(Node):
 
         pose_topic_override = str(self.get_parameter("pose_topic").value).strip()
         force_topic_override = str(self.get_parameter("force_topic").value).strip()
+        force_msg_type_param = str(self.get_parameter("force_msg_type").value).strip().lower()
         image_topic_override = str(self.get_parameter("image_topic").value).strip()
         self.command_topic = str(self.get_parameter("command_topic").value)
 
@@ -397,6 +418,11 @@ class VRDemoHDF5Recorder(Node):
         self.enable_aruco_markers = bool(self.get_parameter("enable_aruco_markers").value)
         self.aruco_id0_pose_topic = str(self.get_parameter("aruco_id0_pose_topic").value)
         self.aruco_id1_pose_topic = str(self.get_parameter("aruco_id1_pose_topic").value)
+        self.obs_mode = normalize_obs_mode(
+            str(self.get_parameter("obs_mode").value),
+            self.enable_global_cam,
+            self.enable_aruco_markers,
+        )
 
         if self.recording_mode not in ("tracker", "robot"):
             raise RuntimeError(f"recording_mode must be tracker or robot, got: {self.recording_mode}")
@@ -404,9 +430,15 @@ class VRDemoHDF5Recorder(Node):
         default_pose_topic = self.tracker_pose_topic if self.recording_mode == "tracker" else self.robot_pose_topic
         default_force_topic = self.tracker_force_topic if self.recording_mode == "tracker" else self.robot_force_topic
         default_image_topic = self.tracker_image_topic if self.recording_mode == "tracker" else self.robot_image_topic
+        default_force_msg_type = "wrench" if self.recording_mode == "tracker" else "array"
         self.pose_topic = pose_topic_override if pose_topic_override else default_pose_topic
         self.force_topic = force_topic_override if force_topic_override else default_force_topic
+        self.force_msg_type = default_force_msg_type if force_msg_type_param in ("", "auto") else force_msg_type_param
         self.image_topic = image_topic_override if image_topic_override else default_image_topic
+        if self.force_msg_type not in ("wrench", "array"):
+            raise RuntimeError(
+                f"force_msg_type must be auto, wrench, or array, got: {force_msg_type_param}"
+            )
 
         self.sample_hz = float(self.get_parameter("sample_hz").value)
         self.dt = 1.0 / max(1e-9, self.sample_hz)
@@ -432,7 +464,7 @@ class VRDemoHDF5Recorder(Node):
 
         # HDF5 setup
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        self.save_root = os.path.join(self.act_root_dir, self.timestamp)
+        self.save_root = os.path.join(self.act_root_dir, self.obs_mode, self.timestamp)
         self.merged_dir = os.path.join(self.save_root, self.merged_subdir)
         os.makedirs(self.merged_dir, exist_ok=True)
         self.h5_path = os.path.join(self.merged_dir, f"{self.file_prefix}_{self.timestamp}.hdf5")
@@ -445,9 +477,11 @@ class VRDemoHDF5Recorder(Node):
         self.h5.attrs["created_time"] = str(datetime.now().isoformat())
         self.h5.attrs["recorder"] = "vr_demo_hdf5_recorder_multimodal"
         self.h5.attrs["schema_version"] = "multimodal_v1"
+        self.h5.attrs["obs_mode"] = str(self.obs_mode)
         self.h5.attrs["recording_mode"] = str(self.recording_mode)
         self.h5.attrs["pose_topic"] = str(self.pose_topic)
         self.h5.attrs["force_topic"] = str(self.force_topic)
+        self.h5.attrs["force_msg_type"] = str(self.force_msg_type)
         self.h5.attrs["image_topic"] = str(self.image_topic)
         self.h5.attrs["global_image_topic"] = str(self.global_image_topic)
         self.h5.attrs["aruco_id0_pose_topic"] = str(self.aruco_id0_pose_topic)
@@ -493,8 +527,10 @@ class VRDemoHDF5Recorder(Node):
         image_qos = make_qos(depth=1, best_effort=True)
         reliable_qos = make_qos(depth=10, best_effort=False)
         self.create_subscription(Float64MultiArray, self.pose_topic, self._on_pose, reliable_qos)
-        self.create_subscription(Wrench, self.force_topic, self._on_force_wrench, reliable_qos)
-        self.create_subscription(Float64MultiArray, self.force_topic, self._on_force_array, reliable_qos)
+        if self.force_msg_type == "wrench":
+            self.create_subscription(Wrench, self.force_topic, self._on_force_wrench, reliable_qos)
+        else:
+            self.create_subscription(Float64MultiArray, self.force_topic, self._on_force_array, reliable_qos)
         self.create_subscription(Image, self.image_topic, self._on_image, image_qos)
         if self.enable_global_cam:
             self.create_subscription(Image, self.global_image_topic, self._on_global_image, image_qos)
@@ -508,9 +544,10 @@ class VRDemoHDF5Recorder(Node):
 
         self.get_logger().info(block("VR DEMO HDF5 READY", [
             ("h5_path", self.h5_path),
+            ("obs_mode", self.obs_mode),
             ("mode", self.recording_mode),
             ("pose_topic", self.pose_topic),
-            ("force_topic", self.force_topic),
+            ("force_topic", f"{self.force_topic} ({self.force_msg_type})"),
             ("cam0", f"{self.image_topic} -> images/{self.image_dataset_name}"),
             ("cam1", f"{int(self.enable_global_cam)} {self.global_image_topic} -> images/{self.global_image_dataset_name}"),
             ("aruco", f"{int(self.enable_aruco_markers)} id0={self.aruco_id0_pose_topic}, id1={self.aruco_id1_pose_topic}"),
@@ -778,8 +815,10 @@ class VRDemoHDF5Recorder(Node):
                 g.attrs["record_hz"] = float(self.sample_hz)
                 g.attrs["dt"] = float(self.dt)
                 g.attrs["recording_mode"] = str(self.recording_mode)
+                g.attrs["obs_mode"] = str(self.obs_mode)
                 g.attrs["pose_topic"] = str(self.pose_topic)
                 g.attrs["force_topic"] = str(self.force_topic)
+                g.attrs["force_msg_type"] = str(self.force_msg_type)
                 g.attrs["cam0_topic"] = str(self.image_topic)
                 g.attrs["cam1_topic"] = str(self.global_image_topic)
                 g.attrs["aruco_id0_pose_topic"] = str(self.aruco_id0_pose_topic)

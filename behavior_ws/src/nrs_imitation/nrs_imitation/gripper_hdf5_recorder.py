@@ -21,7 +21,7 @@ Marker convention:
   id1 = workpiece/surface marker
 
 Saved merged HDF5 layout:
-  <repo>/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
+  <repo>/datasets/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/
     vr_demo_merged_YYYYMMDD_HHMM.hdf5
 
   episodes/
@@ -54,7 +54,25 @@ from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Set
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
-ACT_ROOT_DEFAULT = os.path.join(REPO_ROOT, "datasets", "ACT")
+DATASET_ROOT_DEFAULT = os.path.join(REPO_ROOT, "datasets")
+VALID_OBS_MODES = ("single_cam", "multi_cam", "multi_cam_marker")
+
+
+def infer_obs_mode(enable_global_cam: bool, enable_aruco_markers: bool) -> str:
+    if enable_global_cam and enable_aruco_markers:
+        return "multi_cam_marker"
+    if enable_global_cam:
+        return "multi_cam"
+    return "single_cam"
+
+
+def normalize_obs_mode(obs_mode: str, enable_global_cam: bool, enable_aruco_markers: bool) -> str:
+    mode = str(obs_mode).strip().lower()
+    if mode in ("", "auto"):
+        return infer_obs_mode(enable_global_cam, enable_aruco_markers)
+    if mode not in VALID_OBS_MODES:
+        raise RuntimeError(f"obs_mode must be one of {VALID_OBS_MODES} or auto, got: {obs_mode}")
+    return mode
 
 import numpy as np
 import h5py
@@ -334,9 +352,10 @@ class VRDemoHDF5Recorder(Node):
         super().__init__("vr_demo_hdf5_recorder")
 
         # Save parameters
-        self.declare_parameter("act_root_dir", ACT_ROOT_DEFAULT)
+        self.declare_parameter("act_root_dir", DATASET_ROOT_DEFAULT)
         self.declare_parameter("merged_subdir", "merged_hdf5")
         self.declare_parameter("file_prefix", "vr_demo_merged")
+        self.declare_parameter("obs_mode", "auto")
         self.declare_parameter("overwrite_file", False)
         self.declare_parameter("allow_overwrite_episode", False)
         self.declare_parameter("flush_each_episode", True)
@@ -432,6 +451,11 @@ class VRDemoHDF5Recorder(Node):
         self.enable_gripper_state = bool(self.get_parameter("enable_gripper_state").value)
         self.gripper_position_topic = str(self.get_parameter("gripper_position_topic").value)
         self.gripper_current_topic = str(self.get_parameter("gripper_current_topic").value)
+        self.obs_mode = normalize_obs_mode(
+            str(self.get_parameter("obs_mode").value),
+            self.enable_global_cam,
+            self.enable_aruco_markers,
+        )
 
         if self.recording_mode not in ("tracker", "robot"):
             raise RuntimeError(f"recording_mode must be tracker or robot, got: {self.recording_mode}")
@@ -474,7 +498,7 @@ class VRDemoHDF5Recorder(Node):
 
         # HDF5 setup
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        self.save_root = os.path.join(self.act_root_dir, self.timestamp)
+        self.save_root = os.path.join(self.act_root_dir, self.obs_mode, self.timestamp)
         self.merged_dir = os.path.join(self.save_root, self.merged_subdir)
         os.makedirs(self.merged_dir, exist_ok=True)
         self.h5_path = os.path.join(self.merged_dir, f"{self.file_prefix}_{self.timestamp}.hdf5")
@@ -487,6 +511,7 @@ class VRDemoHDF5Recorder(Node):
         self.h5.attrs["created_time"] = str(datetime.now().isoformat())
         self.h5.attrs["recorder"] = "vr_demo_hdf5_recorder_multimodal"
         self.h5.attrs["schema_version"] = "multimodal_v2"
+        self.h5.attrs["obs_mode"] = str(self.obs_mode)
         self.h5.attrs["recording_mode"] = str(self.recording_mode)
         self.h5.attrs["pose_topic"] = str(self.pose_topic)
         self.h5.attrs["force_topic"] = str(self.force_topic)
@@ -566,6 +591,7 @@ class VRDemoHDF5Recorder(Node):
 
         self.get_logger().info(block("GRIPPER HDF5 READY", [
             ("h5_path", self.h5_path),
+            ("obs_mode", self.obs_mode),
             ("mode", self.recording_mode),
             ("pose_topic", self.pose_topic),
             ("force_topic", f"{self.force_topic} ({self.force_msg_type})"),
@@ -897,6 +923,7 @@ class VRDemoHDF5Recorder(Node):
                 g.attrs["record_hz"] = float(self.sample_hz)
                 g.attrs["dt"] = float(self.dt)
                 g.attrs["recording_mode"] = str(self.recording_mode)
+                g.attrs["obs_mode"] = str(self.obs_mode)
                 g.attrs["pose_topic"] = str(self.pose_topic)
                 g.attrs["force_topic"] = str(self.force_topic)
                 g.attrs["force_msg_type"] = str(self.force_msg_type)
