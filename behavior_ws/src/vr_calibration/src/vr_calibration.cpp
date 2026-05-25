@@ -718,8 +718,6 @@ private:
   // storage for finalize step
   std::vector<Eigen::Vector3d> O_B0B1_list_;
   std::vector<Eigen::Vector3d> O_C0C1_list_;
-  std::vector<Eigen::Matrix4d> T_AB0_list_;
-  std::vector<Eigen::Matrix4d> T_DC0_list_;
 
   // ---------- callbacks ----------
   void cbCurrentP(const std_msgs::msg::Float64MultiArray::SharedPtr msg)
@@ -1988,10 +1986,11 @@ private:
     // clear buffers
     O_B0B1_list_.clear();
     O_C0C1_list_.clear();
-    T_AB0_list_.clear();
-    T_DC0_list_.clear();
 
-    const size_t K = N - 1;
+    const size_t K = (N * (N - 1)) / 2;
+    RCLCPP_INFO(get_logger(),
+      "[HAND_EYE] using all-pairs motions K=%zu from N=%zu samples",
+      K, N);
 
     Eigen::MatrixXd M(9 * K, 9);
     Eigen::MatrixXd K1(3 * K, 3);
@@ -1999,33 +1998,36 @@ private:
 
     const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
 
-    for (size_t i=0; i<K; i++) {
-      const size_t s0 = solve_start_idx + i;
-      const size_t s1 = s0 + 1;
-      const Eigen::Matrix4d& T_AB0 = T_AB_all_[s0];
-      const Eigen::Matrix4d& T_AB1 = T_AB_all_[s1];
+    size_t k = 0;
+    for (size_t s0=solve_start_idx; s0<N_all; s0++) {
+      for (size_t s1=s0+1; s1<N_all; s1++) {
+        const Eigen::Matrix4d& T_AB0 = T_AB_all_[s0];
+        const Eigen::Matrix4d& T_AB1 = T_AB_all_[s1];
 
-      const Eigen::Matrix4d& T_DC0 = T_DC_adj_all[s0];
-      const Eigen::Matrix4d& T_DC1 = T_DC_adj_all[s1];
+        const Eigen::Matrix4d& T_DC0 = T_DC_adj_all[s0];
+        const Eigen::Matrix4d& T_DC1 = T_DC_adj_all[s1];
 
-      const Eigen::Matrix4d T_B0B1 = invT(T_AB0) * T_AB1;
-      const Eigen::Matrix4d T_C0C1 = invT(T_DC0) * T_DC1;
+        const Eigen::Matrix4d T_B0B1 = invT(T_AB0) * T_AB1;
+        const Eigen::Matrix4d T_C0C1 = invT(T_DC0) * T_DC1;
 
-      const Eigen::Matrix3d R_B0B1 = T_B0B1.block<3,3>(0,0);
-      const Eigen::Vector3d O_B0B1 = T_B0B1.block<3,1>(0,3);
+        const Eigen::Matrix3d R_B0B1 = T_B0B1.block<3,3>(0,0);
+        const Eigen::Vector3d O_B0B1 = T_B0B1.block<3,1>(0,3);
 
-      const Eigen::Matrix3d R_C0C1 = T_C0C1.block<3,3>(0,0);
-      const Eigen::Vector3d O_C0C1 = T_C0C1.block<3,1>(0,3);
+        const Eigen::Matrix3d R_C0C1 = T_C0C1.block<3,3>(0,0);
+        const Eigen::Vector3d O_C0C1 = T_C0C1.block<3,1>(0,3);
 
-      Eigen::Matrix<double,9,9> m = kron3(I, R_B0B1) - kron3(R_C0C1.transpose(), I);
-      M.block(9*i, 0, 9, 9) = m;
+        Eigen::Matrix<double,9,9> m = kron3(I, R_B0B1) - kron3(R_C0C1.transpose(), I);
+        M.block(9*k, 0, 9, 9) = m;
 
-      K1.block(3*i, 0, 3, 3) = (I - R_B0B1);
+        K1.block(3*k, 0, 3, 3) = (I - R_B0B1);
 
-      O_B0B1_list_.push_back(O_B0B1);
-      O_C0C1_list_.push_back(O_C0C1);
-      T_AB0_list_.push_back(T_AB0);
-      T_DC0_list_.push_back(T_DC0);
+        O_B0B1_list_.push_back(O_B0B1);
+        O_C0C1_list_.push_back(O_C0C1);
+        k++;
+      }
+    }
+    if (k != K) {
+      throw std::runtime_error("Internal error while building all-pairs hand-eye motions.");
     }
 
     Eigen::MatrixXd X = M.transpose() * M;
@@ -2054,16 +2056,16 @@ private:
     Eigen::Vector3d O_BC = K1.colPivHouseholderQr().solve(K2);
     Eigen::Matrix4d T_BC = makeT(R_BC, O_BC);
 
-    // Compute T_AD_i = T_AB0_i * T_BC * inv(T_DC0_i)
+    // Compute T_AD_i = T_AB_i * T_BC * inv(T_DC_i) once per sample.
     std::vector<Eigen::Quaterniond> quats;
-    quats.reserve(K);
+    quats.reserve(N);
     Eigen::Vector3d t_sum = Eigen::Vector3d::Zero();
 
-    for (size_t i=0; i<K; i++) {
-      const Eigen::Matrix4d& T_AB0 = T_AB0_list_[i];
-      const Eigen::Matrix4d& T_DC0 = T_DC0_list_[i];
+    for (size_t s=solve_start_idx; s<N_all; s++) {
+      const Eigen::Matrix4d& T_AB = T_AB_all_[s];
+      const Eigen::Matrix4d& T_DC = T_DC_adj_all[s];
 
-      Eigen::Matrix4d T_AD = T_AB0 * T_BC * invT(T_DC0);
+      Eigen::Matrix4d T_AD = T_AB * T_BC * invT(T_DC);
       Eigen::Matrix3d R = T_AD.block<3,3>(0,0);
       Eigen::Vector3d t = T_AD.block<3,1>(0,3);
 
@@ -2086,7 +2088,7 @@ private:
     q_mean.coeffs() = q_sum;
     q_mean.normalize();
 
-    Eigen::Vector3d t_mean = t_sum / static_cast<double>(K);
+    Eigen::Vector3d t_mean = t_sum / static_cast<double>(N);
 
     Eigen::Matrix4d T_AD_avg = makeT(q_mean.toRotationMatrix(), t_mean);
     T_FIX_ = computeZPlaneFix(
