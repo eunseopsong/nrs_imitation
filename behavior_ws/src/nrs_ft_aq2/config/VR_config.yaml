@@ -29,6 +29,12 @@ ft_aq:
     # Print
     Print_switch: 1
 
+    # Gravity compensation
+    gravity_compensation_enabled: true
+    gravity_compensation_apply_handle: false
+    gravity_compensation_apply_contact: true
+    gravity_compensation_axis_sign: [-1.0, 1.0, 1.0]
+
     # Filter Switch
     Hmov_switch: false
     HLPF_switch: false

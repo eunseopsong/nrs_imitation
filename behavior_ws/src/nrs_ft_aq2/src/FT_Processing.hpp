@@ -74,6 +74,7 @@ private:
     double tool_mass_ = 0.0;
     Vec3 tool_cog_ = {0.0, 0.0, 0.0};
     Vec3 gravity_sensor_init_ = {0.0, 0.0, 0.0};
+    Vec3 gravity_compensation_axis_sign_ = {-1.0, 1.0, 1.0};
     Mat3 latest_world_to_tracker_rot_ = {{{1.0, 0.0, 0.0},
                                           {0.0, 1.0, 0.0},
                                           {0.0, 0.0, 1.0}}};

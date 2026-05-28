@@ -565,9 +565,15 @@ void FT_processing::configureGravityCompensation()
   std::vector<double> stl_to_sensor_xyz_param = {0.0, 0.0, 0.0};
   std::vector<double> stl_to_sensor_rpy_param = {0.0, 0.0, 0.0};
   std::vector<double> tracker_to_sensor_rpy_param = {0.0, 0.0, 0.0};
+  std::vector<double> gravity_axis_sign_param = {
+    gravity_compensation_axis_sign_[0],
+    gravity_compensation_axis_sign_[1],
+    gravity_compensation_axis_sign_[2]
+  };
   (void)node_->get_parameter("stl_to_sensor_xyz", stl_to_sensor_xyz_param);
   (void)node_->get_parameter("stl_to_sensor_rpy", stl_to_sensor_rpy_param);
   (void)node_->get_parameter("tracker_to_sensor_rpy", tracker_to_sensor_rpy_param);
+  (void)node_->get_parameter("gravity_compensation_axis_sign", gravity_axis_sign_param);
 
   const auto vector_to_vec3 = [this](const std::vector<double>& value,
                                      const Vec3& fallback,
@@ -586,6 +592,8 @@ void FT_processing::configureGravityCompensation()
     vector_to_vec3(stl_to_sensor_rpy_param, {0.0, 0.0, 0.0}, "stl_to_sensor_rpy");
   const Vec3 tracker_to_sensor_rpy =
     vector_to_vec3(tracker_to_sensor_rpy_param, {0.0, 0.0, 0.0}, "tracker_to_sensor_rpy");
+  gravity_compensation_axis_sign_ =
+    vector_to_vec3(gravity_axis_sign_param, {-1.0, 1.0, 1.0}, "gravity_compensation_axis_sign");
 
   tracker_to_sensor_rot_ = rpy_to_matrix(tracker_to_sensor_rpy);
 
@@ -637,7 +645,8 @@ void FT_processing::configureGravityCompensation()
 
   RCLCPP_INFO(node_->get_logger(),
               "Gravity compensation: enabled=%s, apply_handle=%s, apply_contact=%s, "
-              "pose_topic=%s, source=%s, mass=%.6f [kg], cog_sensor=[%.6f, %.6f, %.6f] [m]",
+              "pose_topic=%s, source=%s, mass=%.6f [kg], cog_sensor=[%.6f, %.6f, %.6f] [m], "
+              "axis_sign=[%.1f, %.1f, %.1f]",
               gravity_compensation_enabled_ ? "true" : "false",
               gravity_apply_handle_ ? "true" : "false",
               gravity_apply_contact_ ? "true" : "false",
@@ -646,7 +655,10 @@ void FT_processing::configureGravityCompensation()
               tool_mass_,
               tool_cog_[0],
               tool_cog_[1],
-              tool_cog_[2]);
+              tool_cog_[2],
+              gravity_compensation_axis_sign_[0],
+              gravity_compensation_axis_sign_[1],
+              gravity_compensation_axis_sign_[2]);
 }
 
 void FT_processing::calibratedPoseCB(const std_msgs::msg::Float64MultiArray::ConstSharedPtr msg)
@@ -705,7 +717,10 @@ void FT_processing::applyGravityCompensation(double force[3], double moment[3])
 
   Vec3 gravity_force = {0.0, 0.0, 0.0};
   for (int i = 0; i < 3; ++i) {
-    gravity_force[i] = tool_mass_ * (gravity_sensor[i] - gravity_sensor_init_[i]);
+    // Match the pose-derived gravity vector to the published FT axis signs.
+    gravity_force[i] =
+      gravity_compensation_axis_sign_[i] * tool_mass_ *
+      (gravity_sensor[i] - gravity_sensor_init_[i]);
   }
 
   const Vec3 gravity_moment = cross_vec(tool_cog_, gravity_force);

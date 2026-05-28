@@ -47,6 +47,15 @@ Data1_switch: 0 # 1: Recording on, 0: Recording off
 # Print Switch
 Print_switch: 1 # 1: Printing on, 0: Printing off
 
+# Gravity compensation
+gravity_compensation_enabled: true
+gravity_compensation_apply_handle: false
+gravity_compensation_apply_contact: true
+gravity_compensation_axis_sign:
+  - -1.0
+  - 1.0
+  - 1.0
+
 # Filter Switch
 Hmov_switch: false # Handle sensor moving average filter switch
 HLPF_switch: false # Handle sensor low pass filter switch
