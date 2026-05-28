@@ -5,6 +5,8 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <array>
+#include <mutex>
 
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/string.hpp>
@@ -42,6 +44,14 @@ public:
     void FT_run();
 
 private:
+    using Vec3 = std::array<double, 3>;
+    using Mat3 = std::array<std::array<double, 3>, 3>;
+
+    void configureGravityCompensation();
+    void calibratedPoseCB(const std_msgs::msg::Float64MultiArray::ConstSharedPtr msg);
+    void resetGravityReference();
+    void applyGravityCompensation(double force[3], double moment[3]);
+
     std::shared_ptr<rclcpp::Node> node_;
     double Ts_;
     double time_counter = 0;
@@ -56,11 +66,34 @@ private:
     bool HaccSwitch = false;
     bool CaccSwitch = false;
 
+    bool gravity_compensation_enabled_ = true;
+    bool gravity_apply_handle_ = false;
+    bool gravity_apply_contact_ = true;
+    bool gravity_reference_set_ = false;
+    bool missing_pose_warned_ = false;
+    double tool_mass_ = 0.0;
+    Vec3 tool_cog_ = {0.0, 0.0, 0.0};
+    Vec3 gravity_sensor_init_ = {0.0, 0.0, 0.0};
+    Mat3 latest_world_to_tracker_rot_ = {{{1.0, 0.0, 0.0},
+                                          {0.0, 1.0, 0.0},
+                                          {0.0, 0.0, 1.0}}};
+    Mat3 tracker_to_sensor_rot_ = {{{1.0, 0.0, 0.0},
+                                    {0.0, 1.0, 0.0},
+                                    {0.0, 0.0, 1.0}}};
+    bool has_calibrated_pose_ = false;
+    std::mutex pose_mutex_;
+    std::string calibrated_pose_topic_;
+    std::string tool_param_source_;
+    std::string tool_stl_path_;
+    double tool_stl_volume_m3_ = 0.0;
+    Vec3 tool_stl_centroid_m_ = {0.0, 0.0, 0.0};
+
     rclcpp::Publisher<geometry_msgs::msg::Wrench>::SharedPtr ftsensor_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Wrench>::SharedPtr Cftsensor_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Vector3>::SharedPtr vive_force_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Vector3>::SharedPtr vive_moment_pub_;
     rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr vive_acc_pub_;
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr calibrated_pose_sub_;
 
     rclcpp::Service<std_srvs::srv::Empty>::SharedPtr Aidin_gui_srv5;
 

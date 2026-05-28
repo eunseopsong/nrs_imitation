@@ -737,6 +737,8 @@ class NodeCmdMotionInfer(Node):
         # I/O shaping
         self.declare_parameter("force_indices", [0, 1, 2])
         self.declare_parameter("first_cmd_fz", 0.0)
+        self.declare_parameter("force_xy_cmd_enable", True)
+        self.declare_parameter("force_xy_hard_limit", 10.0)
         self.declare_parameter("action_type", "absolute")  # absolute | delta
         self.declare_parameter("normalize_qpos", True)
         self.declare_parameter("denorm_action", True)
@@ -916,6 +918,8 @@ class NodeCmdMotionInfer(Node):
 
         self.force_indices = tuple(int(x) for x in self.get_parameter("force_indices").value)
         self.first_cmd_fz = float(self.get_parameter("first_cmd_fz").value)
+        self.force_xy_cmd_enable = bool(self.get_parameter("force_xy_cmd_enable").value)
+        self.force_xy_hard_limit = float(self.get_parameter("force_xy_hard_limit").value)
         self.action_type = str(self.get_parameter("action_type").value).strip().lower()
 
         self.normalize_qpos_enabled = bool(self.get_parameter("normalize_qpos").value)
@@ -1201,6 +1205,7 @@ class NodeCmdMotionInfer(Node):
             f"  step_caps(pos_mm={self.step_cap_pos_mm}, ang_rad={self.step_cap_ang_rad}, fz={self.step_cap_fz})\n"
             f"  temporal_agg={int(self.use_temporal_agg)} mode={self.temporal_agg_mode} tau_steps={self.temporal_agg_tau_steps} max_plans={self.max_plans}\n"
             f"  contact_gate(on={self.contact_on_thr}, off={self.contact_off_thr}) clear_on_change={int(self.clear_plans_on_contact_change)}\n"
+            f"  force_xy_cmd(enable={int(self.force_xy_cmd_enable)}, hard_limit={self.force_xy_hard_limit}N)\n"
             f"  touch(delta={int(self.touch_use_delta)}, thr={self.touch_fz_thr}, ok={self.touch_ok_count}, min_after={self.touch_min_after_start_sec}s, base_tau={self.touch_baseline_tau_sec}s)\n"
             f"  PRELOAD(removed: bypass APPROACH -> TRACK, nominal_src={self.preload_target_source}, nominal_min={self.preload_min_N}N)\n"
             f"  STALL(win_sec={self.stall_sec}, min_after={self.stall_min_after_start_sec}s, lpf_tau={self.stall_lpf_tau_sec}s, net_eps_pos={self.stall_window_net_pos_eps_mm}mm, net_eps_ang={self.stall_window_net_ang_eps_rad}rad)\n"
@@ -1638,6 +1643,11 @@ class NodeCmdMotionInfer(Node):
                 if self.action_type == "absolute":
                     seq_den[:, 2] += np.float32(self.policy_z_offset_mm)
 
+            if self.force_xy_cmd_enable:
+                lim_xy = abs(float(self.force_xy_hard_limit))
+                seq_den[:, 6:8] = np.clip(seq_den[:, 6:8], -lim_xy, lim_xy)
+            else:
+                seq_den[:, 6:8] = 0.0
             seq_den[:, 8] = np.clip(seq_den[:, 8], -self.fz_hard_limit, self.fz_hard_limit)
 
         except Exception as e:
@@ -1650,7 +1660,8 @@ class NodeCmdMotionInfer(Node):
             self.get_logger().info(
                 f"[INFER] plan appended #{self._infer_plan_count} | "
                 f"seq_shape={tuple(seq_den.shape)} first_xyz=[{seq_den[0,0]:.3f},{seq_den[0,1]:.3f},{seq_den[0,2]:.3f}] "
-                f"first_fz={seq_den[0,8]:.3f} z_offset={self.policy_z_offset_mm:.3f} plans={len(self.plans)} stage={self.stage.name}"
+                f"first_fxy=[{seq_den[0,6]:.3f},{seq_den[0,7]:.3f}] first_fz={seq_den[0,8]:.3f} "
+                f"z_offset={self.policy_z_offset_mm:.3f} plans={len(self.plans)} stage={self.stage.name}"
             )
 
     # ------------------------------------------------------------
@@ -2156,6 +2167,14 @@ class NodeCmdMotionInfer(Node):
                     self._reset_dither()
                     self.get_logger().warn("[STAGE] RELEASE done -> APPROACH")
 
+        if self.force_xy_cmd_enable and self.stage == Stage.TRACK:
+            lim_xy = abs(float(self.force_xy_hard_limit))
+            cmd_target[6] = float(np.clip(cmd_target[6], -lim_xy, lim_xy))
+            cmd_target[7] = float(np.clip(cmd_target[7], -lim_xy, lim_xy))
+        else:
+            cmd_target[6] = 0.0
+            cmd_target[7] = 0.0
+
         cmd_target[8] = float(np.clip(cmd_target[8], 0.0, self.fz_hard_limit))
 
         # -----------------------------
@@ -2307,7 +2326,8 @@ class NodeCmdMotionInfer(Node):
                 f"fz_base={base:.3f} touch_sig={touch_sig:.3f} touch_ok={self._touch_ok} | "
                 f"stall_win={stall_win_age:.2f}s dither={dither_age:.2f}s kickN={int(self._fz_kick_active)} kickCnt={self._kick_count} | "
                 f"beta={beta:.4f} ramp={ramp:.3f} cap(pos={cap_pos:.4f}, ang={cap_ang:.6f}, fz={cap_fz:.4f}) | "
-                f"cmd_xyz=[{cmd_next[0]:.3f},{cmd_next[1]:.3f},{cmd_next[2]:.3f}] cmd_fz={cmd_next[8]:.3f}"
+                f"cmd_xyz=[{cmd_next[0]:.3f},{cmd_next[1]:.3f},{cmd_next[2]:.3f}] "
+                f"cmd_fxy=[{cmd_next[6]:.3f},{cmd_next[7]:.3f}] cmd_fz={cmd_next[8]:.3f}"
             )
 
 

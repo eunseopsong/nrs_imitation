@@ -12,6 +12,7 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 # 우리 패키지가 볼 include 경로
 # - src 에 헤더들(FT_Processing.hpp, CAN_reader.hpp, nrs_filter_*.hpp)이 있으니까 src 추가
@@ -36,6 +37,7 @@ ament_target_dependencies(ft_lib
   std_msgs
   geometry_msgs
   std_srvs
+  ament_index_cpp
 )
 
 # 2) can sender 노드
@@ -80,6 +82,11 @@ install(DIRECTORY src/
 # launch, config 있으면 같이
 install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
+  OPTIONAL
+)
+
+install(DIRECTORY mesh/
+  DESTINATION share/${PROJECT_NAME}/mesh
   OPTIONAL
 )
 

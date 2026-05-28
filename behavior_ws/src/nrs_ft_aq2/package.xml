@@ -15,6 +15,7 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>std_srvs</depend>
+  <depend>ament_index_cpp</depend>
 
   <!-- 지금은 rosidl로 msg를 만들지 않으니까 아래는 전부 뺀다
   <build_depend>rosidl_default_generators</build_depend>
