@@ -1,1816 +1,500 @@
 # nrs_imitation
 
-Refactored imitation-learning codebase for robotic polishing / manipulation experiments.
+Robotic polishing imitation-learning workspace.
 
-This repository now supports **three parallel policy branches** on top of the same dataset pipeline:
-
-- **ACT**
-- **Diffusion Policy-style branch**
-- **Flow Matching Policy-style branch**
-
-It also supports two task families in the same repository:
-
-- **Polishing task**: force-aware 9D action training with the original recorder and training scripts.
-- **Gripper task**: force-aware 10D action training with gripper position/current added to the observation/action pipeline.
-
-All branches share the same demonstration format:
-
-- observation = `position(6) + force(3) + image(cam0)`
-- action = `position(6) + force(3)`
-
-For gripper data, the shared HDF5 format additionally includes:
-
-- observation = `gripper/present_position + gripper/present_current_mA`
-- action = `position(6) + force(3) + gripper_present_position`
-
-Use these task-specific entrypoints:
-
-```bash
-# Polishing / original flow training
-python3 scripts/flow/train_flow.py --obs_mode single_cam
-
-# Gripper flow training
-python3 scripts/flow/train_flow_gripper.py --obs_mode single_cam
-
-# Convert gripper recorder output to training episodes
-python3 source/custom/gripper_data_imitation_form.py
-
-# ROS 2 gripper recorder entrypoint, after rebuilding behavior_ws
-ros2 run nrs_imitation gripper_hdf5_recorder
-```
-
-The current workflow is designed so that you can go from **VR teaching / demonstration recording** all the way to **ACT / Diffusion / Flow Matching training, evaluation, and inference** by following this README only.
-
----
-
-# 0. End-to-End Quick Start
-
-This is the shortest path from recording to training.
-
-## 0-1. Build the ROS 2 behavior workspace
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-colcon build
-source install/setup.bash
-```
-
-If you modify `nrs_imitation` only:
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-colcon build --packages-select nrs_imitation
-source install/setup.bash
-```
-
----
-
-## 0-2. Run the joystick controller
-
-This launch file starts both:
-
-- `joy_node`
-- `vr_demo_joy_controller`
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-```
-
-If D-pad left/right is reversed:
-
-```bash
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py dpad_left_positive:=false
-```
-
-You can check the command topic:
-
-```bash
-ros2 topic echo /vr_demo_recorder/command
-```
-
-Joystick mapping:
+Main flow:
 
 ```text
-A             -> start_recording
-B             -> end_recording
-X             -> erase_current_episode
-Y             -> terminate_node
-D-pad left    -> prev_episode
-D-pad right   -> next_episode
+single_cam: teaching / HDF5 recording -> imitation_form conversion -> Flow training -> ROS2 inference
+dual_cam  : stage1 VR teaching -> robot playback + dual-cam HDF5 recording -> imitation_form conversion -> Flow training -> ROS2 inference
 ```
 
----
+The current polishing pipeline is split into:
 
-## 0-3. Run the required sensor / input nodes before the recorder
+- `single_cam`: one RGB camera, `cam0`
+- `dual_cam`: stage1 trajectory first, then robot playback data with `cam0` and `cam1`
 
-Before running `vr_demo_hdf5_recorder`, make sure the following producer nodes are already running:
+Folder naming note:
 
-- Vive tracker node for position
-- force/torque sensor node
-- camera node
-- optional image visualization node
+- `single_cam` data is saved under `datasets/single_cam`
+- `dual_cam` recorder data is saved under `datasets/multi_cam`
 
-### A. Vive tracker node
+## Quick Start
 
-Alias:
+The commands below are written so that each stage can auto-select the latest recorded / converted / trained result.
+
+### 0. Build
 
 ```bash
-alias vive='ros2 launch vive_tracker_ros2 vive_bringup.launch.py'
+cd ~/nrs_imitation/behavior_ws
+colcon build --packages-select nrs_imitation --symlink-install
+source install/setup.bash
 ```
 
-Run:
+For Python scripts:
+
+```bash
+cd ~/nrs_imitation
+```
+
+## Quick Start: Single Cam
+
+Use this when recording only `cam0`.
+
+Expected recording topics:
+
+```text
+position = /calibrated_pose
+force    = /ftsensor/measured_Cvalue
+cam0     = /realsense/vr/color/image_raw
+command  = /vr_demo_recorder/command
+```
+
+Expected inference topics:
+
+```text
+position = /ur10skku/currentP
+force    = /ur10skku/currentF
+cam0     = /realsense/robot/color/image_raw
+```
+
+### 1. Start sensor / command inputs
+
+Run the producer nodes you normally use for teaching. If these aliases are configured on the PC, this is the usual setup:
 
 ```bash
 vive
+ft
+rsv
 ```
 
-This provides the calibrated pose stream used by the recorder in tracker mode.
-
----
-
-### B. Force/torque sensor node
-
-You currently use either one of the following:
+Optional joystick command node:
 
 ```bash
-alias ft='ros2 launch nrs_ft_aq2 nrsvr_ft_aq.launch.py'
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ```
 
-Run:
+### 2. HDF5 recording
+
+Run this in a dedicated terminal and keep it running while recording episodes:
 
 ```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation hdf5_recorder_single_cam
+```
+
+Start one teaching episode:
+
+```bash
+ros2 topic pub --once /vr_demo_recorder/command std_msgs/msg/String "{data: start_recording}"
+```
+
+End the episode:
+
+```bash
+ros2 topic pub --once /vr_demo_recorder/command std_msgs/msg/String "{data: end_recording}"
+```
+
+Repeat start/end for more episodes. When finished, stop the recorder terminal with `Ctrl+C`.
+
+Output:
+
+```text
+~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
+```
+
+### 3. Convert to imitation_form
+
+This auto-selects the latest single-cam merged HDF5:
+
+```bash
+cd ~/nrs_imitation
+python3 source/custom/demo_data_imitation_form_single_cam.py --overwrite --write_summary
+```
+
+Output:
+
+```text
+~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
+```
+
+### 4. Train Flow policy
+
+This auto-selects the latest single-cam `imitation_form`:
+
+```bash
+cd ~/nrs_imitation
+python3 scripts/flow/train_flow_single_cam.py
+```
+
+Checkpoint output:
+
+```text
+~/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>/
+```
+
+### 5. Inference
+
+This auto-selects the latest single-cam `policy_best.ckpt`:
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation inference_single_cam
+```
+
+Enable Grad-CAM overlay:
+
+```bash
+ros2 run nrs_imitation inference_single_cam --ros-args -p gradcam_enable:=true
+```
+
+Overlay topic:
+
+```text
+/inference_single_cam/gradcam_overlay
+```
+
+## Quick Start: Dual Cam
+
+The key difference from `single_cam` is that `dual_cam` uses a two-pass data collection flow:
+
+```text
+1. stage1: record VR teaching trajectory only
+2. pusher: send selected stage1 episode to the robot playback PC
+3. dual-cam recording: record robot playback with cam0 + cam1
+```
+
+Stage1 teaching topics:
+
+```text
+position = /calibrated_pose
+force    = /ftsensor/measured_Cvalue
+command  = /vr_demo_recorder/command
+```
+
+Dual-cam HDF5 recording topics:
+
+```text
+position = /ur10skku/currentP
+force    = /ur10skku/currentF
+cam0     = /realsense/robot/color/image_raw
+cam1     = /realsense/global/color/image_raw
+command  = /vr_demo_recorder/command
+```
+
+Expected inference topics:
+
+```text
+position = /ur10skku/currentP
+force    = /ur10skku/currentF
+cam0     = /realsense/robot/color/image_raw
+cam1     = /realsense/global/color/image_raw
+```
+
+### 1. Record stage1 VR teaching episodes
+
+Start the VR pose and force producers. If these aliases are configured on the PC, this is the usual setup:
+
+```bash
+vive
 ft
 ```
 
-or:
+Optional joystick command node:
 
 ```bash
-alias ftget='ros2 run Y2FT_AQ FTGetMain'
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ```
 
-Run:
+Run the stage1 recorder in a dedicated terminal:
 
 ```bash
-ftget
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation vr_stage1_hdf5_recorder
 ```
 
-Use whichever force node matches your current setup.
-
----
-
-### C. Camera node
-
-`rsv` and `rsr` are aliases of the following RealSense launch helper functions.
-
-#### VR camera launch helper (`rs_vr`)
-
-Use this when bringing up the VR-side camera (`camera_name:=vr`) in RGB-only mode.
-
-Default:
-- `424x240@30`
-
-Function:
+Start one stage1 teaching episode:
 
 ```bash
-rs_vr() {
-  local profile="${1:-$RS_VR_PROFILE_DEFAULT}"
-  ros2 launch realsense2_camera rs_launch.py     camera_namespace:="$RS_NS" camera_name:=vr     serial_no:="'332322072455'"     $(_rs_common_args)     rgb_camera.color_profile:="${profile}"
-}
+ros2 topic pub --once /vr_demo_recorder/command std_msgs/msg/String "{data: start_recording}"
 ```
 
-Usage:
+End the episode:
 
 ```bash
-rsv
-rsv 424x240x30
+ros2 topic pub --once /vr_demo_recorder/command std_msgs/msg/String "{data: end_recording}"
 ```
 
-Expected image topic:
+Repeat start/end for more stage1 episodes. When finished, stop the stage1 recorder terminal with `Ctrl+C`.
+
+Stage1 output:
 
 ```text
-/realsense/vr/color/image_raw
+~/nrs_imitation/datasets/stage1/<YYYYMMDD_HHMM>/stage1_vr_episodes/episode_*.hdf5
 ```
 
-#### Robot camera launch helper (`rs_robot`)
+### 2. Start robot playback inputs and dual cameras
 
-Use this when bringing up the robot-side / end-effector camera (`camera_name:=robot`) in RGB-only mode.
-
-Default:
-- `424x240@30`
-
-Function:
+Start the robot-side force/pose stream and the two cameras. If these aliases are configured on the PC, this is the usual setup:
 
 ```bash
-rs_robot() {
-  local profile="${1:-$RS_ROBOT_PROFILE_DEFAULT}"
-  ros2 launch realsense2_camera rs_launch.py     camera_namespace:="$RS_NS" camera_name:=robot     serial_no:="'244222070489'"     $(_rs_common_args)     rgb_camera.color_profile:="${profile}"
-}
-```
-
-Usage:
-
-```bash
+ft
 rsr
-rsr 424x240x30
 ```
 
-Expected image topic:
+Also make sure this topic is being published by the global camera:
 
 ```text
-/realsense/robot/color/image_raw
+/realsense/global/color/image_raw
 ```
 
----
+### 3. Start stage1 episode pusher
 
-### D. Optional camera visualization
-
-VR camera viewer:
-
-```bash
-rs_view_vr(){ ros2 run image_tools showimage --ros-args -r image:=/${RS_NS}/vr/color/image_raw; }
-```
-
-Run:
-
-```bash
-rs_view_vr
-```
-
-Robot camera viewer:
-
-```bash
-rs_view_robot() { ros2 run image_tools showimage --ros-args -r image:=/${RS_NS}/robot/color/image_raw; }
-```
-
-Run:
-
-```bash
-rs_view_robot
-```
-
----
-
-## 0-4. Run the recorder
-
-The recorder now supports **two recording modes** selected by ROS parameter.
-
-### A. Tracker recording mode
+This auto-selects the latest `datasets/stage1/*/stage1_vr_episodes` directory:
 
 ```bash
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
-
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=tracker
+ros2 run nrs_imitation vr_stage1_episode_pusher
 ```
 
-This mode records from:
+In the pusher terminal:
 
 ```text
-position : /calibrated_pose
-force    : /ftsensor/measured_Cvalue
-image    : /realsense/vr/color/image_raw
-command  : /vr_demo_recorder/command
+Enter : push current stage1 episode to the robot playback PC
+d     : next episode
+a     : previous episode
+q     : quit
 ```
 
-### B. Robot recording mode
+### 4. HDF5 recording during robot playback
+
+Run this in a dedicated terminal and keep it running while replaying pushed stage1 episodes:
 
 ```bash
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
-
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=robot
+ros2 run nrs_imitation hdf5_recorder_dual_cam
 ```
 
-This mode records from:
+For each pushed/playback episode, start dual-cam recording:
+
+```bash
+ros2 topic pub --once /vr_demo_recorder/command std_msgs/msg/String "{data: start_recording}"
+```
+
+After robot playback finishes, end dual-cam recording:
+
+```bash
+ros2 topic pub --once /vr_demo_recorder/command std_msgs/msg/String "{data: end_recording}"
+```
+
+Repeat this for each stage1 episode that you replay. When finished, stop the dual-cam recorder terminal with `Ctrl+C`.
+
+Output:
 
 ```text
-position : /ur10skku/currentP
-force    : /ur10skku/currentF
-image    : /realsense/robot/color/image_raw
-command  : /vr_demo_recorder/command
+~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
 ```
 
-### C. Optional manual topic override
+### 5. Convert to imitation_form
 
-If needed, topic names can still be overridden manually:
-
-```bash
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args   -p recording_mode:=robot   -p image_topic:=/realsense/vr/color/image_raw
-```
-
-Recorder output path:
-
-```text
-~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/
-└── vr_demo_merged_YYYYMMDD_HHMM.hdf5
-```
-
-Merged HDF5 layout:
-
-```text
-episodes/
-├── ep_0000/
-│   ├── position
-│   ├── ft
-│   └── images/
-│       └── cam0
-├── ep_0001/
-│   ├── position
-│   ├── ft
-│   └── images/
-│       └── cam0
-...
-```
-
-All joystick behavior and episode-management logic are shared across both modes.
-
----
-
-## 0-5. Convert merged HDF5 into ACT / Diffusion training episodes
-
-Converter is a normal Python script.
-
-### A. Raw image version
-
-```bash
-cd ~/nrs_imitation/source/custom
-
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess off
-```
-
-This creates:
-
-```text
-~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft/
-```
-
-### B. Camera-preprocessed version (recommended if hand jitter is visible)
-
-```bash
-cd ~/nrs_imitation/source/custom
-
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256
-```
-
-This creates:
-
-```text
-~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc/
-```
-
-By default, after successful conversion the merged HDF5 is deleted to save disk space.
-
-If you want to keep the merged HDF5 for debugging:
-
-```bash
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256 \
-  --keep-merged
-```
-
----
-
-## 0-6. Train ACT
-
-### A. Raw image dataset
-
-```bash
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py --cam_preprocess off
-```
-
-### B. Camera-preprocessed dataset
-
-```bash
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py --cam_preprocess stabilize_crop
-```
-
-Default behavior:
-- latest dataset directory is found automatically
-- `camera_names = ["cam0"]`
-- `use_force_history = True`
-- `force_history_len = 10`
-- periodic checkpoint every 100 epochs
-
----
-
-## 0-7. Train Diffusion
-
-### A. Raw image dataset
+This auto-selects the latest dual-cam merged HDF5:
 
 ```bash
 cd ~/nrs_imitation
-python3 scripts/diffusion/train_diffusion.py --cam_preprocess off
-```
-
-### B. Camera-preprocessed dataset
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
-```
-
----
-
-## 0-7-1. Train Flow Matching
-
-### A. Raw image dataset
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/flow/train_flow.py --cam_preprocess off
-```
-
-### B. Camera-preprocessed dataset
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
-```
-
-Default Flow checkpoint path:
-
-```text
-~/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
-```
-
----
-
-## 0-8. Evaluate checkpoint loading
-
-### ACT
-
-```bash
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py --eval
-```
-
-### Diffusion
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/diffusion/train_diffusion.py --eval
-```
-
-### Flow Matching
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/flow/train_flow.py --eval
-```
-
----
-
-## 0-9. Run inference node
-
-The inference node now supports **ACT**, **DIFFUSION**, and **FLOW** through a parameter.
-
-### ACT
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=ACT \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10
-```
-
-### Diffusion
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=DIFFUSION \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10 \
-  -p diffusion_infer_steps:=10
-```
-
-
-### Flow Matching / Recommended baseline
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=FLOW \
-  -p phase_mode:=pure \
-  -p camera_preprocess_mode:=stabilize \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10 \
-  -p flow_infer_steps:=10 \
-  -p auto_move_to_demo_start:=true \
-  -p demo_start_move_sec:=5.0 \
-  -p demo_start_hold_sec:=2.0 \
-  -p tau_sec:=0.8 \
-  -p startup_ramp_sec:=3.0 \
-  -p step_cap_pos_mm:=0.05 \
-  -p step_cap_ang_rad:=0.0001 \
-  -p step_cap_fz:=0.05 \
-  -p fz_hard_limit:=30.0 \
-  -p infer_hz:=5.0 \
-  -p control_hz:=125.0 \
-  -p temporal_agg_tau_steps:=20.0 \
-  -p max_plans:=6 \
-  -p contact_on_thr:=3.0 \
-  -p contact_off_thr:=1.2 \
-  -p clear_plans_on_contact_change:=false \
-  -p dither_enable:=false
-```
-
----
-
-# 1. Current End-to-End Pipeline
-
-## Previous pipeline
-
-The older workflow used robot playback to generate image data:
-
-```text
-1. vr_demo_hdf5_recorder.py
-   -> save position / force demonstration
-
-2. vr_demo_hdf5_episode_pusher.py
-   -> send one episode to robot
-
-3. robot_playback_act_hdf5_recorder.py
-   -> record robot playback with position + force + image
-
-4. demo_data_act_form.py
-   -> split merged HDF5 into episode_*.hdf5
-```
-
-## Current pipeline
-
-The current workflow records **position + force + image directly during teaching**:
-
-```text
-1. joystick + vr_demo_hdf5_recorder.py
-   -> record position + force + cam0 into merged_hdf5
-   -> supports tracker mode and robot mode
-
-2. demo_data_act_form_single_cam.py
-   -> convert merged_hdf5 into episode_*.hdf5
-   -> raw or camera-preprocessed variant
-
-3. train_act.py
-   -> ACT training
-
-4. scripts/diffusion/train_diffusion.py
-   -> Diffusion Policy-style training
-
-5. node_cmdmotion_infer.py
-   -> ACT / DIFFUSION inference
-```
-
----
-
-# 2. Repository Structure
-
-```text
-nrs_imitation/
-├── LICENSE
-├── README.md
-├── behavior_ws/
-│   ├── build/
-│   ├── install/
-│   ├── log/
-│   └── src/
-│       ├── nrs_ft_aq2/
-│       ├── nrs_imitation/
-│       │   ├── launch/
-│       │   │   └── vr_demo_joy_controller.launch.py
-│       │   ├── nrs_imitation/
-│       │   │   ├── vr_demo_hdf5_recorder.py
-│       │   │   ├── vr_demo_joy_controller.py
-│       │   │   ├── node_cmdmotion_infer.py
-│       │   │   └── ...
-│       │   ├── package.xml
-│       │   └── setup.py
-│       ├── vive_tracker_interfaces/
-│       ├── vive_tracker_ros2/
-│       └── vr_calibration/
-├── checkpoints/
-│   ├── act/
-│   │   └── ur10e_swing/
-│   │       └── YYYYMMDD_HHMM/
-│   └── diffusion/
-│       └── ur10e_swing/
-│           └── YYYYMMDD_HHMM/
-├── datasets/
-│   └── ACT/
-│       └── YYYYMMDD_HHMM/
-│           ├── merged_hdf5/
-│           ├── episodes_ft/
-│           └── episodes_ft_camproc/
-├── scripts/
-│   ├── act/
-│   │   └── train_act.py
-│   └── diffusion/
-│       └── train_diffusion.py
-└── source/
-    ├── common/
-    │   ├── fs.py
-    │   └── utils.py
-    ├── custom/
-    │   ├── custom_constants.py
-    │   ├── custom_real_env.py
-    │   ├── custom_robot_utils.py
-    │   ├── demo_data_act_form.py
-    │   └── demo_data_act_form_single_cam.py
-    ├── data/
-    │   ├── dataset.py
-    │   ├── loader.py
-    │   └── normalization.py
-    ├── models/
-    │   ├── act_core.py
-    │   ├── backbone.py
-    │   ├── diffusion_core.py
-│   │   ├── flow_core.py
-    │   ├── encoder.py
-    │   ├── policy.py
-    │   └── transformer.py
-    └── training/
-        ├── debug.py
-        ├── engine.py
-        └── plotting.py
-```
-
----
-
-# 3. What Each Folder Does
-
-## `behavior_ws/`
-ROS 2 workspace for the real experiment pipeline.
-
-Main role:
-- Vive tracker communication
-- calibration
-- force/torque acquisition
-- image acquisition
-- joystick command mapping
-- demonstration recording
-- online inference
-
-This is the **real-world behavior side** of the repository.
-
----
-
-## `datasets/`
-Stores:
-- merged HDF5 files from direct teaching
-- final episode files used by dataloaders
-
-Typical layout:
-
-```text
-datasets/ACT/
-└── YYYYMMDD_HHMM/
-    ├── merged_hdf5/
-    │   └── vr_demo_merged_YYYYMMDD_HHMM.hdf5
-    ├── episodes_ft/
-    │   ├── episode_0.hdf5
-    │   └── ...
-    └── episodes_ft_camproc/
-        ├── episode_0.hdf5
-        └── ...
-```
-
----
-
-## `checkpoints/`
-Now split by policy family:
-
-```text
-checkpoints/
-├── act/
-│   └── ur10e_swing/
-│       └── YYYYMMDD_HHMM/
-└── diffusion/
-    └── ur10e_swing/
-        └── YYYYMMDD_HHMM/
-```
-
-Each timestamp directory typically contains:
-
-```text
-policy_best.ckpt
-policy_last.ckpt
-dataset_stats.pkl
-policy_epoch_0_seed_0.ckpt
-policy_epoch_100_seed_0.ckpt
-policy_epoch_200_seed_0.ckpt
-...
-train_val_loss_seed_0.png
-train_val_l1_seed_0.png
-train_val_kl_seed_0.png      # ACT
-train_val_diffusion_seed_0.png   # Diffusion if applicable
-```
-
----
-
-## `scripts/`
-Thin training / evaluation entrypoints.
-
-- `scripts/act/train_act.py`
-- `scripts/diffusion/train_diffusion.py`
-
-These scripts:
-- parse CLI args
-- resolve latest dataset automatically
-- construct policy config
-- call shared dataloader / engine code
-
----
-
-## `source/`
-Core reusable modules.
-
-### `source/data/`
-- episode HDF5 reading
-- normalization
-- force history generation
-- dataloaders
-
-### `source/models/`
-- ACT model
-- Diffusion Policy-style model
-- observation encoders
-- image backbones
-
-### `source/training/`
-- common training loop
-- checkpoint save
-- debug print
-- plot save
-
-### `source/custom/`
-- task-specific utilities
-- merged-HDF5 to episode conversion
-
----
-
-# 4. Recorder and Joystick Details
-
-## 4-1. Recorder node
-
-Run:
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-ros2 run nrs_imitation vr_demo_hdf5_recorder
-```
-
-This node records:
-- position
-- force
-- image
-
-into merged HDF5.
-
-Merged structure:
-
-```text
-episodes/
-├── ep_0000/
-│   ├── position
-│   ├── ft
-│   └── images/
-│       └── cam0
-├── ep_0001/
-│   ├── position
-│   ├── ft
-│   └── images/
-│       └── cam0
-...
-```
-
-Semantic meaning:
-
-```text
-position = [x, y, z, wx, wy, wz]
-ft       = [fx, fy, fz]
-cam0     = RGB image
-```
-
----
-
-## 4-2. Recording modes
-
-The recorder supports two source modes.
-
-### Tracker recording mode
-
-```text
-position : /calibrated_pose
-force    : /ftsensor/measured_Cvalue
-image    : /realsense/vr/color/image_raw
-```
-
-This is the default direct-teaching mode.
-
-### Robot recording mode
-
-```text
-position : /ur10skku/currentP
-force    : /ur10skku/currentF
-image    : /realsense/robot/color/image_raw
-```
-
-This is useful when you want to record robot-side playback / execution data while keeping the same HDF5 format.
-
-Run examples:
-
-```bash
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
-```
-
----
-## 4-2. Joystick commands
-
-The recorder is controlled through `/vr_demo_recorder/command`.
-
-Commands:
-
-```text
-start_recording
-end_recording
-erase_current_episode
-terminate_node
-prev_episode
-next_episode
-```
-
-Joystick mapping:
-
-```text
-A  -> start_recording
-B  -> end_recording
-X  -> erase_current_episode
-Y  -> terminate_node
-←  -> prev_episode
-→  -> next_episode
-```
-
----
-
-# 5. Converter: Raw vs Camera-Preprocessed Dataset
-
-## 5-1. Raw conversion
-
-```bash
-cd ~/nrs_imitation/source/custom
-
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess off
+python3 source/custom/demo_data_imitation_form_dual_cam.py --overwrite --write_summary
 ```
 
 Output:
 
 ```text
-.../episodes_ft/
+~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
 ```
 
----
+### 6. Train Flow policy
 
-## 5-2. Camera-preprocessed conversion
-
-Recommended when:
-- hand jitter is visible
-- camera shake is large
-- raw teaching image is too noisy
-
-```bash
-cd ~/nrs_imitation/source/custom
-
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256
-```
-
-Output:
-
-```text
-.../episodes_ft_camproc/
-```
-
----
-
-## 5-3. What `stabilize_crop` means
-
-The camera-preprocessed converter performs:
-
-```text
-raw cam0
-→ episode-wise global stabilization
-→ crop
-→ resize
-→ final episode_*.hdf5
-```
-
-This is meant to reduce camera shake from direct tracker teaching.
-
----
-
-## 5-4. Keep merged HDF5 for debugging
-
-```bash
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256 \
-  --keep-merged
-```
-
----
-
-# 6. Final Episode Format
-
-Each final episode file contains:
-
-```text
-episode_0.hdf5
-├── action/
-│   ├── position
-│   └── force
-├── observations/
-│   ├── position
-│   ├── force
-│   ├── images/
-│   │   └── cam0
-│   └── is_pad
-└── meta/
-    ├── orig_len
-    ├── T_pad
-    ├── pad_starts_at
-    ├── truncated
-    └── camera_name
-```
-
-Current dimensionality:
-
-```text
-observation qpos = position(6) + force(3) = 9D
-action          = position(6) + force(3) = 9D
-image           = cam0
-```
-
-So the current action definition is still:
-
-\[
-a_t = [x, y, z, w_x, w_y, w_z, f_x, f_y, f_z]
-\]
-
----
-
-# 7. Shared Observation Encoding
-
-Both ACT and Diffusion reuse the same observation-side modular design as much as possible.
-
-## Position / force state
-
-\[
-q_t = [x, y, z, w_x, w_y, w_z, f_x, f_y, f_z]
-\]
-
-## Optional force history
-
-\[
-H_t = [f_{t-L+1}, \dots, f_t]
-\]
-
-The codebase uses:
-- position encoder
-- force-history GRU encoder
-- fusion encoder
-- image encoder for `cam0`
-
-This allows ACT and Diffusion to share:
-- dataset format
-- force-history generation
-- observation encoders
-- image backbone modules
-
----
-
-# 8. ACT Training
-
-## 8-1. Default training
-
-```bash
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py
-```
-
-This will automatically use the latest `episodes_ft` dataset.
-
----
-
-## 8-2. Camera-preprocessed training
-
-```bash
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py --cam_preprocess stabilize_crop
-```
-
-This will automatically use the latest `episodes_ft_camproc` dataset.
-
----
-
-## 8-3. Important ACT defaults
-
-Current practical defaults:
-
-```text
-ckpt_dir        = ~/nrs_imitation/checkpoints/act/ur10e_swing
-policy_class    = ACT
-task_name       = ur10e_swing
-camera_names    = ["cam0"]
-batch_size      = 6
-num_epochs      = 500
-lr              = 1e-4
-chunk_size      = 200
-train_seq_len   = 200
-val_seq_len     = 200
-hidden_dim      = 512
-dim_feedforward = 3200
-use_force_history = True
-force_history_len = 10
-save_every      = 100
-```
-
----
-
-## 8-4. ACT specific dataset selection
-
-Raw:
-
-```bash
-python3 train_act.py --cam_preprocess off
-```
-
-Camera-preprocessed:
-
-```bash
-python3 train_act.py --cam_preprocess stabilize_crop
-```
-
-Specific dataset:
-
-```bash
-python3 train_act.py \
-  --dataset_dir ~/nrs_imitation/datasets/ACT/YYYYMMDD_HHMM/episodes_ft_camproc
-```
-
----
-
-## 8-5. ACT eval
-
-```bash
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py --eval
-```
-
-Specific checkpoint root:
-
-```bash
-python3 train_act.py \
-  --eval \
-  --ckpt_dir ~/nrs_imitation/checkpoints/act/ur10e_swing
-```
-
----
-
-# 9. Diffusion Training
-
-## 9-1. What this branch is
-
-This repository now includes a **Diffusion Policy-style** branch.
-
-The added diffusion class is inspired by the core idea of **Diffusion Policy**:
-- condition on current observation
-- model a future action chunk through diffusion
-- train by predicting noise
-- infer by iterative denoising
-
-In this repository, the diffusion branch:
-- keeps the same HDF5 dataset format
-- keeps the same observation encoders when possible
-- adds a diffusion denoiser model and a separate training script
-
-Important note:
-
-```text
-This is a Diffusion Policy-style implementation integrated into this repository.
-It is not an official upstream port of the original authors' code.
-```
-
----
-
-## 9-2. Why diffusion was added
-
-ACT remains a strong baseline for action chunk prediction.
-
-Diffusion was added because diffusion-based visuomotor policies are widely used as very strong modern baselines for manipulation / imitation learning, especially for multi-modal action distributions and long-horizon chunk generation.
-
----
-
-## 9-3. Default Diffusion training
+This auto-selects the latest dual-cam `imitation_form`:
 
 ```bash
 cd ~/nrs_imitation
-python3 scripts/diffusion/train_diffusion.py
+python3 scripts/flow/train_flow_dual_cam.py
 ```
 
-This automatically uses the latest `episodes_ft` dataset.
-
----
-
-## 9-4. Camera-preprocessed Diffusion training
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
-```
-
-This automatically uses the latest `episodes_ft_camproc` dataset.
-
----
-
-## 9-5. Important Diffusion defaults
+Checkpoint output:
 
 ```text
-ckpt_dir              = ~/nrs_imitation/checkpoints/diffusion/ur10e_swing
-camera_names          = ["cam0"]
-chunk_size            = 200
-train_seq_len         = 200
-val_seq_len           = 200
-use_force_history     = True
-force_history_len     = 10
-diffusion_train_steps = 100
-diffusion_infer_steps = 10
-diffusion_beta_start  = 1e-4
-diffusion_beta_end    = 2e-2
-save_every            = 100
+~/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>/
 ```
 
----
+### 7. Inference
 
-## 9-6. Diffusion eval
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/diffusion/train_diffusion.py --eval
-```
-
-Specific checkpoint root:
-
-```bash
-python3 scripts/diffusion/train_diffusion.py \
-  --eval \
-  --ckpt_dir ~/nrs_imitation/checkpoints/diffusion/ur10e_swing
-```
-
----
-
-# 9-7. Flow Matching Training
-
-## 9-7-1. What this branch is
-
-This repository includes an RGB-conditioned Flow Matching policy branch.
-
-The Flow branch:
-- uses the same single-camera HDF5 dataset as ACT
-- conditions on `cam0 RGB + qpos + force_history`
-- predicts the same 9D action chunk as ACT
-
-```text
-action = [x, y, z, wx, wy, wz, fx, fy, fz]
-```
-
-The current Flow baseline does **not** use virtual pose.  
-The low-level admittance controller remains unchanged.
-
-## 9-7-2. Default Flow training
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/flow/train_flow.py
-```
-
-## 9-7-3. Camera-preprocessed Flow training
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
-```
-
-## 9-7-4. Flow eval
-
-```bash
-cd ~/nrs_imitation
-python3 scripts/flow/train_flow.py --eval
-```
-
-Specific checkpoint:
-
-```bash
-python3 scripts/flow/train_flow.py \
-  --eval \
-  --ckpt_dir ~/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM
-```
-
-
----
-
-# 10. Inference Node
-
-The current inference node supports ACT, DIFFUSION, and FLOW:
-
-```text
-policy_class = ACT | DIFFUSION | FLOW
-```
-
-Common required topics:
-
-```text
-pose_topic   = /ur10skku/currentP
-force_topic  = /ur10skku/currentF
-image_topic  = /realsense/robot/color/image_raw
-cmd_topic    = /ur10skku/cmdMotion
-```
-
----
-
-## 10-1. ACT inference example
+This auto-selects the latest dual-cam `policy_best.ckpt`:
 
 ```bash
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
-
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=ACT \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/act/ur10e_swing/20260423_1549 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10
+ros2 run nrs_imitation inference_dual_cam
 ```
 
----
-
-## 10-2. Diffusion inference example
+Enable Grad-CAM overlay:
 
 ```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=DIFFUSION \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/diffusion/ur10e_swing/20260424_1301 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10 \
-  -p diffusion_infer_steps:=10
+ros2 run nrs_imitation inference_dual_cam --ros-args -p gradcam_enable:=true
 ```
 
----
-
----
-
-## 10-3. Flow Matching inference example
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=FLOW \
-  -p phase_mode:=pure \
-  -p camera_preprocess_mode:=stabilize \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10 \
-  -p flow_infer_steps:=10
-```
-
----
-
-## 10-4. Recommended Flow Matching inference command
-
-The following command is the current best-performing Flow Matching inference configuration found during real robot tests.
-
-Use this as the main baseline command before trying `policy_only` mode or additional controller changes.
-
-```bash
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=FLOW \
-  -p phase_mode:=pure \
-  -p camera_preprocess_mode:=stabilize \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10 \
-  -p flow_infer_steps:=10 \
-  -p auto_move_to_demo_start:=true \
-  -p demo_start_move_sec:=5.0 \
-  -p demo_start_hold_sec:=2.0 \
-  -p tau_sec:=0.8 \
-  -p startup_ramp_sec:=3.0 \
-  -p step_cap_pos_mm:=0.05 \
-  -p step_cap_ang_rad:=0.0001 \
-  -p step_cap_fz:=0.05 \
-  -p fz_hard_limit:=30.0 \
-  -p infer_hz:=5.0 \
-  -p control_hz:=125.0 \
-  -p temporal_agg_tau_steps:=20.0 \
-  -p max_plans:=6 \
-  -p contact_on_thr:=3.0 \
-  -p contact_off_thr:=1.2 \
-  -p clear_plans_on_contact_change:=false \
-  -p dither_enable:=false
-```
-
-Key option meaning:
+Overlay topic:
 
 ```text
-phase_mode:=pure
-  Use the pure policy-output path as much as possible.
-
-auto_move_to_demo_start:=true
-  Before policy inference starts, move from the current robot pose to the
-  dataset demo-start pose stored in dataset_stats.pkl.
-
-demo_start_move_sec:=5.0
-  Use 5 seconds for the initial move-to-demo-start interpolation.
-
-demo_start_hold_sec:=2.0
-  Hold the demo-start pose for 2 seconds before starting normal policy inference.
-
-tau_sec:=0.8
-  Smooth the published command with a relatively slow first-order filter.
-
-startup_ramp_sec:=3.0
-  Slowly ramp in the command during the first 3 seconds of execution.
-
-step_cap_pos_mm:=0.05
-  Limit Cartesian motion per 125 Hz control tick for safer execution.
-
-step_cap_ang_rad:=0.0001
-  Limit orientation command change per control tick.
-
-step_cap_fz:=0.05
-  Slow down target force command changes to reduce force overshoot.
-
-fz_hard_limit:=30.0
-  Safety limit for commanded Fz.
-
-infer_hz:=5.0
-  Run policy inference at 5 Hz.
-
-control_hz:=125.0
-  Publish smoothed commands at 125 Hz.
-
-temporal_agg_tau_steps:=20.0
-  Use temporal aggregation with a 20-step decay scale.
-
-max_plans:=6
-  Keep up to 6 recent action plans for temporal aggregation.
-
-contact_on_thr:=3.0
-  Contact is recognized when measured Fz exceeds about 3 N.
-
-contact_off_thr:=1.2
-  Contact is released when measured Fz falls below about 1.2 N.
-
-clear_plans_on_contact_change:=false
-  Keep the plan buffer when contact state changes.
-
-dither_enable:=false
-  Disable extra dither behavior for this baseline test.
+/inference_dual_cam/gradcam_overlay
 ```
 
+## Data Format
 
-## 10-5. Important inference notes
+The compact `imitation_form` HDF5 contains only the fields used by training.
 
-- current node is **single-camera only**
-- `cam0` / `image_topic` are used
-- force history is built online from the current force stream
-- recommended Flow inference uses `auto_move_to_demo_start:=true`
-- `auto_move_to_demo_start` requires `demo_start_pose_mean` or `demo_start_qpos_mean` in `dataset_stats.pkl`
-- current no-recover style control is kept for simpler debugging
-
-If checkpoint load prints a large mismatch such as:
+Single cam:
 
 ```text
-missing=364, unexpected=364
+observations/position
+observations/force
+observations/images/cam0
+action/position
+action/force
 ```
 
-then the training config and inference config do not match and policy output should not be trusted.
-
----
-
-# 11. Checkpoint Layout
-
-## ACT
+Dual cam:
 
 ```text
-~/nrs_imitation/checkpoints/act/ur10e_swing/YYYYMMDD_HHMM/
-├── dataset_stats.pkl
-├── policy_best.ckpt
-├── policy_last.ckpt
-├── policy_epoch_0_seed_0.ckpt
-├── policy_epoch_100_seed_0.ckpt
-├── policy_epoch_200_seed_0.ckpt
-└── train_val_*.png
+observations/position
+observations/force
+observations/images/cam0
+observations/images/cam1
+action/position
+action/force
 ```
 
-## Diffusion
+Removed from the normal polishing imitation form:
 
 ```text
-~/nrs_imitation/checkpoints/diffusion/ur10e_swing/YYYYMMDD_HHMM/
-├── dataset_stats.pkl
-├── policy_best.ckpt
-├── policy_last.ckpt
-├── policy_epoch_0_seed_0.ckpt
-├── policy_epoch_100_seed_0.ckpt
-├── policy_epoch_200_seed_0.ckpt
-└── train_val_*.png
+marker
+qpos
+action_flat
+meta
+is_pad
 ```
 
-## Flow Matching
+## Manual Paths
 
-```text
-~/nrs_imitation/checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/
-├── dataset_stats.pkl
-├── policy_best.ckpt
-├── policy_last.ckpt
-├── policy_epoch_0_seed_0.ckpt
-├── policy_epoch_100_seed_0.ckpt
-├── policy_epoch_200_seed_0.ckpt
-└── train_val_*.png
-```
+Most commands above auto-select the latest file. Use explicit paths when needed.
 
----
-
-# 12. Useful Commands
-
-## Latest recorder command topic
+Single-cam conversion:
 
 ```bash
-ros2 topic echo /vr_demo_recorder/command
-```
-
-## Verify image topic
-
-```bash
-ros2 topic hz /realsense/robot/color/image_raw
-ros2 topic echo --once /realsense/robot/color/camera_info
-```
-
-## Verify pose / force topics
-
-```bash
-ros2 topic echo --once /ur10skku/currentP
-ros2 topic echo --once /ur10skku/currentF
-```
-
-
-## Run recorder in tracker mode
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
-```
-
-## Run recorder in robot mode
-
-```bash
-cd ~/nrs_imitation/behavior_ws
-source install/setup.bash
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
-```
-
-## Check final episode structure
-
-```bash
-python3 - <<'PY'
-import glob, h5py, os
-files = sorted(glob.glob(os.path.expanduser('~/nrs_imitation/datasets/ACT/*/episodes_ft/episode_0.hdf5')))
-if not files:
-    raise RuntimeError("No episode file found")
-path = files[-1]
-print("file:", path)
-with h5py.File(path, 'r') as f:
-    def visit(name, obj):
-        if isinstance(obj, h5py.Dataset):
-            print(name, obj.shape, obj.dtype)
-    f.visititems(visit)
-PY
-```
-
-## Check camera-preprocessed dataset
-
-```bash
-python3 - <<'PY'
-import glob, h5py, os
-files = sorted(glob.glob(os.path.expanduser('~/nrs_imitation/datasets/ACT/*/episodes_ft_camproc/episode_0.hdf5')))
-if not files:
-    raise RuntimeError("No camproc episode file found")
-path = files[-1]
-print("file:", path)
-with h5py.File(path, 'r') as f:
-    print(f['observations/images/cam0'].shape)
-PY
-```
-
----
-
-# 13. Troubleshooting
-
-## A. `ros2 launch ... vr_demo_joy_controller.launch.py` works but recorder does not react
-Check:
-
-```bash
-ros2 topic echo /vr_demo_recorder/command
-```
-
-If no commands appear, verify:
-- joystick is recognized
-- `joy_node` is running
-- button mapping is correct
-
----
-
-## B. Converter ran but no episode files were created
-Check:
-- merged HDF5 exists
-- input path is correct
-- selected `--cam_preprocess` is correct
-- converter did not delete merged file before debugging (`--keep-merged`)
-
----
-
-## C. Training starts but dataset count is wrong
-Both training scripts auto-count `episode_*.hdf5`.
-If you want to force a subset:
-
-```bash
-python3 train_act.py --num_episodes 20
-```
-
-or
-
-```bash
-python3 scripts/diffusion/train_diffusion.py --num_episodes 20
-```
-
----
-
-## D. Inference loads checkpoint but output is poor
-First check checkpoint match.
-
-If the node prints many missing / unexpected keys, fix config mismatch first.
-
-Typical mismatch sources:
-- wrong `policy_class`
-- wrong `chunk_size`
-- wrong checkpoint root
-- wrong camera config
-- wrong force-history setting
-
----
-
-## E. Contact logic is unstable
-Check:
-- force sign
-- force axis order
-- force offset / zeroing
-- whether the force signal distribution matches the training dataset
-
----
-
-## F. Camera shake is harming direct-teaching performance
-Use:
-
-```bash
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256
-```
-
-and train on:
-
-```bash
-python3 train_act.py --cam_preprocess stabilize_crop
-```
-
-or
-
-```bash
-python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
-```
-
----
-
-# 14. Practical Recommended Workflow
-
-If you want the current recommended practical workflow:
-
-## Raw baseline
-```bash
-vive
-ft              # or ftget
-rsv
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
-
-cd ~/nrs_imitation/source/custom
-python3 demo_data_act_form_single_cam.py --cam_preprocess off
-
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py --cam_preprocess off
-```
-
-## Recommended camera-preprocessed workflow
-```bash
-vive
-ft              # or ftget
-rsv
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
-
-cd ~/nrs_imitation/source/custom
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256
-
-cd ~/nrs_imitation/scripts/act
-python3 train_act.py --cam_preprocess stabilize_crop
-```
-
-## Diffusion camera-preprocessed workflow
-```bash
-vive
-ft              # or ftget
-rsv
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
-
-cd ~/nrs_imitation/source/custom
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256
-
 cd ~/nrs_imitation
-python3 scripts/diffusion/train_diffusion.py --cam_preprocess stabilize_crop
+python3 source/custom/demo_data_imitation_form_single_cam.py \
+  --input_h5 datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_single_cam_<YYYYMMDD_HHMM>.hdf5 \
+  --output_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form \
+  --overwrite \
+  --write_summary
 ```
 
----
-
-
-## Robot-side recording workflow
-
-If you want to record robot-side position / force / image into the same merged HDF5 format:
+Dual-cam conversion:
 
 ```bash
-rsr
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=robot
-
-cd ~/nrs_imitation/source/custom
-python3 demo_data_act_form_single_cam.py --cam_preprocess off
-```
-
-This creates the same final episode format as tracker mode, but with robot-side topics as the source.
-
-
-## Flow Matching camera-preprocessed workflow
-
-```bash
-vive
-ft              # or ftget
-rsv
-ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
-ros2 run nrs_imitation vr_demo_hdf5_recorder --ros-args -p recording_mode:=tracker
-
-cd ~/nrs_imitation/source/custom
-python3 demo_data_act_form_single_cam.py \
-  --cam_preprocess stabilize_crop \
-  --cam_crop_h 384 \
-  --cam_crop_w 384 \
-  --cam_resize_hw 256
-
 cd ~/nrs_imitation
-python3 scripts/flow/train_flow.py --cam_preprocess stabilize_crop
+python3 source/custom/demo_data_imitation_form_dual_cam.py \
+  --input_h5 datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_dual_cam_<YYYYMMDD_HHMM>.hdf5 \
+  --output_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form \
+  --overwrite \
+  --write_summary
 ```
 
-Recommended Flow inference baseline:
+Single-cam training with explicit dataset:
 
 ```bash
-ros2 run nrs_imitation node_cmdmotion_infer --ros-args \
-  -p policy_class:=FLOW \
-  -p phase_mode:=pure \
-  -p camera_preprocess_mode:=stabilize \
-  -p act_root:=~/nrs_imitation \
-  -p ckpt_dir:=~/nrs_imitation/checkpoints/flow/ur10e_swing/20260506_1631 \
-  -p image_topic:=/realsense/robot/color/image_raw \
-  -p chunk_size:=200 \
-  -p use_force_history:=true \
-  -p force_history_len:=10 \
-  -p flow_infer_steps:=10 \
-  -p auto_move_to_demo_start:=true \
-  -p demo_start_move_sec:=5.0 \
-  -p demo_start_hold_sec:=2.0 \
-  -p tau_sec:=0.8 \
-  -p startup_ramp_sec:=3.0 \
-  -p step_cap_pos_mm:=0.05 \
-  -p step_cap_ang_rad:=0.0001 \
-  -p step_cap_fz:=0.05 \
-  -p fz_hard_limit:=30.0 \
-  -p infer_hz:=5.0 \
-  -p control_hz:=125.0 \
-  -p temporal_agg_tau_steps:=20.0 \
-  -p max_plans:=6 \
-  -p contact_on_thr:=3.0 \
-  -p contact_off_thr:=1.2 \
-  -p clear_plans_on_contact_change:=false \
-  -p dither_enable:=false
+cd ~/nrs_imitation
+python3 scripts/flow/train_flow_single_cam.py \
+  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
+Dual-cam training with explicit dataset:
 
----
+```bash
+cd ~/nrs_imitation
+python3 scripts/flow/train_flow_dual_cam.py \
+  --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
+```
 
-# 15. Summary
+Single-cam inference with explicit checkpoint:
 
-Current repository status:
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation inference_single_cam --ros-args \
+  -p ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>
+```
 
-- single-camera direct-teaching dataset pipeline
-- joystick-controlled recording
-- merged HDF5 to episode conversion
-- raw and stabilized camera dataset variants
-- ACT training branch
-- Diffusion Policy-style training branch
-- Flow Matching Policy-style training branch
-- separate checkpoint trees for ACT and Diffusion
-- one inference node with `policy_class` switch
-- shared dataset / encoder / backbone pipeline
+Dual-cam inference with explicit checkpoint:
 
-So the current full path is:
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation inference_dual_cam --ros-args \
+  -p ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>
+```
+
+## Stage-1 VR Workflow Details
+
+Stage1 is the first pass of the `dual_cam` data collection pipeline. It records VR teaching trajectories into `datasets/stage1`, and `vr_stage1_episode_pusher` sends selected episodes to the robot playback PC. The dual-cam HDF5 recorder then records the robot playback with `cam0` and `cam1`.
+
+Default output:
 
 ```text
-teaching (position + force + cam0)
-→ merged_hdf5
-→ episode_*.hdf5
-→ ACT / Diffusion / Flow Matching training
-→ policy_class-selected inference
+~/nrs_imitation/datasets/stage1/<YYYYMMDD_HHMM>/stage1_vr_episodes/episode_*.hdf5
+```
+
+Record stage-1 VR episodes:
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation vr_stage1_hdf5_recorder
+```
+
+Push the latest stage-1 episode directory:
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation vr_stage1_episode_pusher
+```
+
+Push a specific stage-1 episode directory:
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 run nrs_imitation vr_stage1_episode_pusher --ros-args \
+  -p episode_dir:=/home/nrs_display/nrs_imitation/datasets/stage1/<YYYYMMDD_HHMM>/stage1_vr_episodes
+```
+
+## Installed ROS2 Commands
+
+After building and sourcing `behavior_ws/install/setup.bash`, the main commands are:
+
+```bash
+ros2 run nrs_imitation hdf5_recorder_single_cam
+ros2 run nrs_imitation hdf5_recorder_dual_cam
+ros2 run nrs_imitation inference_single_cam
+ros2 run nrs_imitation inference_dual_cam
+ros2 run nrs_imitation vr_stage1_hdf5_recorder
+ros2 run nrs_imitation vr_stage1_episode_pusher
 ```
