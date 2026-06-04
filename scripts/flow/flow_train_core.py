@@ -1,30 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-scripts/flow/train_flow.py
-
-Flow Matching training entrypoint with three observation modes:
-  1) single_cam         : cam0(local RGB) + qpos + force_history
-  2) dual_cam           : cam0(local RGB) + cam1(global RGB) + qpos + force_history
-  3) single_cam_marker  : cam0(local RGB) + ArUco marker(id0,id1) + qpos + force_history
-
-Sequential 3-model training:
-  python3 scripts/flow/train_flow.py --train_all_obs_modes
-
-Checkpoint layout:
-  <repo>/checkpoints/flow/single_cam/YYYYMMDD_HHMM/
-  <repo>/checkpoints/flow/dual_cam/YYYYMMDD_HHMM/
-  <repo>/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM/
-
-Single-model examples:
-  python3 scripts/flow/train_flow.py --obs_mode single_cam
-  python3 scripts/flow/train_flow.py --obs_mode dual_cam
-  python3 scripts/flow/train_flow.py --obs_mode single_cam_marker
-
-Eval-load check:
-  python3 scripts/flow/train_flow.py --eval --obs_mode single_cam_marker \
-    --ckpt_dir <repo>/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM
-"""
+"""Shared Flow training implementation used by the single/dual camera entrypoints."""
 
 from __future__ import annotations
 
@@ -50,8 +26,73 @@ import torch
 from tqdm import tqdm
 
 from data.loader import load_data
-from common.fs import CHECKPOINTS_ROOT, DATASETS_ACT_ROOT
 from models.flow_core import build_flow_rgb_policy_and_optimizer
+
+CHECKPOINTS_FLOW_ROOT = Path(_PROJECT_ROOT) / "checkpoints" / "flow" / "polishing"
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--eval", action="store_true")
+    parser.add_argument("--train_all_obs_modes", action="store_true")
+    parser.add_argument("--shared_timestamp", action="store_true", default=True)
+    parser.add_argument("--obs_mode", type=str, default="single_cam", choices=["single_cam", "dual_cam"])
+
+    parser.add_argument("--dataset_dir", type=str, default=None)
+    parser.add_argument("--num_episodes", type=int, default=0)
+    parser.add_argument("--camera_names", nargs="+", default=None)
+
+    parser.add_argument("--ckpt_root", type=str, default=str(CHECKPOINTS_FLOW_ROOT))
+    parser.add_argument("--ckpt_dir", type=str, default=None)
+
+    parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
+    parser.add_argument("--marker_dim", type=int, default=14)
+
+    parser.add_argument("--batch_size", type=int, default=12)
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--num_epochs", type=int, default=500)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--weight_decay", type=float, default=1e-6)
+    parser.add_argument("--beta1", type=float, default=0.95)
+    parser.add_argument("--beta2", type=float, default=0.999)
+
+    parser.add_argument("--chunk_size", type=int, default=200)
+    parser.add_argument("--train_seq_len", type=int, default=None)
+    parser.add_argument("--val_seq_len", type=int, default=None)
+    parser.add_argument("--samples_per_episode", type=int, default=50)
+    parser.add_argument("--save_every", type=int, default=100)
+
+    parser.add_argument("--state_dim", type=int, default=9)
+    parser.add_argument("--action_dim", type=int, default=9)
+    parser.add_argument("--force_dim", type=int, default=3)
+
+    parser.add_argument("--use_force_history", dest="use_force_history", action="store_true", default=True)
+    parser.add_argument("--no_force_history", dest="use_force_history", action="store_false")
+    parser.add_argument("--force_history_len", type=int, default=10)
+    parser.add_argument("--force_encoder_hidden_dim", type=int, default=64)
+    parser.add_argument("--force_encoder_num_layers", type=int, default=1)
+    parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
+
+    parser.add_argument("--no_pretrained", action="store_true", default=False)
+    parser.add_argument("--flow_obs_hidden_dim", type=int, default=256)
+    parser.add_argument("--flow_image_feature_dim", type=int, default=512)
+    parser.add_argument("--flow_marker_feature_dim", type=int, default=128)
+    parser.add_argument("--flow_global_cond_dim", type=int, default=256)
+    parser.add_argument("--flow_time_embed_dim", type=int, default=256)
+    parser.add_argument("--flow_down_dims", type=str, default="256,512,1024")
+    parser.add_argument("--flow_kernel_size", type=int, default=5)
+    parser.add_argument("--flow_n_groups", type=int, default=8)
+    parser.add_argument("--flow_cond_predict_scale", action="store_true", default=False)
+    parser.add_argument("--flow_train_eps", type=float, default=1e-4)
+    parser.add_argument("--flow_loss_type", type=str, default="mse", choices=["mse", "l1"])
+    parser.add_argument("--flow_infer_steps", type=int, default=10)
+
+    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--pin_memory", action="store_true")
+    parser.add_argument("--persistent_workers", action="store_true")
+    parser.add_argument("--prefetch_factor", type=int, default=2)
+    parser.add_argument("--debug_batches", type=int, default=3)
+    return parser
 
 
 # =============================================================================
@@ -107,8 +148,8 @@ def _count_episodes(dataset_dir: str | Path) -> int:
 
 
 def find_latest_episode_dir(
-    root_dir: str = str(DATASETS_ACT_ROOT),
-    subdir_preference: Sequence[str] = ("episodes_multimodal", "episodes_ft_camproc", "episodes_ft"),
+    root_dir: str = str(Path(_PROJECT_ROOT) / "datasets"),
+    subdir_preference: Sequence[str] = ("imitation_form",),
 ) -> str:
     root = Path(root_dir).expanduser()
     if not root.exists():
@@ -156,9 +197,6 @@ def obs_mode_to_camera_names(obs_mode: str, camera_names_arg: Optional[Sequence[
         return ["cam0"]
     if obs_mode == "dual_cam":
         return ["cam0", "cam1"]
-    if obs_mode == "single_cam_marker":
-        return ["cam0"]
-
     raise ValueError(f"Unsupported obs_mode={obs_mode}")
 
 
@@ -286,22 +324,6 @@ def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
         print("[DBG] obs check       : cam0 only expected; marker should be None")
     elif obs_mode == "dual_cam":
         print("[DBG] obs check       : cam0 + cam1 expected; marker should be None")
-    elif obs_mode == "single_cam_marker":
-        print("[DBG] obs check       : cam0 + marker expected; camera count should be 1")
-        if marker is not None and marker.numel() > 0:
-            marker_np = marker.detach().cpu().numpy()
-            id0_valid = marker_np[:, 6] if marker_np.shape[-1] >= 7 else None
-            id1_valid = marker_np[:, 13] if marker_np.shape[-1] >= 14 else None
-            if id0_valid is not None:
-                print(
-                    f"[DBG] marker id0 valid(normed) range: "
-                    f"min={float(np.min(id0_valid)):.4f}, max={float(np.max(id0_valid)):.4f}"
-                )
-            if id1_valid is not None:
-                print(
-                    f"[DBG] marker id1 valid(normed) range: "
-                    f"min={float(np.min(id1_valid)):.4f}, max={float(np.max(id1_valid)):.4f}"
-                )
 
     print("-" * 80 + "\n")
 
@@ -516,8 +538,6 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         print("[INFO] policy_obs         = cam0 RGB only")
     elif obs_mode == "dual_cam":
         print("[INFO] policy_obs         = cam0 RGB + cam1/global RGB")
-    elif obs_mode == "single_cam_marker":
-        print("[INFO] policy_obs         = cam0 RGB + ArUco marker(id0,id1)")
     print(f"[INFO] marker_dim         = {args.marker_dim}")
     print(f"[INFO] norm_mode          = {args.norm_mode}")
     print(f"[INFO] batch_size         = {args.batch_size}")
@@ -615,7 +635,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
 def main(args):
     if args.train_all_obs_modes:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M") if args.shared_timestamp else None
-        modes = ["single_cam", "dual_cam", "single_cam_marker"]
+        modes = ["single_cam", "dual_cam"]
         print(f"[SEQ] train_all_obs_modes=True | modes={modes} | shared_timestamp={timestamp}")
         for mode in modes:
             run_one(args, obs_mode=mode, timestamp=timestamp)
@@ -625,65 +645,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--eval", action="store_true")
-    parser.add_argument("--train_all_obs_modes", action="store_true")
-    parser.add_argument("--shared_timestamp", action="store_true", default=True)
-    parser.add_argument("--obs_mode", type=str, default="single_cam", choices=["single_cam", "dual_cam", "single_cam_marker"])
-
-    parser.add_argument("--dataset_dir", type=str, default=None)
-    parser.add_argument("--num_episodes", type=int, default=0)
-    parser.add_argument("--camera_names", nargs="+", default=None)
-
-    parser.add_argument("--ckpt_root", type=str, default=str(CHECKPOINTS_ROOT / "flow"))
-    parser.add_argument("--ckpt_dir", type=str, default=None)
-
-    parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
-    parser.add_argument("--marker_dim", type=int, default=14)
-
-    parser.add_argument("--batch_size", type=int, default=12)
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--num_epochs", type=int, default=500)
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--weight_decay", type=float, default=1e-6)
-    parser.add_argument("--beta1", type=float, default=0.95)
-    parser.add_argument("--beta2", type=float, default=0.999)
-
-    parser.add_argument("--chunk_size", type=int, default=200)
-    parser.add_argument("--train_seq_len", type=int, default=None)
-    parser.add_argument("--val_seq_len", type=int, default=None)
-    parser.add_argument("--samples_per_episode", type=int, default=50)
-    parser.add_argument("--save_every", type=int, default=100)
-
-    parser.add_argument("--state_dim", type=int, default=9)
-    parser.add_argument("--action_dim", type=int, default=9)
-    parser.add_argument("--force_dim", type=int, default=3)
-
-    parser.add_argument("--use_force_history", dest="use_force_history", action="store_true", default=True)
-    parser.add_argument("--no_force_history", dest="use_force_history", action="store_false")
-    parser.add_argument("--force_history_len", type=int, default=10)
-    parser.add_argument("--force_encoder_hidden_dim", type=int, default=64)
-    parser.add_argument("--force_encoder_num_layers", type=int, default=1)
-    parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
-
-    parser.add_argument("--no_pretrained", action="store_true", default=False)
-    parser.add_argument("--flow_obs_hidden_dim", type=int, default=256)
-    parser.add_argument("--flow_image_feature_dim", type=int, default=512)
-    parser.add_argument("--flow_marker_feature_dim", type=int, default=128)
-    parser.add_argument("--flow_global_cond_dim", type=int, default=256)
-    parser.add_argument("--flow_time_embed_dim", type=int, default=256)
-    parser.add_argument("--flow_down_dims", type=str, default="256,512,1024")
-    parser.add_argument("--flow_kernel_size", type=int, default=5)
-    parser.add_argument("--flow_n_groups", type=int, default=8)
-    parser.add_argument("--flow_cond_predict_scale", action="store_true", default=False)
-    parser.add_argument("--flow_train_eps", type=float, default=1e-4)
-    parser.add_argument("--flow_loss_type", type=str, default="mse", choices=["mse", "l1"])
-    parser.add_argument("--flow_infer_steps", type=int, default=10)
-
-    parser.add_argument("--num_workers", type=int, default=0)
-    parser.add_argument("--pin_memory", action="store_true")
-    parser.add_argument("--persistent_workers", action="store_true")
-    parser.add_argument("--prefetch_factor", type=int, default=2)
-    parser.add_argument("--debug_batches", type=int, default=3)
-
-    main(parser.parse_args())
+    main(build_arg_parser().parse_args())

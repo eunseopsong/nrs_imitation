@@ -259,8 +259,8 @@ def main(args):
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--eval", action="store_true")
-    p.add_argument("--ckpt_dir", type=str, default=str(CHECKPOINTS_ROOT / "diffusion" / "ur10e_swing"))
-    p.add_argument("--task_name", type=str, default="ur10e_swing")
+    p.add_argument("--ckpt_dir", type=str, default=str(CHECKPOINTS_ROOT / "diffusion" / "polishing"))
+    p.add_argument("--task_name", type=str, default="polishing")
     p.add_argument("--batch_size", type=int, default=6)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--num_epochs", type=int, default=500)

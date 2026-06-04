@@ -467,8 +467,7 @@ class FlowRGBPolicy(nn.Module):
 
         return self.sample_action(qpos=qpos, image=image, force_history=force_history, marker=marker)
 
-    @torch.no_grad()
-    def sample_action(
+    def _sample_action_impl(
         self,
         qpos: torch.Tensor,
         image: torch.Tensor,
@@ -485,6 +484,39 @@ class FlowRGBPolicy(nn.Module):
             v = self.predict_velocity(z, t, qpos, image, force_history, marker)
             z = z + dt * v
         return z
+
+    @torch.no_grad()
+    def sample_action(
+        self,
+        qpos: torch.Tensor,
+        image: torch.Tensor,
+        force_history: Optional[torch.Tensor] = None,
+        marker: Optional[torch.Tensor] = None,
+        num_steps: Optional[int] = None,
+    ) -> torch.Tensor:
+        return self._sample_action_impl(
+            qpos=qpos,
+            image=image,
+            force_history=force_history,
+            marker=marker,
+            num_steps=num_steps,
+        )
+
+    def sample_action_with_grad(
+        self,
+        qpos: torch.Tensor,
+        image: torch.Tensor,
+        force_history: Optional[torch.Tensor] = None,
+        marker: Optional[torch.Tensor] = None,
+        num_steps: Optional[int] = None,
+    ) -> torch.Tensor:
+        return self._sample_action_impl(
+            qpos=qpos,
+            image=image,
+            force_history=force_history,
+            marker=marker,
+            num_steps=num_steps,
+        )
 
 
 def build_flow_rgb_policy_and_optimizer(cfg: dict):

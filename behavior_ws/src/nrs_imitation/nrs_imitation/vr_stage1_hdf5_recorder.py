@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-vr_demo_hdf5_recorder.py
+vr_stage1_hdf5_recorder.py
 
 - VR tracker: /calibrated_pose (Float64MultiArray: [x y z wx wy wz])   input: (m, rad)
 - FT sensor : /ftsensor/measured_Cvalue (geometry_msgs/Wrench)        input: (N)
@@ -39,7 +39,7 @@ from nrs_imitation.pretty_print import block
 
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
-DEFAULT_ACT_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "ACT")
+DEFAULT_STAGE1_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "stage1")
 
 
 # ============================================================
@@ -421,7 +421,7 @@ def constraints_ok(st: EvalStats) -> bool:
 
 
 # ============================================================
-# Stage-1 VR recorder with vr_demo_hdf5_recorder-identical filtering
+# Stage-1 VR recorder with the legacy VR filtering pipeline
 # ============================================================
 class VRStage1HDF5Recorder(Node):
     def __init__(self):
@@ -430,7 +430,7 @@ class VRStage1HDF5Recorder(Node):
         # -------------------------
         # Output: one HDF5 file per episode
         # -------------------------
-        self.declare_parameter("act_root_dir", DEFAULT_ACT_ROOT_DIR)
+        self.declare_parameter("act_root_dir", DEFAULT_STAGE1_ROOT_DIR)
         self.declare_parameter("output_subdir", "stage1_vr_episodes")
         self.declare_parameter("run_timestamp", "")  # empty -> now YYYYMMDD_HHMM
         self.declare_parameter("overwrite_episode", True)
@@ -461,7 +461,7 @@ class VRStage1HDF5Recorder(Node):
         self.declare_parameter("stop_abs_fy", 10.0)
 
         # -------------------------
-        # force shaping: copied from vr_demo_hdf5_recorder
+        # force shaping: legacy VR filtering pipeline
         # -------------------------
         self.declare_parameter("zero_xy_forces", True)
         self.declare_parameter("force_clamp_abs", 200.0)
@@ -475,7 +475,7 @@ class VRStage1HDF5Recorder(Node):
         self.declare_parameter("fz_contact_lam_d2", 4000.0)
 
         # -------------------------
-        # pose smoothing: copied from vr_demo_hdf5_recorder
+        # pose smoothing: legacy VR filtering pipeline
         # -------------------------
         self.declare_parameter("hampel_enable", True)
         self.declare_parameter("hampel_win", 16)
@@ -489,7 +489,7 @@ class VRStage1HDF5Recorder(Node):
         # retime fixed x2
         self.retime_k = 2
 
-        # approach slow-down: copied from vr_demo_hdf5_recorder
+        # approach slow-down: legacy VR filtering pipeline
         self.declare_parameter("approach_slowdown_enable", True)
         self.declare_parameter("approach_pre_sec", 5.0)
         self.declare_parameter("approach_post_sec", 0.3)
@@ -641,7 +641,7 @@ class VRStage1HDF5Recorder(Node):
 
         # logs
         self.get_logger().info(block("STAGE1 HDF5 READY", [
-            ("pipeline", "same filtering as old vr_demo_hdf5_recorder.py"),
+            ("pipeline", "legacy VR filtering pipeline"),
             ("output_dir", self.output_dir),
             ("topics", f"pose={self.pose_topic}, force={self.force_topic}, command={self.command_topic}"),
             ("record", f"hz={self.record_hz}, fresh={self.require_fresh_sec}s"),
@@ -816,7 +816,7 @@ class VRStage1HDF5Recorder(Node):
         self._start_finish_thread(reason=reason)
 
     # ============================================================
-    # Pipeline blocks: copied from old vr_demo_hdf5_recorder.py
+    # Pipeline blocks: legacy VR filtering pipeline
     # ============================================================
     def _pose_pre_smooth(self, P: np.ndarray) -> np.ndarray:
         P0 = P.copy()
@@ -989,7 +989,7 @@ class VRStage1HDF5Recorder(Node):
 
             ep_idx = int(self.episode_count)
             used = {
-                "filter_source": "vr_demo_hdf5_recorder.py identical filtering pipeline",
+                "filter_source": "legacy VR filtering pipeline",
                 "contact_thr_N": float(self.contact_thr_N),
                 "consec_on": int(self.consec_on),
                 "consec_off": int(self.consec_off),

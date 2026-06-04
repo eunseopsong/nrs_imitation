@@ -1,0 +1,18 @@
+enabled: True
+contact_rule: first fz > 0.0
+contact_idx: 941
+input_len: 3063
+output_len: 10063
+dt: 0.008
+pre_sec: 6.0
+post_sec: 2.0
+scale_max: 15.0
+profile: asymmetric_cosine
+window_start_idx: 191
+window_end_idx: 1191
+window_start_time_sec: 1.528
+contact_time_sec: 7.5280000000000005
+window_end_time_sec: 9.528
+scale_min: 1.0
+scale_max_actual: 15.0
+length_ratio: 3.285341168788769

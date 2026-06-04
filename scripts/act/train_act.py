@@ -341,9 +341,9 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
 
     p.add_argument("--eval", action="store_true")
-    p.add_argument("--ckpt_dir", type=str, default=str(CHECKPOINTS_ROOT / "act" / "ur10e_swing"))
+    p.add_argument("--ckpt_dir", type=str, default=str(CHECKPOINTS_ROOT / "act" / "polishing"))
     p.add_argument("--policy_class", type=str, default="ACT", choices=["ACT", "CNNMLP"])
-    p.add_argument("--task_name", type=str, default="ur10e_swing")
+    p.add_argument("--task_name", type=str, default="polishing")
 
     p.add_argument("--dataset_dir", type=str, default=None)
     p.add_argument("--cam_preprocess", type=str, default="stabilize_crop", choices=["off", "stabilize_crop"])

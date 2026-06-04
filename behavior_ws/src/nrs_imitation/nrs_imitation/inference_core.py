@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-node_cmdmotion_infer.py
-(Updated for split observation encoder + force-history GRU model)
+inference_core.py
+(shared implementation for single/dual camera inference)
 
 Current training-side architecture:
   - position encoder for [x y z wx wy wz]
@@ -26,13 +26,13 @@ Default recommended Flow Matching inference:
 
     cd ~/nrs_imitation/behavior_ws
     source install/setup.bash
-    ros2 run nrs_imitation node_cmdmotion_infer
+    ros2 run nrs_imitation inference_single_cam
 
 This default run is equivalent to the recommended Flow baseline. If ckpt_dir is
 not provided, the node automatically selects the newest timestamped checkpoint
 folder under:
 
-    ~/nrs_imitation/checkpoints/flow/ur10e_swing/
+    ~/nrs_imitation/checkpoints/flow/polishing/single_cam/
 
 You can still override any parameter with --ros-args -p name:=value.
 
@@ -136,7 +136,7 @@ def _find_latest_checkpoint_dir(root_dir: str) -> Optional[str]:
       2) directory modification time
 
     Expected Flow layout:
-      checkpoints/flow/ur10e_swing/YYYYMMDD_HHMM/policy_best.ckpt
+      checkpoints/flow/polishing/<single_cam|dual_cam>/YYYYMMDD_HHMM/policy_best.ckpt
     """
     root_dir = os.path.expanduser(str(root_dir))
     if not os.path.isdir(root_dir):
@@ -164,7 +164,7 @@ def _find_latest_checkpoint_dir(root_dir: str) -> Optional[str]:
     return candidates[0][3]
 
 
-def _resolve_checkpoint_dir(ckpt_dir: str, act_root: str, policy_class: str) -> str:
+def _resolve_checkpoint_dir(ckpt_dir: str, act_root: str, policy_class: str, ckpt_auto_subdir: str = "polishing") -> str:
     """
     Resolve the checkpoint directory used by inference.
 
@@ -172,7 +172,7 @@ def _resolve_checkpoint_dir(ckpt_dir: str, act_root: str, policy_class: str) -> 
       - ckpt_dir points directly to a checkpoint leaf containing policy_best.ckpt
       - ckpt_dir points to a checkpoint root containing timestamp folders
       - ckpt_dir is empty: auto-select latest folder under
-        <act_root>/checkpoints/<policy_subdir>/ur10e_swing
+        <act_root>/checkpoints/<policy_subdir>/<ckpt_auto_subdir>
     """
     ckpt_dir = os.path.expanduser(str(ckpt_dir or "").strip())
     act_root = os.path.expanduser(str(act_root or "").strip())
@@ -186,7 +186,8 @@ def _resolve_checkpoint_dir(ckpt_dir: str, act_root: str, policy_class: str) -> 
         return ckpt_dir
 
     subdir = _policy_to_ckpt_subdir(policy_class)
-    root = os.path.join(act_root, "checkpoints", subdir, "ur10e_swing")
+    leaf = str(ckpt_auto_subdir or "polishing").strip() or "polishing"
+    root = os.path.join(act_root, "checkpoints", subdir, leaf)
     latest = _find_latest_checkpoint_dir(root)
     if latest is None:
         raise RuntimeError(
@@ -227,28 +228,57 @@ def _img_to_rgb_numpy(msg: Image) -> np.ndarray:
 
 
 def _to_tensor_image_stack(
-    cam0_rgb: np.ndarray,
+    images_rgb: List[np.ndarray],
     device: torch.device,
     resize_hw: int = 0,
+    camera_names: Optional[List[str]] = None,
 ) -> torch.Tensor:
     """
-    (H,W,3) -> (1,1,3,H,W) float in [0,1]
-    cam order fixed: [cam0]
+    [(H,W,3), ...] -> (1,K,3,H,W) float in [0,1]
     """
-    if cam0_rgb is None:
-        raise RuntimeError("cam0 image is None")
+    camera_names = list(camera_names or [])
+    if not images_rgb:
+        raise RuntimeError("image stack is empty")
 
-    if resize_hw and resize_hw > 0:
-        try:
-            import cv2
-            cam0_rgb = cv2.resize(cam0_rgb, (resize_hw, resize_hw), interpolation=cv2.INTER_LINEAR)
-        except Exception as e:
-            raise RuntimeError(f"cv2 resize failed (resize_hw={resize_hw}): {e}")
+    chw_images = []
+    for idx, img_rgb in enumerate(images_rgb):
+        cam = camera_names[idx] if idx < len(camera_names) else f"cam{idx}"
+        if img_rgb is None:
+            raise RuntimeError(f"{cam} image is None")
+        if resize_hw and resize_hw > 0:
+            try:
+                import cv2
+                img_rgb = cv2.resize(img_rgb, (resize_hw, resize_hw), interpolation=cv2.INTER_LINEAR)
+            except Exception as e:
+                raise RuntimeError(f"cv2 resize failed for {cam} (resize_hw={resize_hw}): {e}")
+        chw_images.append(np.transpose(img_rgb, (2, 0, 1)))
 
-    cam0 = np.transpose(cam0_rgb, (2, 0, 1))
-    img = np.stack([cam0], axis=0).astype(np.float32) / 255.0
-    img_t = torch.from_numpy(img).unsqueeze(0).to(device=device, dtype=torch.float32)  # (1,1,3,H,W)
+    img = np.stack(chw_images, axis=0).astype(np.float32) / 255.0
+    img_t = torch.from_numpy(img).unsqueeze(0).to(device=device, dtype=torch.float32)  # (1,K,3,H,W)
     return img_t
+
+
+def _parse_camera_names(value, obs_mode: str) -> List[str]:
+    obs = str(obs_mode or "single_cam").strip().lower()
+    default = ["cam0", "cam1"] if obs in ("dual_cam", "multi_cam") else ["cam0"]
+    if value is None:
+        return default
+    raw = []
+    if isinstance(value, str):
+        s = value.strip()
+        if s == "" or s.lower() == "auto":
+            return default
+        s = s.strip("[]")
+        raw = [p.strip().strip("'\"") for p in s.split(",")]
+    else:
+        try:
+            for item in list(value):
+                for part in str(item).split(","):
+                    raw.append(part.strip().strip("'\""))
+        except Exception:
+            return default
+    out = [x for x in raw if x]
+    return out if out else default
 
 
 
@@ -312,6 +342,89 @@ def _warp_rgb_affine(rgb: np.ndarray, dx: float, dy: float, da: float, border_mo
     )
 
 # ============================================================
+# Helpers (Grad-CAM debug visualization)
+# ============================================================
+
+def _normalize_heatmap_np(x: np.ndarray, eps: float = 1e-8) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float32)
+    x = x - float(np.nanmin(x))
+    den = float(np.nanmax(x)) + float(eps)
+    return np.clip(x / den, 0.0, 1.0).astype(np.float32)
+
+
+def _rgb_numpy_to_image_msg(rgb: np.ndarray, stamp=None, frame_id: str = "") -> Image:
+    arr = np.asarray(rgb)
+    if arr.ndim != 3 or arr.shape[2] != 3:
+        raise RuntimeError(f"RGB image must be (H,W,3), got {arr.shape}")
+    if arr.dtype != np.uint8:
+        arr = np.clip(arr, 0, 255).astype(np.uint8)
+    msg = Image()
+    if stamp is not None:
+        msg.header.stamp = stamp
+    msg.header.frame_id = frame_id
+    msg.height = int(arr.shape[0])
+    msg.width = int(arr.shape[1])
+    msg.encoding = "rgb8"
+    msg.is_bigendian = 0
+    msg.step = int(arr.shape[1] * 3)
+    msg.data = arr.tobytes()
+    return msg
+
+
+def _make_gradcam_overlay_rgb(rgb: np.ndarray, heatmap01: np.ndarray, alpha: float = 0.45, colormap: str = "jet") -> np.ndarray:
+    rgb_u8 = np.asarray(rgb)
+    if rgb_u8.dtype != np.uint8:
+        rgb_u8 = np.clip(rgb_u8, 0, 255).astype(np.uint8)
+    H, W = int(rgb_u8.shape[0]), int(rgb_u8.shape[1])
+    hm = _normalize_heatmap_np(heatmap01)
+    if hm.shape[0] != H or hm.shape[1] != W:
+        if cv2 is not None:
+            hm = cv2.resize(hm, (W, H), interpolation=cv2.INTER_LINEAR)
+        else:
+            yy = (np.linspace(0, hm.shape[0] - 1, H)).astype(np.int32)
+            xx = (np.linspace(0, hm.shape[1] - 1, W)).astype(np.int32)
+            hm = hm[yy[:, None], xx[None, :]]
+    a = float(np.clip(alpha, 0.0, 1.0))
+    hm_u8 = np.clip(255.0 * hm, 0, 255).astype(np.uint8)
+    if cv2 is not None:
+        cm_name = str(colormap or "jet").strip().lower()
+        cmap = cv2.COLORMAP_JET
+        if cm_name in ("turbo",):
+            cmap = getattr(cv2, "COLORMAP_TURBO", cv2.COLORMAP_JET)
+        elif cm_name in ("hot",):
+            cmap = cv2.COLORMAP_HOT
+        elif cm_name in ("viridis",):
+            cmap = getattr(cv2, "COLORMAP_VIRIDIS", cv2.COLORMAP_JET)
+        heat_bgr = cv2.applyColorMap(hm_u8, cmap)
+        heat_rgb = cv2.cvtColor(heat_bgr, cv2.COLOR_BGR2RGB)
+    else:
+        heat_rgb = np.zeros_like(rgb_u8, dtype=np.uint8)
+        heat_rgb[..., 0] = hm_u8
+    overlay = ((1.0 - a) * rgb_u8.astype(np.float32) + a * heat_rgb.astype(np.float32))
+    return np.clip(overlay, 0, 255).astype(np.uint8)
+
+
+def _find_module_by_name(root: torch.nn.Module, name: str) -> Optional[torch.nn.Module]:
+    name = str(name or "").strip()
+    if not name:
+        return None
+    for n, m in root.named_modules():
+        if n == name:
+            return m
+    return None
+
+
+def _find_last_conv2d(root: torch.nn.Module):
+    last_name = None
+    last_module = None
+    for n, m in root.named_modules():
+        if isinstance(m, torch.nn.Conv2d):
+            last_name = n
+            last_module = m
+    return last_name, last_module
+
+
+# ============================================================
 # Helpers (Stats)
 # ============================================================
 
@@ -358,7 +471,7 @@ def _load_demo_start_pose_from_stats(ckpt_dir: str) -> Optional[np.ndarray]:
     """
     Load demo_start_pose_mean from ckpt_dir/dataset_stats.pkl.
 
-    Expected key added by train_flow.py:
+    Expected key added by the Flow training entrypoints:
       demo_start_pose_mean = [x, y, z, wx, wy, wz]
 
     Fallback:
@@ -645,8 +758,8 @@ def _try_load_state_dict_compat(target: torch.nn.Module, state_dict: dict):
 # ============================================================
 
 class NodeCmdMotionInfer(Node):
-    def __init__(self):
-        super().__init__("node_cmdmotion_infer")
+    def __init__(self, node_name: str = "inference_core"):
+        super().__init__(node_name)
 
         # -----------------------------
         # Parameters (paths / IO)
@@ -654,12 +767,16 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("ckpt_dir", "")  # empty -> auto latest checkpoint
         self.declare_parameter("act_root", DEFAULT_ACT_ROOT)
         self.declare_parameter("policy_class", "FLOW")  # ACT | DIFFUSION | FLOW
+        self.declare_parameter("ckpt_auto_subdir", "polishing")
+        self.declare_parameter("obs_mode", "single_cam")  # single_cam | dual_cam
+        self.declare_parameter("camera_names", "auto")    # auto | "cam0" | "cam0,cam1"
         self.declare_parameter("phase_mode", "pure")  # kept for recommended Flow command compatibility
         self.declare_parameter("chunk_size", 200)
 
         self.declare_parameter("pose_topic", "/ur10skku/currentP")
         self.declare_parameter("force_topic", "/ur10skku/currentF")
         self.declare_parameter("image_topic", "/realsense/robot/color/image_raw")
+        self.declare_parameter("global_image_topic", "/realsense/global/color/image_raw")
         self.declare_parameter("cmd_topic", "/ur10skku/cmdMotion")
 
         self.declare_parameter("image_qos", "best_effort")
@@ -671,6 +788,24 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("camera_stabilize_border_mode", "reflect")
         self.declare_parameter("camera_jitter_report_enable", True)
         self.declare_parameter("camera_jitter_log_every_n", 100)
+
+        # -----------------------------
+        # Grad-CAM debug visualization
+        # -----------------------------
+        # Default OFF: normal inference behavior is unchanged unless enabled.
+        self.declare_parameter("gradcam_enable", False)
+        self.declare_parameter("gradcam_every_n_infer", 5)
+        self.declare_parameter("gradcam_target", "z")
+        self.declare_parameter("gradcam_target_step", 0)
+        self.declare_parameter("gradcam_target_horizon", 1)
+        self.declare_parameter("gradcam_layer_name", "")
+        self.declare_parameter("gradcam_alpha", 0.45)
+        self.declare_parameter("gradcam_colormap", "jet")
+        self.declare_parameter("gradcam_publish", True)
+        self.declare_parameter("gradcam_overlay_topic", "/inference_core/gradcam_overlay")
+        self.declare_parameter("gradcam_save", False)
+        self.declare_parameter("gradcam_save_dir", "~/nrs_imitation/gradcam")
+        self.declare_parameter("gradcam_log_every_n", 5)
 
         self.declare_parameter("control_hz", 125.0)
         self.declare_parameter("infer_hz", 5.0)
@@ -847,12 +982,23 @@ class NodeCmdMotionInfer(Node):
         self.ckpt_dir = str(self.get_parameter("ckpt_dir").value)
         self.act_root = os.path.expanduser(str(self.get_parameter("act_root").value))
         self.policy_class = str(self.get_parameter("policy_class").value).strip().upper()
+        self.ckpt_auto_subdir = str(self.get_parameter("ckpt_auto_subdir").value).strip()
+        self.obs_mode = str(self.get_parameter("obs_mode").value).strip().lower()
+        if self.obs_mode in ("multi_cam", "dual"):
+            self.obs_mode = "dual_cam"
+        if self.obs_mode in ("", "auto"):
+            self.obs_mode = "single_cam"
+        if self.obs_mode not in ("single_cam", "dual_cam"):
+            raise RuntimeError(f"obs_mode must be single_cam or dual_cam, got: {self.obs_mode}")
+        self.camera_names = _parse_camera_names(self.get_parameter("camera_names").value, self.obs_mode)
+        self.use_global_image = len(self.camera_names) >= 2
         self.phase_mode = str(self.get_parameter("phase_mode").value).strip().lower()
         self.chunk_size = int(self.get_parameter("chunk_size").value)
 
         self.pose_topic = str(self.get_parameter("pose_topic").value)
         self.force_topic = str(self.get_parameter("force_topic").value)
         self.image_topic = str(self.get_parameter("image_topic").value)
+        self.global_image_topic = str(self.get_parameter("global_image_topic").value)
         self.cmd_topic = str(self.get_parameter("cmd_topic").value)
 
         self.image_qos_str = str(self.get_parameter("image_qos").value)
@@ -863,6 +1009,34 @@ class NodeCmdMotionInfer(Node):
         self.camera_jitter_log_every_n = max(1, int(self.get_parameter("camera_jitter_log_every_n").value))
         if self.camera_preprocess_mode not in ("off", "none", "raw", "stabilize"):
             raise RuntimeError(f"camera_preprocess_mode must be off or stabilize, got: {self.camera_preprocess_mode}")
+
+        self.gradcam_enable = bool(self.get_parameter("gradcam_enable").value)
+        self.gradcam_every_n_infer = max(1, int(self.get_parameter("gradcam_every_n_infer").value))
+        self.gradcam_target = str(self.get_parameter("gradcam_target").value).strip().lower()
+        self.gradcam_target_step = max(0, int(self.get_parameter("gradcam_target_step").value))
+        self.gradcam_target_horizon = max(1, int(self.get_parameter("gradcam_target_horizon").value))
+        self.gradcam_layer_name = str(self.get_parameter("gradcam_layer_name").value).strip()
+        self.gradcam_alpha = float(self.get_parameter("gradcam_alpha").value)
+        self.gradcam_colormap = str(self.get_parameter("gradcam_colormap").value).strip().lower()
+        self.gradcam_publish = bool(self.get_parameter("gradcam_publish").value)
+        self.gradcam_overlay_topic = str(self.get_parameter("gradcam_overlay_topic").value)
+        self.gradcam_save = bool(self.get_parameter("gradcam_save").value)
+        self.gradcam_save_dir = os.path.expanduser(str(self.get_parameter("gradcam_save_dir").value))
+        self.gradcam_log_every_n = max(1, int(self.get_parameter("gradcam_log_every_n").value))
+        self._gradcam_pub_count = 0
+        self._gradcam_fail_count = 0
+        self._gradcam_activation = None
+        self._gradcam_gradient = None
+        self._gradcam_target_layer_name = ""
+        self._gradcam_target_layer = None
+        self._gradcam_fwd_handle = None
+        self._gradcam_bwd_handle = None
+        self._gradcam_last_log_t = 0.0
+        if self.gradcam_save:
+            try:
+                os.makedirs(self.gradcam_save_dir, exist_ok=True)
+            except Exception as e:
+                raise RuntimeError(f"Failed to create gradcam_save_dir={self.gradcam_save_dir}: {e}")
 
         self.control_hz = float(self.get_parameter("control_hz").value)
         self.infer_hz = float(self.get_parameter("infer_hz").value)
@@ -1010,8 +1184,14 @@ class NodeCmdMotionInfer(Node):
         self.get_logger().info(f"[INFO] Using device: {self.device}")
         self.get_logger().info(
             f"[CAM] preprocess_mode={self.camera_preprocess_mode}, "
+            f"obs_mode={self.obs_mode}, camera_names={self.camera_names}, "
             f"alpha={self.camera_stabilize_alpha:.3f}, border={self.camera_stabilize_border_mode}, "
             f"jitter_report={self.camera_jitter_report_enable}, log_every={self.camera_jitter_log_every_n}"
+        )
+        self.get_logger().info(
+            f"[GRADCAM] enable={int(self.gradcam_enable)}, every_n_infer={self.gradcam_every_n_infer}, "
+            f"target={self.gradcam_target}, step={self.gradcam_target_step}, horizon={self.gradcam_target_horizon}, "
+            f"publish={int(self.gradcam_publish)}, save={int(self.gradcam_save)}"
         )
 
         # validate paths / resolve checkpoint
@@ -1025,6 +1205,7 @@ class NodeCmdMotionInfer(Node):
             ckpt_dir=self.ckpt_dir,
             act_root=self.act_root,
             policy_class=self.policy_class,
+            ckpt_auto_subdir=self.ckpt_auto_subdir,
         )
         if not os.path.isdir(self.ckpt_dir) or not os.path.exists(os.path.join(self.ckpt_dir, "policy_best.ckpt")):
             raise RuntimeError(
@@ -1079,6 +1260,7 @@ class NodeCmdMotionInfer(Node):
 
         # policy
         self.policy = self._load_policy_and_ckpt_from_act_root()
+        self._setup_gradcam_hooks()
 
         # -----------------------------
         # State buffers
@@ -1087,6 +1269,7 @@ class NodeCmdMotionInfer(Node):
         self._pose6: Optional[np.ndarray] = None
         self._force: Optional[np.ndarray] = None
         self._img_cam0: Optional[np.ndarray] = None
+        self._img_cam1: Optional[np.ndarray] = None
 
         # Online camera stabilization state. All jitter values are pixel units.
         self._cam_prev_raw_gray: Optional[np.ndarray] = None
@@ -1183,8 +1366,14 @@ class NodeCmdMotionInfer(Node):
         self.create_subscription(Float64MultiArray, self.pose_topic, self._on_pose, vec_qos)
         self.create_subscription(Float64MultiArray, self.force_topic, self._on_force, vec_qos)
         self.create_subscription(Image, self.image_topic, self._on_img, img_qos)
+        if self.use_global_image:
+            self.create_subscription(Image, self.global_image_topic, self._on_global_img, img_qos)
 
         self.pub_cmd = self.create_publisher(Float64MultiArray, self.cmd_topic, 10)
+        self.pub_gradcam_overlay = None
+        if self.gradcam_enable and self.gradcam_publish:
+            self.pub_gradcam_overlay = self.create_publisher(Image, self.gradcam_overlay_topic, 1)
+            self.get_logger().info(f"[GRADCAM] publishing overlay image: {self.gradcam_overlay_topic}")
 
         self.timer_control = self.create_timer(self.dt_control, self._on_control_timer)
         self.timer_infer = self.create_timer(self.dt_infer, self._on_infer_timer)
@@ -1194,7 +1383,9 @@ class NodeCmdMotionInfer(Node):
             f"  stage_start={self.stage.name}\n"
             f"  pose_topic={self.pose_topic}\n"
             f"  force_topic={self.force_topic}\n"
+            f"  obs_mode={self.obs_mode} camera_names={self.camera_names}\n"
             f"  image_topic={self.image_topic}\n"
+            f"  global_image_topic={self.global_image_topic if self.use_global_image else '(disabled)'}\n"
             f"  cmd_topic={self.cmd_topic}\n"
             f"  image_qos={self.image_qos_str}\n"
             f"  policy_class={self.policy_class} phase_mode={self.phase_mode}\n"
@@ -1215,6 +1406,7 @@ class NodeCmdMotionInfer(Node):
             f"  RELEASE(enable={int(self.release_assist_enable)}, ramp_sec={self.release_ramp_sec})\n"
             f"  DEMO_START(auto={int(self.auto_move_to_demo_start)}, move_sec={self.demo_start_move_sec}, hold_sec={self.demo_start_hold_sec}, z_offset_mm={self.demo_start_z_offset_mm})\n"
             f"  POLICY_OUTPUT(z_offset_mm={self.policy_z_offset_mm})\n"
+            f"  GRADCAM(enable={int(self.gradcam_enable)}, layer={self._gradcam_target_layer_name}, target={self.gradcam_target}, every_n_infer={self.gradcam_every_n_infer}, topic={self.gradcam_overlay_topic})\n"
         )
 
     # ------------------------------------------------------------
@@ -1249,6 +1441,221 @@ class NodeCmdMotionInfer(Node):
             hist = np.concatenate([pad, hist], axis=0)
 
         return hist.astype(np.float32)
+
+    # ------------------------------------------------------------
+    # Grad-CAM debug helpers
+    # ------------------------------------------------------------
+    def _setup_gradcam_hooks(self):
+        if not self.gradcam_enable:
+            return
+
+        layer = _find_module_by_name(self.policy, self.gradcam_layer_name)
+        layer_name = self.gradcam_layer_name
+        if layer is None:
+            layer_name, layer = _find_last_conv2d(self.policy)
+
+        if layer is None:
+            self.get_logger().warn("[GRADCAM] no Conv2d layer found in policy. Grad-CAM disabled.")
+            self.gradcam_enable = False
+            return
+
+        self._gradcam_target_layer = layer
+        self._gradcam_target_layer_name = str(layer_name)
+
+        def _fwd_hook(_module, _inp, out):
+            if torch.is_tensor(out):
+                self._gradcam_activation = out.detach()
+            elif isinstance(out, (tuple, list)) and len(out) > 0 and torch.is_tensor(out[0]):
+                self._gradcam_activation = out[0].detach()
+            else:
+                self._gradcam_activation = None
+
+        def _bwd_hook(_module, _grad_input, grad_output):
+            if isinstance(grad_output, (tuple, list)) and len(grad_output) > 0 and torch.is_tensor(grad_output[0]):
+                self._gradcam_gradient = grad_output[0].detach()
+            elif torch.is_tensor(grad_output):
+                self._gradcam_gradient = grad_output.detach()
+            else:
+                self._gradcam_gradient = None
+
+        self._gradcam_fwd_handle = layer.register_forward_hook(_fwd_hook)
+        try:
+            self._gradcam_bwd_handle = layer.register_full_backward_hook(_bwd_hook)
+        except Exception:
+            self._gradcam_bwd_handle = layer.register_backward_hook(_bwd_hook)
+
+        self.get_logger().warn(
+            f"[GRADCAM] enabled. target_layer='{self._gradcam_target_layer_name}', "
+            f"target={self.gradcam_target}, every_n_infer={self.gradcam_every_n_infer}"
+        )
+
+    def _select_gradcam_scalar(self, seq_phys: torch.Tensor) -> torch.Tensor:
+        if seq_phys.dim() != 2 or seq_phys.shape[-1] != 9:
+            raise RuntimeError(f"Grad-CAM seq must be (T,9), got {tuple(seq_phys.shape)}")
+
+        T = int(seq_phys.shape[0])
+        s = min(max(0, int(self.gradcam_target_step)), max(0, T - 1))
+        e = min(T, s + max(1, int(self.gradcam_target_horizon)))
+        block = seq_phys[s:e]
+        target = str(self.gradcam_target or "z").strip().lower()
+
+        if target in ("x", "cmd_x"):
+            return block[:, 0].mean()
+        if target in ("y", "cmd_y"):
+            return block[:, 1].mean()
+        if target in ("z", "cmd_z"):
+            return block[:, 2].mean()
+        if target in ("wx", "rx", "roll"):
+            return block[:, 3].mean()
+        if target in ("wy", "ry", "pitch"):
+            return block[:, 4].mean()
+        if target in ("wz", "rz", "yaw"):
+            return block[:, 5].mean()
+        if target in ("fx", "cmd_fx"):
+            return block[:, 6].mean()
+        if target in ("fy", "cmd_fy"):
+            return block[:, 7].mean()
+        if target in ("fz", "cmd_fz"):
+            return block[:, 8].mean()
+        if target in ("abs_z", "z_abs"):
+            return block[:, 2].abs().mean()
+        if target in ("abs_fz", "fz_abs"):
+            return block[:, 8].abs().mean()
+        if target in ("xyz_norm", "pos_norm", "position_norm"):
+            return torch.linalg.norm(block[:, 0:3], dim=-1).mean()
+        if target in ("rot_norm", "ori_norm", "orientation_norm"):
+            return torch.linalg.norm(block[:, 3:6], dim=-1).mean()
+        if target in ("force_norm", "f_norm"):
+            return torch.linalg.norm(block[:, 6:9], dim=-1).mean()
+        if target in ("action_norm", "all_norm"):
+            return torch.linalg.norm(block[:, 0:9], dim=-1).mean()
+        return block[:, 2].mean()
+
+    def _gradcam_policy_forward(
+        self,
+        q_gc: torch.Tensor,
+        img_gc: torch.Tensor,
+        fh_gc: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        if self.policy_class == "FLOW":
+            if hasattr(self.policy, "sample_action_with_grad"):
+                if self.use_force_history:
+                    return self.policy.sample_action_with_grad(qpos=q_gc, image=img_gc, force_history=fh_gc)
+                return self.policy.sample_action_with_grad(qpos=q_gc, image=img_gc)
+
+            if hasattr(self.policy, "predict_velocity"):
+                steps = max(1, int(getattr(self.policy, "flow_infer_steps", self.flow_infer_steps)))
+                B = int(q_gc.shape[0])
+                T = int(getattr(self.policy, "num_queries", self.chunk_size))
+                Da = int(getattr(self.policy, "action_dim", 9))
+                z = torch.randn(B, T, Da, device=q_gc.device, dtype=q_gc.dtype)
+                dt = 1.0 / float(steps)
+                for k in range(steps):
+                    t = torch.full((B,), (k + 0.5) / float(steps), device=q_gc.device, dtype=q_gc.dtype)
+                    if self.use_force_history:
+                        v = self.policy.predict_velocity(z_t=z, t=t, qpos=q_gc, image=img_gc, force_history=fh_gc)
+                    else:
+                        v = self.policy.predict_velocity(z_t=z, t=t, qpos=q_gc, image=img_gc)
+                    z = z + dt * v
+                return z
+
+        if self.use_force_history:
+            return self.policy(q_gc, img_gc, force_history=fh_gc)
+        return self.policy(q_gc, img_gc)
+
+    def _run_gradcam_debug(self, cam0_rgb: np.ndarray, q_t: torch.Tensor, img_t: torch.Tensor, force_hist_t: Optional[torch.Tensor]):
+        if not self.gradcam_enable:
+            return
+        if self._gradcam_target_layer is None:
+            return
+        if self._infer_plan_count <= 0 or (self._infer_plan_count % self.gradcam_every_n_infer) != 0:
+            return
+
+        self._gradcam_activation = None
+        self._gradcam_gradient = None
+        gradcam_params = None
+        gradcam_param_states = None
+
+        try:
+            was_training = self.policy.training
+            self.policy.eval()
+            self.policy.zero_grad(set_to_none=True)
+            gradcam_params = list(self.policy.parameters())
+            gradcam_param_states = [p.requires_grad for p in gradcam_params]
+            for p in gradcam_params:
+                p.requires_grad_(False)
+
+            q_gc = q_t.detach().clone()
+            img_gc = img_t.detach().clone()
+            img_gc.requires_grad_(True)
+            fh_gc = None if force_hist_t is None else force_hist_t.detach().clone()
+
+            with torch.enable_grad():
+                out = self._gradcam_policy_forward(q_gc=q_gc, img_gc=img_gc, fh_gc=fh_gc)
+                seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class)
+                if self.denorm_action_enabled and self.stats is not None:
+                    seq_phys = _denorm_action_seq(seq, self.stats)
+                else:
+                    seq_phys = seq
+
+                scalar = self._select_gradcam_scalar(seq_phys)
+                if not torch.is_tensor(scalar) or not scalar.requires_grad:
+                    raise RuntimeError("selected Grad-CAM scalar does not require grad")
+                scalar.backward(retain_graph=False)
+
+            if was_training:
+                self.policy.train()
+
+            act = self._gradcam_activation
+            grad = self._gradcam_gradient
+            if act is None or grad is None:
+                raise RuntimeError("activation/gradient was not captured from target layer")
+            if act.dim() != 4 or grad.dim() != 4:
+                raise RuntimeError(f"expected Conv2d activation/gradient (N,C,H,W), got act={tuple(act.shape)}, grad={tuple(grad.shape)}")
+
+            weights = grad[0:1].mean(dim=(2, 3), keepdim=True)
+            cam = torch.relu((weights * act[0:1]).sum(dim=1, keepdim=False))[0]
+            heat = _normalize_heatmap_np(cam.detach().float().cpu().numpy())
+            overlay = _make_gradcam_overlay_rgb(cam0_rgb, heat, alpha=self.gradcam_alpha, colormap=self.gradcam_colormap)
+
+            self._gradcam_pub_count += 1
+            if self.gradcam_publish and self.pub_gradcam_overlay is not None:
+                msg = _rgb_numpy_to_image_msg(overlay, stamp=self.get_clock().now().to_msg(), frame_id="gradcam_cam0")
+                self.pub_gradcam_overlay.publish(msg)
+
+            if self.gradcam_save:
+                ts = time.strftime("%Y%m%d_%H%M%S")
+                fname = f"gradcam_{ts}_{self._gradcam_pub_count:06d}_{self.gradcam_target}.png"
+                out_path = os.path.join(self.gradcam_save_dir, fname)
+                if cv2 is not None:
+                    cv2.imwrite(out_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+                else:
+                    from PIL import Image as PILImage
+                    PILImage.fromarray(overlay).save(out_path)
+
+            if self._gradcam_pub_count <= 3 or (self._gradcam_pub_count % self.gradcam_log_every_n == 0):
+                self.get_logger().info(
+                    f"[GRADCAM] #{self._gradcam_pub_count} target={self.gradcam_target} "
+                    f"scalar={float(scalar.detach().cpu()):.6f} layer={self._gradcam_target_layer_name} "
+                    f"heat_shape={tuple(heat.shape)} publish={int(self.gradcam_publish)} save={int(self.gradcam_save)}"
+                )
+
+        except Exception as e:
+            self._gradcam_fail_count += 1
+            now_t = _monotonic()
+            if self._gradcam_fail_count <= 3 or (now_t - self._gradcam_last_log_t) > 2.0:
+                self._gradcam_last_log_t = now_t
+                self.get_logger().warn(f"[GRADCAM] failed #{self._gradcam_fail_count}: {e}")
+        finally:
+            try:
+                self.policy.zero_grad(set_to_none=True)
+            except Exception:
+                pass
+            if gradcam_params is not None and gradcam_param_states is not None:
+                for p, req in zip(gradcam_params, gradcam_param_states):
+                    p.requires_grad_(req)
+            self._gradcam_activation = None
+            self._gradcam_gradient = None
 
     # ------------------------------------------------------------
     # Load policy (nrs_imitation/source/models/policy.py) + ckpt
@@ -1289,7 +1696,8 @@ class NodeCmdMotionInfer(Node):
             "dec_layers": int(self.get_parameter("dec_layers").value),
             "nheads": int(self.get_parameter("nheads").value),
 
-            "camera_names": ["cam0"],
+            "camera_names": list(self.camera_names),
+            "obs_mode": self.obs_mode,
             "state_dim": 9,
             "action_dim": 9,
 
@@ -1377,7 +1785,7 @@ class NodeCmdMotionInfer(Node):
         if len(unexpected) > 0:
             self.get_logger().warn(f"[INFO] unexpected sample: {list(unexpected)[:10]}")
         self.get_logger().info(
-            f"[INFO] policy_class={policy_class}, camera_names=['cam0'], "
+            f"[INFO] policy_class={policy_class}, obs_mode={self.obs_mode}, camera_names={self.camera_names}, "
             f"use_force_history={self.use_force_history}, force_history_len={self.force_history_len}"
         )
         return policy
@@ -1475,6 +1883,14 @@ class NodeCmdMotionInfer(Node):
                 self._img_cam0 = rgb
         except Exception as e:
             self.get_logger().error(f"[CAM0 IMG] decode/preprocess failed: {e}")
+
+    def _on_global_img(self, msg: Image):
+        try:
+            rgb = _img_to_rgb_numpy(msg)
+            with self._lock:
+                self._img_cam1 = rgb.copy()
+        except Exception as e:
+            self.get_logger().error(f"[CAM1 IMG] decode failed: {e}")
 
     # ------------------------------------------------------------
     # Contact update
@@ -1586,15 +2002,18 @@ class NodeCmdMotionInfer(Node):
             pose6 = None if self._pose6 is None else self._pose6.copy()
             force = None if self._force is None else self._force.copy()
             cam0 = None if self._img_cam0 is None else self._img_cam0.copy()
+            cam1 = None if self._img_cam1 is None else self._img_cam1.copy()
             force_hist_list = list(self._force_hist)
 
-        if pose6 is None or force is None or cam0 is None:
+        cam1_missing = self.use_global_image and cam1 is None
+        if pose6 is None or force is None or cam0 is None or cam1_missing:
             now_dbg = _monotonic()
             if now_dbg - self._infer_wait_last_log >= 1.0:
                 self._infer_wait_last_log = now_dbg
                 self.get_logger().warn(
                     "[INFER-WAIT] missing live input -> "
-                    f"pose={pose6 is not None}, force={force is not None}, image={cam0 is not None}. "
+                    f"pose={pose6 is not None}, force={force is not None}, "
+                    f"cam0={cam0 is not None}, cam1={cam1 is not None if self.use_global_image else 'disabled'}. "
                     "No policy plan will be generated until all are available."
                 )
             return
@@ -1621,7 +2040,15 @@ class NodeCmdMotionInfer(Node):
                 force_hist_t = _normalize_force_history(force_hist_t, self.stats)
 
         try:
-            img_t = _to_tensor_image_stack(cam0, device=self.device, resize_hw=self.resize_hw)
+            images = [cam0]
+            if self.use_global_image:
+                images.append(cam1)
+            img_t = _to_tensor_image_stack(
+                images,
+                device=self.device,
+                resize_hw=self.resize_hw,
+                camera_names=self.camera_names,
+            )
         except Exception as e:
             self.get_logger().error(f"[INFER] image stack failed: {e}")
             return
@@ -1656,6 +2083,11 @@ class NodeCmdMotionInfer(Node):
 
         self.plans.append(Plan(t0=_monotonic(), seq_den=seq_den))
         self._infer_plan_count += 1
+
+        # Optional Grad-CAM debug visualization. This performs a separate backward pass
+        # at a low rate, so the control loop and command generation remain unchanged.
+        self._run_gradcam_debug(cam0_rgb=cam0, q_t=q_t, img_t=img_t, force_hist_t=force_hist_t)
+
         if self._infer_plan_count <= 3 or (self._infer_plan_count % 20 == 0):
             self.get_logger().info(
                 f"[INFER] plan appended #{self._infer_plan_count} | "
@@ -2335,11 +2767,11 @@ class NodeCmdMotionInfer(Node):
 # main
 # ============================================================
 
-def main(args=None):
+def main(args=None, node_name: str = "inference_core"):
     rclpy.init(args=args)
     node = None
     try:
-        node = NodeCmdMotionInfer()
+        node = NodeCmdMotionInfer(node_name=node_name)
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
