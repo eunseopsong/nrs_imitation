@@ -429,10 +429,14 @@ def _mean_dict(items: List[Dict[str, float]]) -> Dict[str, float]:
 def validate(policy, val_loader, device):
     policy.eval()
     outs = []
-    for batch in val_loader:
+    val_iter = tqdm(val_loader, desc="Val", leave=False)
+    for batch in val_iter:
         image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
         out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
-        outs.append(_scalar_dict(out))
+        scalars = _scalar_dict(out)
+        outs.append(scalars)
+        if "loss" in scalars:
+            val_iter.set_postfix(loss=f"{scalars['loss']:.4f}")
     return _mean_dict(outs)
 
 
@@ -483,14 +487,18 @@ def train_flow(train_loader, val_loader, config):
 
         policy.train()
         train_outs = []
-        for bi, batch in enumerate(train_loader):
+        train_iter = tqdm(train_loader, desc=f"Train {epoch}", leave=False)
+        for bi, batch in enumerate(train_iter):
             image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
             optimizer.zero_grad(set_to_none=True)
             out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
             loss = out["loss"]
             loss.backward()
             optimizer.step()
-            train_outs.append(_scalar_dict(out))
+            scalars = _scalar_dict(out)
+            train_outs.append(scalars)
+            if "loss" in scalars:
+                train_iter.set_postfix(loss=f"{scalars['loss']:.4f}")
             if bi < debug_batches:
                 print(f"[DEBUG] Epoch {epoch}, batch {bi}, train loss = {float(loss.detach().cpu().item()):.6f}")
 
