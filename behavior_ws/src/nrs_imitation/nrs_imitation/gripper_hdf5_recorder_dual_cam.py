@@ -15,6 +15,7 @@ FIXED_DEFAULTS = {
     "enable_gripper_state": True,
     "gripper_position_topic": "/gripper/present_position",
     "gripper_current_topic": "/gripper/present_current_mA",
+    "pose_xyz_scale": 1.0,
     "file_prefix": "gripper_hdf5_recorder_dual_cam",
 }
 

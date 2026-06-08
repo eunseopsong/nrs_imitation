@@ -398,6 +398,12 @@ class GripperHDF5Recorder(Node):
         self.idle_status_period_sec = float(self.get_parameter("idle_status_period_sec").value)
         self.command_dedupe_sec = float(self.get_parameter("command_dedupe_sec").value)
         self.pose_xyz_scale = float(self.get_parameter("pose_xyz_scale").value)
+        if self.recording_mode == "robot" and abs(self.pose_xyz_scale - 1000.0) < 1e-9:
+            self.pose_xyz_scale = 1.0
+            self.get_logger().warn(
+                "[UNIT] robot recording uses /ur10skku/currentP in mm; "
+                "overriding pose_xyz_scale 1000.0 -> 1.0 to avoid x1000 datasets."
+            )
         self.zero_xy_forces = bool(self.get_parameter("zero_xy_forces").value)
         self.fz_ema_alpha = float(self.get_parameter("fz_ema_alpha").value)
         self.force_edge_zero_sec = float(self.get_parameter("force_edge_zero_sec").value)

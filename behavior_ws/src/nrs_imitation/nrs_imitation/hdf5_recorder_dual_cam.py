@@ -12,6 +12,7 @@ FIXED_DEFAULTS = {
     "image_topic": "/realsense/robot/color/image_raw",
     "enable_global_cam": True,
     "global_image_topic": "/realsense/global/color/image_raw",
+    "pose_xyz_scale": 1.0,
     "file_prefix": "hdf5_recorder_dual_cam",
 }
 

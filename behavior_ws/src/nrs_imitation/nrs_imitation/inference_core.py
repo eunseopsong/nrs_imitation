@@ -436,6 +436,42 @@ class StatsPack:
     qpos_b: np.ndarray   # max or std
     act_a: np.ndarray    # min or mean
     act_b: np.ndarray    # max or std
+    xyz_scale: float = 1.0
+
+
+XYZ_STATS_ABS_MAX_MM = 10000.0
+
+
+def _infer_xyz_stats_scale(*arrays: np.ndarray) -> float:
+    """
+    Inference commands and /ur10skku/currentP use mm. A UR10 workspace should
+    not produce 10m+ xyz values; those stats are almost certainly um-like data
+    produced by applying an extra x1000 during recording.
+    """
+    xyz = []
+    for arr in arrays:
+        a = np.asarray(arr, dtype=np.float32).reshape(-1)
+        if a.size >= 3:
+            xyz.append(a[:3])
+    if not xyz:
+        return 1.0
+
+    vals = np.concatenate(xyz, axis=0)
+    finite = vals[np.isfinite(vals)]
+    if finite.size == 0:
+        return 1.0
+
+    max_abs = float(np.max(np.abs(finite)))
+    if max_abs > XYZ_STATS_ABS_MAX_MM:
+        return 0.001
+    return 1.0
+
+
+def _scale_xyz_prefix(arr: np.ndarray, scale: float) -> np.ndarray:
+    out = np.asarray(arr, dtype=np.float32).copy()
+    if out.size >= 3 and abs(float(scale) - 1.0) > 1e-12:
+        out[:3] *= np.float32(scale)
+    return out
 
 
 def _canonical_norm_mode(mode: str) -> str:
@@ -467,7 +503,7 @@ def _sanitize_range_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6
 
 
 
-def _load_demo_start_pose_from_stats(ckpt_dir: str) -> Optional[np.ndarray]:
+def _load_demo_start_pose_from_stats(ckpt_dir: str, xyz_scale: float = 1.0) -> Optional[np.ndarray]:
     """
     Load demo_start_pose_mean from ckpt_dir/dataset_stats.pkl.
 
@@ -495,7 +531,12 @@ def _load_demo_start_pose_from_stats(ckpt_dir: str) -> Optional[np.ndarray]:
             continue
         arr = np.asarray(st[key], dtype=np.float32).reshape(-1)
         if arr.size >= 6 and np.all(np.isfinite(arr[:6])):
-            return arr[:6].astype(np.float32).copy()
+            scale = float(xyz_scale)
+            if scale <= 0.0 or not np.isfinite(scale):
+                scale = _infer_xyz_stats_scale(arr[:6])
+            elif abs(scale - 1.0) <= 1e-12:
+                scale = _infer_xyz_stats_scale(arr[:6])
+            return _scale_xyz_prefix(arr[:6], scale)
 
     return None
 
@@ -523,6 +564,13 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         amin = np.asarray(st["action_min"], dtype=np.float32).reshape(9)
         amax = np.asarray(st["action_max"], dtype=np.float32).reshape(9)
 
+        xyz_scale = _infer_xyz_stats_scale(qmin, qmax, amin, amax)
+        if abs(xyz_scale - 1.0) > 1e-12:
+            qmin = _scale_xyz_prefix(qmin, xyz_scale)
+            qmax = _scale_xyz_prefix(qmax, xyz_scale)
+            amin = _scale_xyz_prefix(amin, xyz_scale)
+            amax = _scale_xyz_prefix(amax, xyz_scale)
+
         qmin, qmax = _sanitize_range_minmax(qmin, qmax)
         amin, amax = _sanitize_range_minmax(amin, amax)
 
@@ -546,6 +594,7 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
             qpos_b=qmax,
             act_a=amin,
             act_b=amax,
+            xyz_scale=xyz_scale,
         )
 
     if all(k in st for k in ["qpos_mean", "qpos_std", "action_mean", "action_std"]):
@@ -554,6 +603,13 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         am = np.asarray(st["action_mean"], dtype=np.float32).reshape(9)
         astd = _sanitize_std(np.asarray(st["action_std"], dtype=np.float32).reshape(9))
 
+        xyz_scale = _infer_xyz_stats_scale(qm, am)
+        if abs(xyz_scale - 1.0) > 1e-12:
+            qm = _scale_xyz_prefix(qm, xyz_scale)
+            qs = _scale_xyz_prefix(qs, xyz_scale)
+            am = _scale_xyz_prefix(am, xyz_scale)
+            astd = _scale_xyz_prefix(astd, xyz_scale)
+
         return StatsPack(
             qpos_mode="zscore",
             act_mode="zscore",
@@ -561,6 +617,7 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
             qpos_b=qs,
             act_a=am,
             act_b=astd,
+            xyz_scale=xyz_scale,
         )
 
     return None
@@ -803,6 +860,7 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("gradcam_colormap", "jet")
         self.declare_parameter("gradcam_publish", True)
         self.declare_parameter("gradcam_overlay_topic", "/inference_core/gradcam_overlay")
+        self.declare_parameter("gradcam_global_overlay_topic", "/inference_core/gradcam_overlay_global")
         self.declare_parameter("gradcam_save", False)
         self.declare_parameter("gradcam_save_dir", "~/nrs_imitation/gradcam")
         self.declare_parameter("gradcam_log_every_n", 5)
@@ -891,11 +949,19 @@ class NodeCmdMotionInfer(Node):
         # Lift the demo-start alignment target along world +Z before inference.
         # This prevents curved/convex-surface policies from starting while already in contact.
         self.declare_parameter("demo_start_z_offset_mm", 0.0)
+        # Refuse automatic demo-start moves that are too far from the live robot pose.
+        # Use <=0 only when an external safety layer already constrains this motion.
+        self.declare_parameter("demo_start_max_align_dist_mm", 75.0)
 
         # Optional policy-output Z offset.
         # This is applied to every denormalized absolute action z target.
         # Default 0.0 preserves the original learned trajectory.
         self.declare_parameter("policy_z_offset_mm", 0.0)
+
+        # Last-line command guard. It holds the current pose instead of publishing
+        # a command whose xyz target is implausibly far from /currentP.
+        self.declare_parameter("cmd_safety_enable", True)
+        self.declare_parameter("cmd_safety_max_xyz_from_current_mm", 200.0)
 
         # policy config
         self.declare_parameter("kl_weight", 10.0)
@@ -1020,6 +1086,7 @@ class NodeCmdMotionInfer(Node):
         self.gradcam_colormap = str(self.get_parameter("gradcam_colormap").value).strip().lower()
         self.gradcam_publish = bool(self.get_parameter("gradcam_publish").value)
         self.gradcam_overlay_topic = str(self.get_parameter("gradcam_overlay_topic").value)
+        self.gradcam_global_overlay_topic = str(self.get_parameter("gradcam_global_overlay_topic").value)
         self.gradcam_save = bool(self.get_parameter("gradcam_save").value)
         self.gradcam_save_dir = os.path.expanduser(str(self.get_parameter("gradcam_save_dir").value))
         self.gradcam_log_every_n = max(1, int(self.get_parameter("gradcam_log_every_n").value))
@@ -1108,7 +1175,10 @@ class NodeCmdMotionInfer(Node):
         self.demo_start_move_sec = float(self.get_parameter("demo_start_move_sec").value)
         self.demo_start_hold_sec = float(self.get_parameter("demo_start_hold_sec").value)
         self.demo_start_z_offset_mm = float(self.get_parameter("demo_start_z_offset_mm").value)
+        self.demo_start_max_align_dist_mm = float(self.get_parameter("demo_start_max_align_dist_mm").value)
         self.policy_z_offset_mm = float(self.get_parameter("policy_z_offset_mm").value)
+        self.cmd_safety_enable = bool(self.get_parameter("cmd_safety_enable").value)
+        self.cmd_safety_max_xyz_from_current_mm = float(self.get_parameter("cmd_safety_max_xyz_from_current_mm").value)
 
         if abs(self.policy_z_offset_mm) > 1e-9 and self.action_type != "absolute":
             self.get_logger().warn(
@@ -1228,6 +1298,11 @@ class NodeCmdMotionInfer(Node):
                 f"[STATS] Loaded dataset_stats.pkl from {self.ckpt_dir} | "
                 f"qpos_mode={self.stats.qpos_mode}, act_mode={self.stats.act_mode}"
             )
+            if abs(float(self.stats.xyz_scale) - 1.0) > 1e-12:
+                self.get_logger().warn(
+                    f"[STATS] Applied xyz_unit_scale={float(self.stats.xyz_scale):.6g} "
+                    "to qpos/action xyz stats for mm-compatible inference."
+                )
             if self.stats.qpos_mode in ["minmax_01", "minmax_m11"]:
                 self.get_logger().info(
                     f"[STATS] qpos_z_range=[{float(self.stats.qpos_a[2]):.3f},{float(self.stats.qpos_b[2]):.3f}] "
@@ -1238,7 +1313,8 @@ class NodeCmdMotionInfer(Node):
         # demo-start pose for optional initial alignment
         self.demo_start_pose6: Optional[np.ndarray] = None
         if self.auto_move_to_demo_start:
-            self.demo_start_pose6 = _load_demo_start_pose_from_stats(self.ckpt_dir)
+            demo_xyz_scale = float(self.stats.xyz_scale) if self.stats is not None else 1.0
+            self.demo_start_pose6 = _load_demo_start_pose_from_stats(self.ckpt_dir, xyz_scale=demo_xyz_scale)
             if self.demo_start_pose6 is None:
                 self.get_logger().warn(
                     "[DEMO_START] auto_move_to_demo_start=True, but demo_start_pose_mean "
@@ -1286,6 +1362,8 @@ class NodeCmdMotionInfer(Node):
         self._infer_wait_last_log = 0.0
         self._infer_plan_count = 0
         self._ctrl_no_plan_last_log = 0.0
+        self._cmd_safety_last_log = 0.0
+        self._demo_start_safety_last_log = 0.0
 
         # baseline state
         self._sent_first_cmd = False
@@ -1371,9 +1449,13 @@ class NodeCmdMotionInfer(Node):
 
         self.pub_cmd = self.create_publisher(Float64MultiArray, self.cmd_topic, 10)
         self.pub_gradcam_overlay = None
+        self.pub_gradcam_global_overlay = None
         if self.gradcam_enable and self.gradcam_publish:
             self.pub_gradcam_overlay = self.create_publisher(Image, self.gradcam_overlay_topic, 1)
             self.get_logger().info(f"[GRADCAM] publishing overlay image: {self.gradcam_overlay_topic}")
+            if self.use_global_image:
+                self.pub_gradcam_global_overlay = self.create_publisher(Image, self.gradcam_global_overlay_topic, 1)
+                self.get_logger().info(f"[GRADCAM] publishing global overlay image: {self.gradcam_global_overlay_topic}")
 
         self.timer_control = self.create_timer(self.dt_control, self._on_control_timer)
         self.timer_infer = self.create_timer(self.dt_infer, self._on_infer_timer)
@@ -1405,8 +1487,10 @@ class NodeCmdMotionInfer(Node):
             f"  DITHER(enable={int(self.dither_enable)}, only_track={int(self.dither_only_track)}, min_after={self.dither_min_after_start_sec}s, win={self.dither_win_sec}s, dur={self.dither_sec}s, net_pos_thr={self.dither_net_pos_thr_mm}mm, ratio_thr={self.dither_path_ratio_thr}, rms_pos_thr={self.dither_rms_pos_thr_mm}mm)\n"
             f"  RELEASE(enable={int(self.release_assist_enable)}, ramp_sec={self.release_ramp_sec})\n"
             f"  DEMO_START(auto={int(self.auto_move_to_demo_start)}, move_sec={self.demo_start_move_sec}, hold_sec={self.demo_start_hold_sec}, z_offset_mm={self.demo_start_z_offset_mm})\n"
+            f"  DEMO_START_SAFETY(max_align_dist_mm={self.demo_start_max_align_dist_mm})\n"
             f"  POLICY_OUTPUT(z_offset_mm={self.policy_z_offset_mm})\n"
-            f"  GRADCAM(enable={int(self.gradcam_enable)}, layer={self._gradcam_target_layer_name}, target={self.gradcam_target}, every_n_infer={self.gradcam_every_n_infer}, topic={self.gradcam_overlay_topic})\n"
+            f"  CMD_SAFETY(enable={int(self.cmd_safety_enable)}, max_xyz_from_current_mm={self.cmd_safety_max_xyz_from_current_mm})\n"
+            f"  GRADCAM(enable={int(self.gradcam_enable)}, layer={self._gradcam_target_layer_name}, target={self.gradcam_target}, every_n_infer={self.gradcam_every_n_infer}, topic={self.gradcam_overlay_topic}, global_topic={self.gradcam_global_overlay_topic if self.use_global_image else '(disabled)'})\n"
         )
 
     # ------------------------------------------------------------
@@ -1563,7 +1647,7 @@ class NodeCmdMotionInfer(Node):
             return self.policy(q_gc, img_gc, force_history=fh_gc)
         return self.policy(q_gc, img_gc)
 
-    def _run_gradcam_debug(self, cam0_rgb: np.ndarray, q_t: torch.Tensor, img_t: torch.Tensor, force_hist_t: Optional[torch.Tensor]):
+    def _run_gradcam_debug(self, images_rgb: List[np.ndarray], q_t: torch.Tensor, img_t: torch.Tensor, force_hist_t: Optional[torch.Tensor]):
         if not self.gradcam_enable:
             return
         if self._gradcam_target_layer is None:
@@ -1613,31 +1697,55 @@ class NodeCmdMotionInfer(Node):
             if act.dim() != 4 or grad.dim() != 4:
                 raise RuntimeError(f"expected Conv2d activation/gradient (N,C,H,W), got act={tuple(act.shape)}, grad={tuple(grad.shape)}")
 
-            weights = grad[0:1].mean(dim=(2, 3), keepdim=True)
-            cam = torch.relu((weights * act[0:1]).sum(dim=1, keepdim=False))[0]
-            heat = _normalize_heatmap_np(cam.detach().float().cpu().numpy())
-            overlay = _make_gradcam_overlay_rgb(cam0_rgb, heat, alpha=self.gradcam_alpha, colormap=self.gradcam_colormap)
-
             self._gradcam_pub_count += 1
-            if self.gradcam_publish and self.pub_gradcam_overlay is not None:
-                msg = _rgb_numpy_to_image_msg(overlay, stamp=self.get_clock().now().to_msg(), frame_id="gradcam_cam0")
-                self.pub_gradcam_overlay.publish(msg)
+            num_cam_maps = min(len(images_rgb), int(act.shape[0]), int(grad.shape[0]))
+            if num_cam_maps <= 0:
+                raise RuntimeError("no camera Grad-CAM maps available")
 
-            if self.gradcam_save:
-                ts = time.strftime("%Y%m%d_%H%M%S")
-                fname = f"gradcam_{ts}_{self._gradcam_pub_count:06d}_{self.gradcam_target}.png"
-                out_path = os.path.join(self.gradcam_save_dir, fname)
-                if cv2 is not None:
-                    cv2.imwrite(out_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
-                else:
-                    from PIL import Image as PILImage
-                    PILImage.fromarray(overlay).save(out_path)
+            published_names = []
+            heat_shapes = []
+            stamp = self.get_clock().now().to_msg()
+
+            for cam_i in range(num_cam_maps):
+                weights = grad[cam_i:cam_i + 1].mean(dim=(2, 3), keepdim=True)
+                cam = torch.relu((weights * act[cam_i:cam_i + 1]).sum(dim=1, keepdim=False))[0]
+                heat = _normalize_heatmap_np(cam.detach().float().cpu().numpy())
+                overlay = _make_gradcam_overlay_rgb(
+                    images_rgb[cam_i],
+                    heat,
+                    alpha=self.gradcam_alpha,
+                    colormap=self.gradcam_colormap,
+                )
+
+                cam_name = self.camera_names[cam_i] if cam_i < len(self.camera_names) else f"cam{cam_i}"
+                heat_shapes.append(f"{cam_name}:{tuple(heat.shape)}")
+
+                if self.gradcam_publish:
+                    if cam_i == 0 and self.pub_gradcam_overlay is not None:
+                        msg = _rgb_numpy_to_image_msg(overlay, stamp=stamp, frame_id=f"gradcam_{cam_name}")
+                        self.pub_gradcam_overlay.publish(msg)
+                        published_names.append(cam_name)
+                    elif cam_i == 1 and self.pub_gradcam_global_overlay is not None:
+                        msg = _rgb_numpy_to_image_msg(overlay, stamp=stamp, frame_id=f"gradcam_{cam_name}")
+                        self.pub_gradcam_global_overlay.publish(msg)
+                        published_names.append(cam_name)
+
+                if self.gradcam_save:
+                    ts = time.strftime("%Y%m%d_%H%M%S")
+                    fname = f"gradcam_{ts}_{self._gradcam_pub_count:06d}_{cam_name}_{self.gradcam_target}.png"
+                    out_path = os.path.join(self.gradcam_save_dir, fname)
+                    if cv2 is not None:
+                        cv2.imwrite(out_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+                    else:
+                        from PIL import Image as PILImage
+                        PILImage.fromarray(overlay).save(out_path)
 
             if self._gradcam_pub_count <= 3 or (self._gradcam_pub_count % self.gradcam_log_every_n == 0):
                 self.get_logger().info(
                     f"[GRADCAM] #{self._gradcam_pub_count} target={self.gradcam_target} "
                     f"scalar={float(scalar.detach().cpu()):.6f} layer={self._gradcam_target_layer_name} "
-                    f"heat_shape={tuple(heat.shape)} publish={int(self.gradcam_publish)} save={int(self.gradcam_save)}"
+                    f"heat_shape={';'.join(heat_shapes)} publish={int(self.gradcam_publish)} "
+                    f"published={published_names} save={int(self.gradcam_save)}"
                 )
 
         except Exception as e:
@@ -2086,7 +2194,7 @@ class NodeCmdMotionInfer(Node):
 
         # Optional Grad-CAM debug visualization. This performs a separate backward pass
         # at a low rate, so the control loop and command generation remain unchanged.
-        self._run_gradcam_debug(cam0_rgb=cam0, q_t=q_t, img_t=img_t, force_hist_t=force_hist_t)
+        self._run_gradcam_debug(images_rgb=images, q_t=q_t, img_t=img_t, force_hist_t=force_hist_t)
 
         if self._infer_plan_count <= 3 or (self._infer_plan_count % 20 == 0):
             self.get_logger().info(
@@ -2136,10 +2244,67 @@ class NodeCmdMotionInfer(Node):
     # ------------------------------------------------------------
     # Publish helpers
     # ------------------------------------------------------------
+    def _current_pose6_snapshot(self) -> Optional[np.ndarray]:
+        with self._lock:
+            return None if self._pose6 is None else self._pose6.copy()
+
+    def _hold_cmd_from_pose(self, pose6: np.ndarray) -> np.ndarray:
+        hold = np.zeros(9, dtype=np.float32)
+        hold[0:6] = np.asarray(pose6, dtype=np.float32).reshape(-1)[:6]
+        hold[6:9] = 0.0
+        return hold
+
     def _publish_cmd(self, cmd9: np.ndarray):
+        cmd = np.asarray(cmd9, dtype=np.float32).reshape(-1)
+        if cmd.size < 9:
+            now = _monotonic()
+            if now - self._cmd_safety_last_log >= 1.0:
+                self._cmd_safety_last_log = now
+                self.get_logger().error(f"[CMD-SAFETY] malformed cmd size={cmd.size}; publish skipped")
+            return self.prev_cmd.copy() if self.prev_cmd is not None else np.zeros(9, dtype=np.float32)
+
+        cmd = cmd[:9].astype(np.float32).copy()
+        published = cmd
+
+        if self.cmd_safety_enable:
+            reason = ""
+            pose6 = self._current_pose6_snapshot()
+            if not np.all(np.isfinite(cmd)):
+                reason = "non-finite command"
+            elif (
+                pose6 is not None
+                and self.cmd_safety_max_xyz_from_current_mm > 0.0
+                and np.all(np.isfinite(pose6[:6]))
+            ):
+                dist = float(np.linalg.norm(cmd[0:3] - pose6[:3].astype(np.float32)))
+                if dist > float(self.cmd_safety_max_xyz_from_current_mm):
+                    reason = (
+                        f"xyz target {dist:.3f}mm from current pose "
+                        f"(limit={self.cmd_safety_max_xyz_from_current_mm:.3f}mm)"
+                    )
+
+            if reason:
+                if pose6 is not None and np.all(np.isfinite(pose6[:6])):
+                    published = self._hold_cmd_from_pose(pose6)
+                elif self.prev_cmd is not None:
+                    published = self.prev_cmd.astype(np.float32).copy()
+                else:
+                    published = np.zeros(9, dtype=np.float32)
+
+                self.plans.clear()
+                self._anchor_ready = False
+                now = _monotonic()
+                if now - self._cmd_safety_last_log >= 1.0:
+                    self._cmd_safety_last_log = now
+                    self.get_logger().error(
+                        "[CMD-SAFETY] blocked unsafe command: "
+                        f"{reason}. Publishing current-pose hold/previous safe command."
+                    )
+
         m = Float64MultiArray()
-        m.data = [float(x) for x in cmd9.reshape(-1).tolist()]
+        m.data = [float(x) for x in published.reshape(-1).tolist()]
         self.pub_cmd.publish(m)
+        return published
 
     def _ramp_from(self, t0: float, ramp_sec: float) -> float:
         if ramp_sec <= 1e-6:
@@ -2381,6 +2546,24 @@ class NodeCmdMotionInfer(Node):
         if self.prev_cmd is None:
             return
 
+        demo_align_target_check = self.demo_start_pose6.astype(np.float32).copy()
+        demo_align_target_check[2] += float(self.demo_start_z_offset_mm)
+        align_dist = float(np.linalg.norm(demo_align_target_check[0:3] - pose6[0:3].astype(np.float32)))
+        if self.demo_start_max_align_dist_mm > 0.0 and align_dist > float(self.demo_start_max_align_dist_mm):
+            hold = self._hold_cmd_from_pose(pose6)
+            published = self._publish_cmd(hold)
+            self.prev_cmd = published.copy()
+
+            now_dbg = _monotonic()
+            if now_dbg - self._demo_start_safety_last_log >= 1.0:
+                self._demo_start_safety_last_log = now_dbg
+                self.get_logger().error(
+                    "[DEMO_START-SAFETY] alignment target is too far from current pose: "
+                    f"dist={align_dist:.3f}mm > limit={self.demo_start_max_align_dist_mm:.3f}mm. "
+                    "Holding current pose; move robot near demo_start or raise demo_start_max_align_dist_mm deliberately."
+                )
+            return
+
         if self._demo_start_align_t0 is None:
             self._demo_start_align_t0 = now_t
             self._demo_start_from_pose6 = pose6.astype(np.float32).copy()
@@ -2422,8 +2605,8 @@ class NodeCmdMotionInfer(Node):
         cmd[0:6] = pose_cmd
         cmd[6:9] = 0.0
 
-        self._publish_cmd(cmd)
-        self.prev_cmd = cmd.copy()
+        published = self._publish_cmd(cmd)
+        self.prev_cmd = published.copy()
 
         if tau < 1.0:
             if (int(now_t * self.control_hz) % self.debug_every_n) == 0:
@@ -2478,7 +2661,6 @@ class NodeCmdMotionInfer(Node):
             cmd0[7] = 0.0
             cmd0[8] = float(self.first_cmd_fz)
 
-            self.prev_cmd = cmd0.copy()
             self._sent_first_cmd = True
             self._t_first_pub = now_t
             self._t_start = now_t
@@ -2502,7 +2684,8 @@ class NodeCmdMotionInfer(Node):
             self._reset_dither()
             self._reset_kick_count()
 
-            self._publish_cmd(cmd0)
+            published = self._publish_cmd(cmd0)
+            self.prev_cmd = published.copy()
             self.get_logger().info("[START] First publish = current pose. stage=APPROACH")
             return
 
@@ -2569,7 +2752,8 @@ class NodeCmdMotionInfer(Node):
                         f"stage={self.stage.name}, plans={len(self.plans)}, "
                         f"pose={has_pose_dbg}, force={has_force_dbg}, image={has_img_dbg}"
                     )
-                self._publish_cmd(self.prev_cmd)
+                published = self._publish_cmd(self.prev_cmd)
+                self.prev_cmd = published.copy()
                 return
 
             cmd_target = cmd_pred.astype(np.float32).copy()
@@ -2747,8 +2931,8 @@ class NodeCmdMotionInfer(Node):
             if (a0 - tg) * (a1 - tg) < 0.0:
                 cmd_next[i] = tg
 
-        self._publish_cmd(cmd_next)
-        self.prev_cmd = cmd_next
+        published = self._publish_cmd(cmd_next)
+        self.prev_cmd = published.copy()
 
         if (int(now_t * self.control_hz) % self.debug_every_n) == 0:
             base = self._fz_base if self._fz_base_init else 0.0
