@@ -5,8 +5,8 @@ Robotic polishing imitation-learning workspace.
 Main flow:
 
 ```text
-single_cam: teaching / HDF5 recording -> imitation_form conversion -> Flow training -> ROS2 inference
-dual_cam  : stage1 VR teaching -> robot playback + dual-cam HDF5 recording -> imitation_form conversion -> Flow training -> ROS2 inference
+single_cam: teaching / HDF5 recording -> imitation_form conversion -> Flow/ACT training -> ROS2 inference
+dual_cam  : stage1 VR teaching -> robot playback + dual-cam HDF5 recording -> imitation_form conversion -> Flow/ACT training -> ROS2 inference
 ```
 
 The current polishing pipeline is split into:
@@ -150,7 +150,7 @@ Output:
 ~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
 ```
 
-### 4. Train Flow policy
+### 4. Train policy
 
 This auto-selects the latest single-cam `imitation_form`:
 
@@ -159,10 +159,18 @@ cd ~/nrs_imitation
 python3 scripts/flow/train_flow_single_cam.py
 ```
 
+ACT uses the same single-cam dataset root and common training arguments:
+
+```bash
+cd ~/nrs_imitation
+python3 scripts/act/train_act_single_cam.py
+```
+
 Checkpoint output:
 
 ```text
 ~/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>/
+~/nrs_imitation/checkpoints/act/polishing/single_cam/<YYYYMMDD_HHMM>/
 ```
 
 ### 5. Inference
@@ -173,6 +181,12 @@ This auto-selects the latest single-cam `policy_best.ckpt` and opens the Grad-CA
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
+```
+
+Default inference uses Flow checkpoints under `checkpoints/flow/polishing/single_cam`. For ACT checkpoints, add:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py policy_class:=ACT
 ```
 
 Visualization topics:
@@ -355,7 +369,7 @@ Output:
 ~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
 ```
 
-### 6. Train Flow policy
+### 6. Train policy
 
 This auto-selects the latest dual-cam `imitation_form`:
 
@@ -364,10 +378,18 @@ cd ~/nrs_imitation
 python3 scripts/flow/train_flow_dual_cam.py
 ```
 
+ACT uses the same dual-cam dataset root and common training arguments:
+
+```bash
+cd ~/nrs_imitation
+python3 scripts/act/train_act_dual_cam.py
+```
+
 Checkpoint output:
 
 ```text
 ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>/
+~/nrs_imitation/checkpoints/act/polishing/dual_cam/<YYYYMMDD_HHMM>/
 ```
 
 ### 7. Inference
@@ -378,6 +400,12 @@ This auto-selects the latest dual-cam `policy_best.ckpt` and opens the Grad-CAM 
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
+```
+
+Default inference uses Flow checkpoints under `checkpoints/flow/polishing/dual_cam`. For ACT checkpoints, add:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py policy_class:=ACT
 ```
 
 Visualization topics:
@@ -467,6 +495,9 @@ Single-cam training with explicit dataset:
 cd ~/nrs_imitation
 python3 scripts/flow/train_flow_single_cam.py \
   --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
+
+python3 scripts/act/train_act_single_cam.py \
+  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
 Dual-cam training with explicit dataset:
@@ -474,6 +505,9 @@ Dual-cam training with explicit dataset:
 ```bash
 cd ~/nrs_imitation
 python3 scripts/flow/train_flow_dual_cam.py \
+  --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
+
+python3 scripts/act/train_act_dual_cam.py \
   --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
@@ -486,6 +520,8 @@ ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
   ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>
 ```
 
+Use `policy_class:=ACT` and an ACT checkpoint path for ACT inference.
+
 Dual-cam inference with explicit checkpoint:
 
 ```bash
@@ -494,6 +530,8 @@ source install/setup.bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
   ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>
 ```
+
+Use `policy_class:=ACT` and an ACT checkpoint path for ACT inference.
 
 ## Stage-1 VR Workflow Details
 

@@ -12,6 +12,8 @@ from launch_ros.parameter_descriptions import ParameterValue
 def generate_launch_description():
     ckpt_dir = LaunchConfiguration("ckpt_dir")
     act_root = LaunchConfiguration("act_root")
+    policy_class = LaunchConfiguration("policy_class")
+    ckpt_auto_subdir = LaunchConfiguration("ckpt_auto_subdir")
     pose_topic = LaunchConfiguration("pose_topic")
     force_topic = LaunchConfiguration("force_topic")
     image_topic = LaunchConfiguration("image_topic")
@@ -50,6 +52,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("ckpt_dir", default_value=""),
         DeclareLaunchArgument("act_root", default_value="~/nrs_imitation"),
+        DeclareLaunchArgument("policy_class", default_value="FLOW"),
+        DeclareLaunchArgument("ckpt_auto_subdir", default_value="polishing/dual_cam"),
         DeclareLaunchArgument("pose_topic", default_value="/ur10skku/currentP"),
         DeclareLaunchArgument("force_topic", default_value="/ur10skku/currentF"),
         DeclareLaunchArgument("image_topic", default_value="/realsense/robot/color/image_raw"),
@@ -93,6 +97,8 @@ def generate_launch_description():
             parameters=[{
                 "ckpt_dir": ckpt_dir,
                 "act_root": act_root,
+                "policy_class": policy_class,
+                "ckpt_auto_subdir": ckpt_auto_subdir,
                 "pose_topic": pose_topic,
                 "force_topic": force_topic,
                 "image_topic": image_topic,

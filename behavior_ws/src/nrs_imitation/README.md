@@ -3,7 +3,7 @@
 이 저장소의 기본 학습 흐름은 아래 4단계입니다.
 
 ```text
-HDF5 recording -> imitation_form 변환 -> Flow train -> ROS2 inference
+HDF5 recording -> imitation_form 변환 -> Flow/ACT train -> ROS2 inference
 ```
 
 현재 일반 데이터 파이프라인은 `single_cam`과 `dual_cam`으로 분기되어 있습니다.  
@@ -153,20 +153,23 @@ python3 source/custom/demo_data_imitation_form_dual_cam.py \
 
 ## 3. Train
 
-Flow train도 `single_cam`과 `dual_cam`으로 분리되어 있습니다.  
+Flow/ACT train은 모두 `single_cam`과 `dual_cam`으로 분리되어 있습니다.  
 `--dataset_dir`를 생략하면 각 dataset root 아래 최신 `imitation_form/episode_*.hdf5`를 자동 선택합니다.
 
 checkpoint 기본 저장 위치:
 
 ```text
-single_cam: ~/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>/
-dual_cam  : ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>/
+Flow single_cam: ~/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>/
+Flow dual_cam  : ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>/
+ACT single_cam : ~/nrs_imitation/checkpoints/act/polishing/single_cam/<YYYYMMDD_HHMM>/
+ACT dual_cam   : ~/nrs_imitation/checkpoints/act/polishing/dual_cam/<YYYYMMDD_HHMM>/
 ```
 
 ### Single Cam
 
 ```bash
 python3 scripts/flow/train_flow_single_cam.py
+python3 scripts/act/train_act_single_cam.py
 ```
 
 특정 imitation_form 지정:
@@ -174,18 +177,25 @@ python3 scripts/flow/train_flow_single_cam.py
 ```bash
 python3 scripts/flow/train_flow_single_cam.py \
   --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
+
+python3 scripts/act/train_act_single_cam.py \
+  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
 ### Dual Cam
 
 ```bash
 python3 scripts/flow/train_flow_dual_cam.py
+python3 scripts/act/train_act_dual_cam.py
 ```
 
 특정 imitation_form 지정:
 
 ```bash
 python3 scripts/flow/train_flow_dual_cam.py \
+  --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
+
+python3 scripts/act/train_act_dual_cam.py \
   --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
@@ -195,14 +205,22 @@ inference도 `single_cam`과 `dual_cam`으로 분리되어 있습니다.
 `ckpt_dir`를 생략하면 아래 경로에서 최신 `policy_best.ckpt`를 자동 선택합니다.
 
 ```text
-single_cam: ~/nrs_imitation/checkpoints/flow/polishing/single_cam/*/policy_best.ckpt
-dual_cam  : ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/*/policy_best.ckpt
+Flow single_cam: ~/nrs_imitation/checkpoints/flow/polishing/single_cam/*/policy_best.ckpt
+Flow dual_cam  : ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/*/policy_best.ckpt
+ACT single_cam : ~/nrs_imitation/checkpoints/act/polishing/single_cam/*/policy_best.ckpt
+ACT dual_cam   : ~/nrs_imitation/checkpoints/act/polishing/dual_cam/*/policy_best.ckpt
 ```
 
 ### Single Cam
 
 ```bash
 ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
+```
+
+ACT checkpoint를 사용할 때:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py policy_class:=ACT
 ```
 
 기본 입력:
@@ -220,10 +238,18 @@ ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
   ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>
 ```
 
+ACT checkpoint를 직접 지정할 때는 `policy_class:=ACT`와 ACT checkpoint 경로를 같이 지정합니다.
+
 ### Dual Cam
 
 ```bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
+```
+
+ACT checkpoint를 사용할 때:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py policy_class:=ACT
 ```
 
 기본 입력:
@@ -241,6 +267,8 @@ cam1     = /realsense/global/color/image_raw
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
   ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>
 ```
+
+ACT checkpoint를 직접 지정할 때는 `policy_class:=ACT`와 ACT checkpoint 경로를 같이 지정합니다.
 
 위 launch 명령은 inference와 `rqt_image_view`를 같이 실행합니다.
 

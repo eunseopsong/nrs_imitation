@@ -22,7 +22,9 @@ def _build_args(args_override: dict) -> SimpleNamespace:
         # optimizer
         lr=1e-4,
         lr_backbone=1e-5,
-        weight_decay=1e-4,
+        weight_decay=1e-6,
+        beta1=0.95,
+        beta2=0.999,
         # backbone
         backbone="resnet18",
         dilation=False,
@@ -406,7 +408,7 @@ def build_ACT_model_and_optimizer(args_override):
             "lr": args.lr_backbone,
         },
     ]
-    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr, weight_decay=args.weight_decay, betas=(args.beta1, args.beta2))
     return model, optimizer
 
 
@@ -423,5 +425,5 @@ def build_CNNMLP_model_and_optimizer(args_override):
             "lr": args.lr_backbone,
         },
     ]
-    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
+    optimizer = torch.optim.AdamW(param_dicts, lr=args.lr, weight_decay=args.weight_decay, betas=(args.beta1, args.beta2))
     return model, optimizer

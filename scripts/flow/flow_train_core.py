@@ -91,7 +91,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pin_memory", action="store_true")
     parser.add_argument("--persistent_workers", action="store_true")
     parser.add_argument("--prefetch_factor", type=int, default=2)
-    parser.add_argument("--debug_batches", type=int, default=3)
+    parser.add_argument(
+        "--debug_batches",
+        type=int,
+        default=3,
+        help="Number of initial train batches to print per epoch. Use -1 to print every train batch.",
+    )
     return parser
 
 
@@ -499,7 +504,7 @@ def train_flow(train_loader, val_loader, config):
             train_outs.append(scalars)
             if "loss" in scalars:
                 train_iter.set_postfix(loss=f"{scalars['loss']:.4f}")
-            if bi < debug_batches:
+            if debug_batches < 0 or bi < debug_batches:
                 print(f"[DEBUG] Epoch {epoch}, batch {bi}, train loss = {float(loss.detach().cpu().item()):.6f}")
 
         train_summary = _mean_dict(train_outs)

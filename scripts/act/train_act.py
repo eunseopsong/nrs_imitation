@@ -16,7 +16,7 @@ dataset_stats.pkl and must be used by the inference node for denormalization.
 
 Observation/action convention:
     qpos/action = [x, y, z, wx, wy, wz, fx, fy, fz]
-    image       = cam0 RGB, float [0,1], ImageNet normalization happens in policy.
+    image       = cam0 or cam0/cam1 RGB, float [0,1], ImageNet normalization happens in policy.
 """
 
 from __future__ import annotations
@@ -40,16 +40,14 @@ for p in [_PROJECT_ROOT, _SOURCE_DIR]:
 import torch
 
 from training.engine import train_bc, make_policy
-from common.fs import CHECKPOINTS_ROOT, DATASETS_ACT_ROOT, find_latest_timestamped_subdir
+from common.fs import CHECKPOINTS_ROOT, find_latest_timestamped_subdir
 from data.loader import load_data
 
 
-TASK_CONFIGS = {}
-try:
-    from custom.custom_constants import TASK_CONFIGS as _TC
-    TASK_CONFIGS = _TC
-except Exception:
-    TASK_CONFIGS = {}
+DATASET_ROOT_BY_MODE = {
+    "single_cam": Path(_PROJECT_ROOT) / "datasets" / "single_cam",
+    "dual_cam": Path(_PROJECT_ROOT) / "datasets" / "multi_cam",
+}
 
 
 def _is_probably_timestamp_dir(name: str) -> bool:
@@ -66,82 +64,75 @@ def _episode_files(dataset_dir: str) -> List[Path]:
     d = Path(dataset_dir).expanduser()
     if not d.is_dir():
         return []
-    return sorted(d.glob("episode_*.hdf5"))
+    files = sorted(d.glob("episode_*.hdf5"))
+    if not files:
+        files = sorted(d.glob("episode_*.h5"))
+    return files
 
 
 def _count_episodes(dataset_dir: str) -> int:
     return len(_episode_files(dataset_dir))
 
 
-def find_latest_episode_dir(
-    root_dir: str = str(DATASETS_ACT_ROOT),
-    subdir_name: str = "episodes_ft",
-) -> str:
+def find_latest_imitation_form(root_dir: str) -> str:
     root = Path(root_dir).expanduser()
     if not root.exists():
         raise FileNotFoundError(f"Dataset root does not exist: {root}")
 
     candidates = []
-    for run_dir in root.iterdir():
-        if not run_dir.is_dir():
+    for ep_dir in root.rglob("imitation_form"):
+        if not ep_dir.is_dir():
             continue
-        ep_dir = run_dir / subdir_name
-        if ep_dir.is_dir() and _count_episodes(str(ep_dir)) > 0:
-            stat = ep_dir.stat()
-            timestamp_bonus = 1 if _is_probably_timestamp_dir(run_dir.name) else 0
-            candidates.append((timestamp_bonus, run_dir.name, stat.st_mtime, ep_dir))
-
-    if not candidates:
-        for ep_dir in root.rglob(subdir_name):
-            if ep_dir.is_dir() and _count_episodes(str(ep_dir)) > 0:
-                parent_name = ep_dir.parent.name
-                stat = ep_dir.stat()
-                timestamp_bonus = 1 if _is_probably_timestamp_dir(parent_name) else 0
-                candidates.append((timestamp_bonus, parent_name, stat.st_mtime, ep_dir))
+        n = _count_episodes(str(ep_dir))
+        if n <= 0:
+            continue
+        run_name = ep_dir.parent.name
+        stat = ep_dir.stat()
+        timestamp_bonus = 1 if _is_probably_timestamp_dir(run_name) else 0
+        candidates.append((timestamp_bonus, run_name, stat.st_mtime, ep_dir, n))
 
     if not candidates:
         raise FileNotFoundError(
-            f"No usable dataset directory found. Expected episode_*.hdf5 under {root}/<RUN_ID>/{subdir_name}/"
+            f"No usable imitation_form dataset found. Expected episode_*.hdf5 under {root}/<RUN_ID>/imitation_form/"
         )
 
     candidates.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     return str(candidates[0][3])
 
 
-def resolve_dataset_dir(dataset_dir: Optional[str], task_name: str, cam_preprocess: str) -> str:
+def resolve_dataset_dir(dataset_dir: Optional[str], obs_mode: str, dataset_root: Optional[str]) -> str:
     if dataset_dir is not None and str(dataset_dir).strip() != "":
         resolved = os.path.expanduser(dataset_dir)
         if not os.path.isdir(resolved):
             raise FileNotFoundError(f"dataset_dir does not exist: {resolved}")
         return resolved
 
-    if task_name in TASK_CONFIGS and "dataset_dir" in TASK_CONFIGS[task_name]:
-        resolved = os.path.expanduser(str(TASK_CONFIGS[task_name]["dataset_dir"]))
-        if os.path.isdir(resolved) and _count_episodes(resolved) > 0:
-            return resolved
-        print(f"[WARN] TASK_CONFIGS dataset_dir invalid or empty, fallback to latest: {resolved}")
-
-    subdir_name = "episodes_ft_camproc" if cam_preprocess == "stabilize_crop" else "episodes_ft"
-    latest = find_latest_episode_dir(str(DATASETS_ACT_ROOT), subdir_name=subdir_name)
-    print(f"[AUTO] dataset_dir not provided -> using latest {subdir_name}: {latest}")
+    root = Path(dataset_root).expanduser() if dataset_root else DATASET_ROOT_BY_MODE[obs_mode]
+    latest = find_latest_imitation_form(str(root))
+    print(f"[AUTO] dataset_dir not provided -> using latest {obs_mode} imitation_form: {latest}")
     return latest
 
 
-def parse_camera_names(camera_names_arg) -> List[str]:
-    if camera_names_arg is None:
-        return ["cam0"]
-    if isinstance(camera_names_arg, str):
-        raw = [camera_names_arg]
-    else:
-        raw = list(camera_names_arg)
-
+def parse_camera_names(camera_names_arg, obs_mode: str) -> List[str]:
     out = []
-    for item in raw:
-        for part in str(item).split(","):
-            s = part.strip()
-            if s:
-                out.append(s)
-    return out if out else ["cam0"]
+    if camera_names_arg is not None:
+        raw = [camera_names_arg] if isinstance(camera_names_arg, str) else list(camera_names_arg)
+        for item in raw:
+            for part in str(item).split(","):
+                s = part.strip()
+                if s:
+                    out.append(s)
+    if out:
+        return out
+    if obs_mode == "dual_cam":
+        return ["cam0", "cam1"]
+    return ["cam0"]
+
+
+def mode_to_ckpt_base(ckpt_dir: Optional[str], ckpt_root: str, obs_mode: str) -> str:
+    if ckpt_dir is not None and str(ckpt_dir).strip():
+        return os.path.expanduser(str(ckpt_dir))
+    return os.path.join(os.path.expanduser(str(ckpt_root)), obs_mode)
 
 
 def _norm_log(mode: str) -> str:
@@ -158,12 +149,18 @@ def main(args):
     if policy_class not in ("ACT", "CNNMLP"):
         raise NotImplementedError(policy_class)
 
-    dataset_dir = resolve_dataset_dir(args.dataset_dir, args.task_name, args.cam_preprocess)
+    obs_mode = str(args.obs_mode).strip().lower()
+    if obs_mode == "multi_cam":
+        obs_mode = "dual_cam"
+    if obs_mode not in ("single_cam", "dual_cam"):
+        raise RuntimeError(f"obs_mode must be single_cam or dual_cam, got: {args.obs_mode}")
+
+    dataset_dir = resolve_dataset_dir(args.dataset_dir, obs_mode, args.dataset_root)
     num_episodes = int(args.num_episodes)
     if num_episodes <= 0:
         num_episodes = _count_episodes(dataset_dir)
 
-    camera_names = parse_camera_names(args.camera_names)
+    camera_names = parse_camera_names(args.camera_names, obs_mode)
 
     if args.train_seq_len is None:
         args.train_seq_len = int(args.chunk_size)
@@ -171,8 +168,8 @@ def main(args):
         args.val_seq_len = int(args.chunk_size)
 
     print(f"[INFO] task_name         = {args.task_name}")
+    print(f"[INFO] obs_mode          = {obs_mode}")
     print(f"[INFO] dataset_dir       = {dataset_dir}")
-    print(f"[INFO] cam_preprocess    = {args.cam_preprocess}")
     print(f"[INFO] norm_mode         = {args.norm_mode}")
     print(f"[INFO] num_episodes      = {num_episodes}")
     print(f"[INFO] camera_names      = {camera_names}")
@@ -193,6 +190,9 @@ def main(args):
     if policy_class == "ACT":
         policy_config = {
             "lr": args.lr,
+            "weight_decay": args.weight_decay,
+            "beta1": args.beta1,
+            "beta2": args.beta2,
             "num_queries": args.chunk_size,
             "kl_weight": args.kl_weight,
             "hidden_dim": args.hidden_dim,
@@ -203,8 +203,9 @@ def main(args):
             "dec_layers": args.dec_layers,
             "nheads": args.nheads,
             "camera_names": camera_names,
-            "state_dim": 9,
-            "action_dim": 9,
+            "obs_mode": obs_mode,
+            "state_dim": args.state_dim,
+            "action_dim": args.action_dim,
             "image_resize_hw": args.image_resize_hw,
             "image_pool_hw": args.image_pool_hw,
             "temporal_agg": args.temporal_agg,
@@ -222,12 +223,16 @@ def main(args):
     else:
         policy_config = {
             "lr": args.lr,
+            "weight_decay": args.weight_decay,
+            "beta1": args.beta1,
+            "beta2": args.beta2,
             "lr_backbone": args.lr_backbone,
             "backbone": args.backbone,
             "num_queries": 1,
             "camera_names": camera_names,
-            "state_dim": 9,
-            "action_dim": 9,
+            "obs_mode": obs_mode,
+            "state_dim": args.state_dim,
+            "action_dim": args.action_dim,
             "image_resize_hw": args.image_resize_hw,
             "image_pool_hw": args.image_pool_hw,
             "temporal_agg": args.temporal_agg,
@@ -245,13 +250,13 @@ def main(args):
         }
 
     if args.eval:
-        ckpt_dir = args.ckpt_dir
+        ckpt_dir = mode_to_ckpt_base(args.ckpt_dir, args.ckpt_root, obs_mode)
         best_ckpt = os.path.join(ckpt_dir, "policy_best.ckpt")
         if not os.path.exists(best_ckpt):
-            latest_sub = find_latest_timestamped_subdir(args.ckpt_dir)
+            latest_sub = find_latest_timestamped_subdir(ckpt_dir)
             if latest_sub is None:
                 raise FileNotFoundError(
-                    f"[EVAL] No policy_best.ckpt in {args.ckpt_dir} and no timestamped subdirectories were found."
+                    f"[EVAL] No policy_best.ckpt in {ckpt_dir} and no timestamped subdirectories were found."
                 )
             ckpt_dir = latest_sub
             best_ckpt = os.path.join(ckpt_dir, "policy_best.ckpt")
@@ -281,7 +286,8 @@ def main(args):
         return
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    ckpt_dir = os.path.join(args.ckpt_dir, timestamp)
+    ckpt_base = mode_to_ckpt_base(args.ckpt_dir, args.ckpt_root, obs_mode)
+    ckpt_dir = os.path.join(ckpt_base, timestamp)
     os.makedirs(ckpt_dir, exist_ok=True)
     print(f"[TRAIN] Checkpoints will be saved under: {ckpt_dir}")
 
@@ -289,6 +295,7 @@ def main(args):
         dataset_dir=dataset_dir,
         num_episodes=num_episodes,
         camera_names=camera_names,
+        obs_mode=obs_mode,
         batch_size_train=args.batch_size,
         batch_size_val=args.batch_size,
         seq_len_train=args.train_seq_len,
@@ -317,12 +324,15 @@ def main(args):
         "num_epochs": args.num_epochs,
         "ckpt_dir": ckpt_dir,
         "policy_class": policy_class,
+        "obs_mode": obs_mode,
         "policy_config": policy_config,
         "seed": args.seed,
         "device": device,
         "amp": args.amp,
         "debug_norm": args.debug_norm,
         "debug_norm_batches": 1,
+        "debug_batches": args.debug_batches,
+        "save_every": args.save_every,
         "temporal_agg": args.temporal_agg,
         "use_force_history": args.use_force_history,
         "force_history_len": args.force_history_len,
@@ -336,30 +346,38 @@ def main(args):
     print(f"[INFO] Best ckpt path = {best_ckpt_info['best_ckpt_path']}")
     print(f"[INFO] Last ckpt path = {best_ckpt_info['last_ckpt_path']}")
 
-
-if __name__ == "__main__":
+def build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
 
     p.add_argument("--eval", action="store_true")
-    p.add_argument("--ckpt_dir", type=str, default=str(CHECKPOINTS_ROOT / "act" / "polishing"))
+    p.add_argument("--ckpt_root", type=str, default=str(CHECKPOINTS_ROOT / "act" / "polishing"))
+    p.add_argument("--ckpt_dir", type=str, default=None)
     p.add_argument("--policy_class", type=str, default="ACT", choices=["ACT", "CNNMLP"])
     p.add_argument("--task_name", type=str, default="polishing")
 
+    p.add_argument("--obs_mode", type=str, default="single_cam", choices=["single_cam", "dual_cam"])
+    p.add_argument("--dataset_root", type=str, default=None)
     p.add_argument("--dataset_dir", type=str, default=None)
-    p.add_argument("--cam_preprocess", type=str, default="stabilize_crop", choices=["off", "stabilize_crop"])
     p.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
     p.add_argument("--num_episodes", type=int, default=0)
-    p.add_argument("--camera_names", nargs="+", default=["cam0"])
+    p.add_argument("--camera_names", nargs="+", default=None)
 
     p.add_argument("--batch_size", type=int, default=12)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--num_epochs", type=int, default=500)
     p.add_argument("--lr", type=float, default=1e-4)
+    p.add_argument("--weight_decay", type=float, default=1e-6)
+    p.add_argument("--beta1", type=float, default=0.95)
+    p.add_argument("--beta2", type=float, default=0.999)
 
     p.add_argument("--chunk_size", type=int, default=200)
     p.add_argument("--train_seq_len", type=int, default=None)
     p.add_argument("--val_seq_len", type=int, default=None)
     p.add_argument("--samples_per_episode", type=int, default=50)
+    p.add_argument("--save_every", type=int, default=100)
+
+    p.add_argument("--state_dim", type=int, default=9)
+    p.add_argument("--action_dim", type=int, default=9)
 
     p.add_argument("--kl_weight", type=float, default=10)
     p.add_argument("--hidden_dim", type=int, default=512)
@@ -380,6 +398,12 @@ if __name__ == "__main__":
     p.add_argument("--pin_memory", action="store_true")
     p.add_argument("--persistent_workers", action="store_true")
     p.add_argument("--prefetch_factor", type=int, default=2)
+    p.add_argument(
+        "--debug_batches",
+        type=int,
+        default=3,
+        help="Number of initial train batches to print per epoch. Use -1 to print every train batch.",
+    )
 
     p.add_argument("--amp", action="store_true", default=False)
 
@@ -401,7 +425,11 @@ if __name__ == "__main__":
     p.add_argument("--observation_encoder_activation", type=str, default="gelu", choices=["relu", "gelu", "silu"])
 
     p.add_argument("--cnnmlp_observation_embed_dim", type=int, default=256)
+    return p
 
+
+if __name__ == "__main__":
+    p = build_arg_parser()
     args = p.parse_args()
 
     if args.train_seq_len is None:
@@ -433,7 +461,16 @@ if __name__ == "__main__":
         "--temporal_agg",
         "--no_temporal_agg",
         "--norm_mode",
-        "--cam_preprocess",
+        "--obs_mode",
+        "--dataset_root",
+        "--ckpt_root",
+        "--weight_decay",
+        "--beta1",
+        "--beta2",
+        "--save_every",
+        "--state_dim",
+        "--action_dim",
+        "--debug_batches",
         "--no_force_history",
     ]:
         sys.argv = _strip_flag_with_optional_value(sys.argv, flag)

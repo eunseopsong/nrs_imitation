@@ -31,6 +31,22 @@ def _mean_dict(dicts: List[Dict[str, float]]) -> Dict[str, float]:
     return {k: sum(d[k] for d in dicts) / len(dicts) for k in keys}
 
 
+def _format_scalars(scalars: Dict[str, float]) -> str:
+    preferred = ["loss", "l1", "kl", "mse", "diffusion"]
+    ordered = [k for k in preferred if k in scalars]
+    ordered.extend(k for k in sorted(scalars.keys()) if k not in ordered)
+    return " | ".join(f"{k}:{float(scalars[k]):.6f}" for k in ordered)
+
+
+def _loss_postfix(scalars: Dict[str, float]) -> Dict[str, str]:
+    preferred = ["loss", "l1", "kl", "mse", "diffusion"]
+    out = {}
+    for key in preferred:
+        if key in scalars:
+            out[key] = f"{float(scalars[key]):.4f}"
+    return out
+
+
 def make_policy(policy_class: str, policy_config: Dict):
     policy_class = str(policy_class).upper()
     if policy_class == "ACT":
@@ -73,10 +89,15 @@ def forward_pass(batch, policy, device):
 def _run_validation(val_loader, policy, device, amp_enabled: bool = False) -> Dict[str, float]:
     policy.eval()
     val_dicts = []
-    for batch in val_loader:
+    val_iter = tqdm(val_loader, desc="Val", leave=False)
+    for batch in val_iter:
         with autocast_context(amp_enabled, device):
             out = forward_pass(batch, policy, device)
-        val_dicts.append(_scalarize_loss_dict(out))
+        scalars = _scalarize_loss_dict(out)
+        val_dicts.append(scalars)
+        postfix = _loss_postfix(scalars)
+        if postfix:
+            val_iter.set_postfix(**postfix)
     return _mean_dict(val_dicts)
 
 
@@ -153,7 +174,9 @@ def train_bc(train_loader, val_loader, config):
 
         policy.train()
         train_dicts = []
-        for batch_idx, batch in enumerate(train_loader):
+        train_iter = tqdm(train_loader, desc=f"Train {epoch}", leave=False)
+        train_total = len(train_loader) if hasattr(train_loader, "__len__") else None
+        for batch_idx, batch in enumerate(train_iter):
             optimizer.zero_grad(set_to_none=True)
             with autocast_context(amp_enabled, device):
                 out = forward_pass(batch, policy, device)
@@ -168,8 +191,16 @@ def train_bc(train_loader, val_loader, config):
 
             scalars = _scalarize_loss_dict(out)
             train_dicts.append(scalars)
-            if batch_idx < debug_batches:
-                print(f"[DEBUG] Epoch {epoch}, batch {batch_idx}, train loss = {scalars['loss']:.6f}")
+            postfix = _loss_postfix(scalars)
+            if postfix:
+                train_iter.set_postfix(**postfix)
+            if debug_batches < 0 or batch_idx < debug_batches:
+                total_msg = "?" if train_total is None else str(train_total)
+                lr = float(optimizer.param_groups[0].get("lr", 0.0))
+                tqdm.write(
+                    f"[DEBUG] Epoch {epoch}, batch {batch_idx + 1}/{total_msg}, "
+                    f"{_format_scalars(scalars)} | lr:{lr:.2e}"
+                )
 
         train_summary = _mean_dict(train_dicts)
         history["train"].append({"epoch": epoch, **train_summary})
