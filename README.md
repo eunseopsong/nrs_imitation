@@ -138,18 +138,12 @@ Checkpoint output:
 
 ### 5. Inference
 
-This auto-selects the latest single-cam `policy_best.ckpt`:
+This auto-selects the latest single-cam `policy_best.ckpt` and opens the Grad-CAM viewer:
 
 ```bash
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
-ros2 run nrs_imitation inference_single_cam
-```
-
-Enable Grad-CAM overlay:
-
-```bash
-ros2 run nrs_imitation inference_single_cam --ros-args -p gradcam_enable:=true
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
 ```
 
 Overlay topic:
@@ -336,24 +330,19 @@ Checkpoint output:
 
 ### 7. Inference
 
-This auto-selects the latest dual-cam `policy_best.ckpt`:
+This auto-selects the latest dual-cam `policy_best.ckpt` and opens the Grad-CAM viewers:
 
 ```bash
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
-ros2 run nrs_imitation inference_dual_cam
-```
-
-Enable Grad-CAM overlay:
-
-```bash
-ros2 run nrs_imitation inference_dual_cam --ros-args -p gradcam_enable:=true
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
 ```
 
 Overlay topic:
 
 ```text
 /inference_dual_cam/gradcam_overlay
+/inference_dual_cam/gradcam_overlay_global
 ```
 
 ## Data Format
@@ -438,8 +427,8 @@ Single-cam inference with explicit checkpoint:
 ```bash
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
-ros2 run nrs_imitation inference_single_cam --ros-args \
-  -p ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
+  ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>
 ```
 
 Dual-cam inference with explicit checkpoint:
@@ -447,8 +436,8 @@ Dual-cam inference with explicit checkpoint:
 ```bash
 cd ~/nrs_imitation/behavior_ws
 source install/setup.bash
-ros2 run nrs_imitation inference_dual_cam --ros-args \
-  -p ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
+  ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>
 ```
 
 ## Stage-1 VR Workflow Details
@@ -486,15 +475,15 @@ ros2 run nrs_imitation vr_stage1_episode_pusher --ros-args \
   -p episode_dir:=/home/nrs_display/nrs_imitation/datasets/stage1/<YYYYMMDD_HHMM>/stage1_vr_episodes
 ```
 
-## Installed ROS2 Commands
+## Installed ROS2 Commands and Launch Files
 
 After building and sourcing `behavior_ws/install/setup.bash`, the main commands are:
 
 ```bash
 ros2 run nrs_imitation hdf5_recorder_single_cam
 ros2 run nrs_imitation hdf5_recorder_dual_cam
-ros2 run nrs_imitation inference_single_cam
-ros2 run nrs_imitation inference_dual_cam
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
 ros2 run nrs_imitation vr_stage1_hdf5_recorder
 ros2 run nrs_imitation vr_stage1_episode_pusher
 ```

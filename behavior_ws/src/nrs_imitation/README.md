@@ -191,7 +191,7 @@ dual_cam  : ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/*/policy_best.ck
 ### Single Cam
 
 ```bash
-ros2 run nrs_imitation inference_single_cam
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
 ```
 
 기본 입력:
@@ -205,14 +205,14 @@ cam0     = /realsense/robot/color/image_raw
 특정 checkpoint 지정:
 
 ```bash
-ros2 run nrs_imitation inference_single_cam --ros-args \
-  -p ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
+  ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>
 ```
 
 ### Dual Cam
 
 ```bash
-ros2 run nrs_imitation inference_dual_cam
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
 ```
 
 기본 입력:
@@ -227,15 +227,15 @@ cam1     = /realsense/global/color/image_raw
 특정 checkpoint 지정:
 
 ```bash
-ros2 run nrs_imitation inference_dual_cam --ros-args \
-  -p ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
+  ckpt_dir:=/home/nrs_display/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>
 ```
 
-Grad-CAM 시각화:
+위 launch 명령은 inference와 `rqt_image_view`를 같이 실행합니다.
 
 ```bash
-ros2 run nrs_imitation inference_single_cam --ros-args -p gradcam_enable:=true
-ros2 run nrs_imitation inference_dual_cam --ros-args -p gradcam_enable:=true
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
 ```
 
 overlay topic:
@@ -243,6 +243,7 @@ overlay topic:
 ```text
 single_cam: /inference_single_cam/gradcam_overlay
 dual_cam  : /inference_dual_cam/gradcam_overlay
+dual_cam  : /inference_dual_cam/gradcam_overlay_global
 ```
 
 ## Stage-1 VR Workflow
