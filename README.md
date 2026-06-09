@@ -86,6 +86,17 @@ source install/setup.bash
 ros2 run nrs_imitation hdf5_recorder_single_cam
 ```
 
+To record `cam0` after specular-highlight filtering:
+
+```bash
+ros2 run nrs_imitation hdf5_recorder_single_cam --ros-args \
+  -p image_preprocess_mode:=specular_inpaint \
+  -p image_specular_v_thresh:=230 \
+  -p image_specular_s_thresh:=80 \
+  -p image_specular_dilate_px:=2 \
+  -p image_specular_inpaint_radius:=3.0
+```
+
 Start one teaching episode:
 
 ```bash
@@ -146,10 +157,23 @@ source install/setup.bash
 ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
 ```
 
-Overlay topic:
+Visualization topics:
 
 ```text
-/inference_single_cam/gradcam_overlay
+/inference_single_cam/gradcam_overlay  # local Grad-CAM + xyz trajectory overlay
+```
+
+Disable either visualization layer when needed:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py gradcam_enable:=false
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py trajectory_overlay_enable:=false
+```
+
+Tune xyz overlay scale if the curve is too small or too large:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py trajectory_overlay_pixels_per_mm:=4.0
 ```
 
 ## Quick Start: Dual Cam
@@ -338,11 +362,24 @@ source install/setup.bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
 ```
 
-Overlay topic:
+Visualization topics:
 
 ```text
-/inference_dual_cam/gradcam_overlay
-/inference_dual_cam/gradcam_overlay_global
+/inference_dual_cam/gradcam_overlay         # local Grad-CAM + xyz trajectory overlay
+/inference_dual_cam/gradcam_overlay_global  # global Grad-CAM only
+```
+
+Disable either visualization layer when needed:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py gradcam_enable:=false
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_enable:=false
+```
+
+Tune xyz overlay scale if the curve is too small or too large:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_pixels_per_mm:=4.0
 ```
 
 ## Data Format

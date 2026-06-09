@@ -39,6 +39,17 @@ dual_cam  : ~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf
 ros2 run nrs_imitation hdf5_recorder_single_cam
 ```
 
+빛반사 하이라이트를 줄인 `cam0` RGB를 저장:
+
+```bash
+ros2 run nrs_imitation hdf5_recorder_single_cam --ros-args \
+  -p image_preprocess_mode:=specular_inpaint \
+  -p image_specular_v_thresh:=230 \
+  -p image_specular_s_thresh:=80 \
+  -p image_specular_dilate_px:=2 \
+  -p image_specular_inpaint_radius:=3.0
+```
+
 기본 입력:
 
 ```text
@@ -238,12 +249,25 @@ ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
 ```
 
-overlay topic:
+visualization topics:
 
 ```text
-single_cam: /inference_single_cam/gradcam_overlay
-dual_cam  : /inference_dual_cam/gradcam_overlay
-dual_cam  : /inference_dual_cam/gradcam_overlay_global
+single_cam: /inference_single_cam/gradcam_overlay       # local Grad-CAM + xyz trajectory overlay
+dual_cam  : /inference_dual_cam/gradcam_overlay         # local Grad-CAM + xyz trajectory overlay
+dual_cam  : /inference_dual_cam/gradcam_overlay_global  # global Grad-CAM only
+```
+
+시각화 layer는 각각 끌 수 있습니다.
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py gradcam_enable:=false
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_enable:=false
+```
+
+xyz 궤적이 너무 크거나 작으면 고정 스케일을 조절합니다.
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_pixels_per_mm:=4.0
 ```
 
 ## Stage-1 VR Workflow

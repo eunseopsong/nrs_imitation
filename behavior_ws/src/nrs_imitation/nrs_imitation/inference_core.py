@@ -62,8 +62,10 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
+from geometry_msgs.msg import Point
 from std_msgs.msg import Float64MultiArray
 from sensor_msgs.msg import Image
+from visualization_msgs.msg import Marker
 
 
 DEFAULT_ACT_ROOT = os.path.expanduser("~/nrs_imitation")
@@ -402,6 +404,83 @@ def _make_gradcam_overlay_rgb(rgb: np.ndarray, heatmap01: np.ndarray, alpha: flo
         heat_rgb[..., 0] = hm_u8
     overlay = ((1.0 - a) * rgb_u8.astype(np.float32) + a * heat_rgb.astype(np.float32))
     return np.clip(overlay, 0, 255).astype(np.uint8)
+
+
+def _draw_xyz_trajectory_overlay_rgb(
+    rgb: np.ndarray,
+    seq_xyz_mm: np.ndarray,
+    origin_xyz_mm: Optional[np.ndarray] = None,
+    max_points: int = 80,
+    pixels_per_mm: float = 8.0,
+    center_u_ratio: float = 0.50,
+    center_v_ratio: float = 0.55,
+    line_width_px: int = 3,
+    point_radius_px: int = 4,
+) -> np.ndarray:
+    """
+    Draw a debug xyz trajectory on the local camera image.
+
+    This is an image-space preview, not calibrated camera projection. The curve is
+    drawn with a fixed pixel/mm scale, and point color encodes relative z.
+    """
+    arr = np.asarray(rgb)
+    if arr.ndim != 3 or arr.shape[2] != 3:
+        return rgb
+    if cv2 is None:
+        return arr.copy()
+
+    seq = np.asarray(seq_xyz_mm, dtype=np.float32)
+    if seq.ndim != 2 or seq.shape[1] < 3 or seq.shape[0] < 2:
+        return arr.copy()
+
+    seq = seq[np.all(np.isfinite(seq[:, :3]), axis=1)]
+    if seq.shape[0] < 2:
+        return arr.copy()
+
+    n = int(seq.shape[0])
+    stride = max(1, int(math.ceil(n / float(max(2, int(max_points))))))
+    seq = seq[::stride, :3]
+
+    out = arr.copy()
+    h, w = int(out.shape[0]), int(out.shape[1])
+
+    origin = None
+    if origin_xyz_mm is not None:
+        origin = np.asarray(origin_xyz_mm, dtype=np.float32).reshape(-1)
+        if origin.size < 3 or not np.all(np.isfinite(origin[:3])):
+            origin = None
+    if origin is None:
+        origin = seq[0, :3]
+
+    px_per_mm = max(0.01, float(pixels_per_mm))
+    center_u = float(np.clip(center_u_ratio, 0.0, 1.0)) * float(w - 1)
+    center_v = float(np.clip(center_v_ratio, 0.0, 1.0)) * float(h - 1)
+    rel = seq - origin[:3]
+    xs = center_u + rel[:, 0] * px_per_mm
+    ys = center_v - rel[:, 1] * px_per_mm
+
+    z = seq[:, 2]
+    z_span = max(float(z.max() - z.min()), 1e-6)
+    z_u8 = np.clip((z - float(z.min())) / z_span * 255.0, 0, 255).astype(np.uint8)
+    cmap = getattr(cv2, "COLORMAP_TURBO", cv2.COLORMAP_JET)
+    color_map = cv2.applyColorMap(z_u8.reshape(-1, 1), cmap)[:, 0, :]  # BGR
+
+    pts = []
+    for x, y in zip(xs, ys):
+        pts.append((int(np.clip(round(float(x)), 0, w - 1)), int(np.clip(round(float(y)), 0, h - 1))))
+
+    line_w = max(1, int(line_width_px))
+    radius = max(1, int(point_radius_px))
+    for i in range(1, len(pts)):
+        b, g, r = (int(c) for c in color_map[i].tolist())
+        cv2.line(out, pts[i - 1], pts[i], (r, g, b), line_w, cv2.LINE_AA)
+    for i, pt in enumerate(pts):
+        b, g, r = (int(c) for c in color_map[i].tolist())
+        cv2.circle(out, pt, radius, (r, g, b), -1, cv2.LINE_AA)
+
+    cv2.circle(out, pts[0], radius + 2, (0, 255, 0), 2, cv2.LINE_AA)
+    cv2.circle(out, pts[-1], radius + 2, (255, 255, 255), 2, cv2.LINE_AA)
+    return out
 
 
 def _find_module_by_name(root: torch.nn.Module, name: str) -> Optional[torch.nn.Module]:
@@ -865,6 +944,26 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("gradcam_save_dir", "~/nrs_imitation/gradcam")
         self.declare_parameter("gradcam_log_every_n", 5)
 
+        # -----------------------------
+        # Predicted trajectory visualization
+        # -----------------------------
+        # Publishes policy output xyz as a 3D RViz line marker. Policy xyz is in mm.
+        self.declare_parameter("trajectory_viz_enable", False)
+        self.declare_parameter("trajectory_viz_topic", "/inference_core/predicted_xyz_trajectory")
+        self.declare_parameter("trajectory_viz_frame_id", "base_link")
+        self.declare_parameter("trajectory_viz_xyz_scale", 0.001)  # mm -> m for RViz
+        self.declare_parameter("trajectory_viz_line_width_m", 0.003)
+        self.declare_parameter("trajectory_viz_max_points", 200)
+        self.declare_parameter("trajectory_viz_lifetime_sec", 1.0)
+        self.declare_parameter("trajectory_overlay_enable", False)
+        self.declare_parameter("trajectory_overlay_max_points", 80)
+        self.declare_parameter("trajectory_overlay_origin", "current")  # current | first
+        self.declare_parameter("trajectory_overlay_pixels_per_mm", 8.0)
+        self.declare_parameter("trajectory_overlay_center_u_ratio", 0.50)
+        self.declare_parameter("trajectory_overlay_center_v_ratio", 0.55)
+        self.declare_parameter("trajectory_overlay_line_width_px", 3)
+        self.declare_parameter("trajectory_overlay_point_radius_px", 4)
+
         self.declare_parameter("control_hz", 125.0)
         self.declare_parameter("infer_hz", 5.0)
 
@@ -1104,6 +1203,24 @@ class NodeCmdMotionInfer(Node):
                 os.makedirs(self.gradcam_save_dir, exist_ok=True)
             except Exception as e:
                 raise RuntimeError(f"Failed to create gradcam_save_dir={self.gradcam_save_dir}: {e}")
+
+        self.trajectory_viz_enable = bool(self.get_parameter("trajectory_viz_enable").value)
+        self.trajectory_viz_topic = str(self.get_parameter("trajectory_viz_topic").value)
+        self.trajectory_viz_frame_id = str(self.get_parameter("trajectory_viz_frame_id").value).strip() or "base_link"
+        self.trajectory_viz_xyz_scale = float(self.get_parameter("trajectory_viz_xyz_scale").value)
+        self.trajectory_viz_line_width_m = max(1e-5, float(self.get_parameter("trajectory_viz_line_width_m").value))
+        self.trajectory_viz_max_points = max(2, int(self.get_parameter("trajectory_viz_max_points").value))
+        self.trajectory_viz_lifetime_sec = max(0.0, float(self.get_parameter("trajectory_viz_lifetime_sec").value))
+        self.trajectory_overlay_enable = bool(self.get_parameter("trajectory_overlay_enable").value)
+        self.trajectory_overlay_max_points = max(2, int(self.get_parameter("trajectory_overlay_max_points").value))
+        self.trajectory_overlay_origin = str(self.get_parameter("trajectory_overlay_origin").value).strip().lower()
+        if self.trajectory_overlay_origin not in ("current", "first"):
+            self.trajectory_overlay_origin = "current"
+        self.trajectory_overlay_pixels_per_mm = max(0.01, float(self.get_parameter("trajectory_overlay_pixels_per_mm").value))
+        self.trajectory_overlay_center_u_ratio = float(np.clip(float(self.get_parameter("trajectory_overlay_center_u_ratio").value), 0.0, 1.0))
+        self.trajectory_overlay_center_v_ratio = float(np.clip(float(self.get_parameter("trajectory_overlay_center_v_ratio").value), 0.0, 1.0))
+        self.trajectory_overlay_line_width_px = max(1, int(self.get_parameter("trajectory_overlay_line_width_px").value))
+        self.trajectory_overlay_point_radius_px = max(1, int(self.get_parameter("trajectory_overlay_point_radius_px").value))
 
         self.control_hz = float(self.get_parameter("control_hz").value)
         self.infer_hz = float(self.get_parameter("infer_hz").value)
@@ -1450,12 +1567,24 @@ class NodeCmdMotionInfer(Node):
         self.pub_cmd = self.create_publisher(Float64MultiArray, self.cmd_topic, 10)
         self.pub_gradcam_overlay = None
         self.pub_gradcam_global_overlay = None
-        if self.gradcam_enable and self.gradcam_publish:
+        if (self.gradcam_enable and self.gradcam_publish) or self.trajectory_overlay_enable:
             self.pub_gradcam_overlay = self.create_publisher(Image, self.gradcam_overlay_topic, 1)
-            self.get_logger().info(f"[GRADCAM] publishing overlay image: {self.gradcam_overlay_topic}")
-            if self.use_global_image:
+            self.get_logger().info(
+                f"[VIS] publishing local image overlay: {self.gradcam_overlay_topic} "
+                f"(gradcam={int(self.gradcam_enable and self.gradcam_publish)}, "
+                f"xyz={int(self.trajectory_overlay_enable)})"
+            )
+            if self.gradcam_enable and self.gradcam_publish and self.use_global_image:
                 self.pub_gradcam_global_overlay = self.create_publisher(Image, self.gradcam_global_overlay_topic, 1)
                 self.get_logger().info(f"[GRADCAM] publishing global overlay image: {self.gradcam_global_overlay_topic}")
+
+        self.pub_predicted_xyz_trajectory = None
+        if self.trajectory_viz_enable:
+            self.pub_predicted_xyz_trajectory = self.create_publisher(Marker, self.trajectory_viz_topic, 1)
+            self.get_logger().info(
+                f"[TRAJ-VIZ] publishing predicted xyz trajectory: {self.trajectory_viz_topic} "
+                f"(frame={self.trajectory_viz_frame_id}, scale={self.trajectory_viz_xyz_scale})"
+            )
 
         self.timer_control = self.create_timer(self.dt_control, self._on_control_timer)
         self.timer_infer = self.create_timer(self.dt_infer, self._on_infer_timer)
@@ -1491,6 +1620,8 @@ class NodeCmdMotionInfer(Node):
             f"  POLICY_OUTPUT(z_offset_mm={self.policy_z_offset_mm})\n"
             f"  CMD_SAFETY(enable={int(self.cmd_safety_enable)}, max_xyz_from_current_mm={self.cmd_safety_max_xyz_from_current_mm})\n"
             f"  GRADCAM(enable={int(self.gradcam_enable)}, layer={self._gradcam_target_layer_name}, target={self.gradcam_target}, every_n_infer={self.gradcam_every_n_infer}, topic={self.gradcam_overlay_topic}, global_topic={self.gradcam_global_overlay_topic if self.use_global_image else '(disabled)'})\n"
+            f"  TRAJ_VIZ(enable={int(self.trajectory_viz_enable)}, topic={self.trajectory_viz_topic}, frame={self.trajectory_viz_frame_id}, xyz_scale={self.trajectory_viz_xyz_scale})\n"
+            f"  TRAJ_OVERLAY(enable={int(self.trajectory_overlay_enable)}, local_only=1, origin={self.trajectory_overlay_origin}, px_per_mm={self.trajectory_overlay_pixels_per_mm}, max_points={self.trajectory_overlay_max_points})\n"
         )
 
     # ------------------------------------------------------------
@@ -1503,6 +1634,65 @@ class NodeCmdMotionInfer(Node):
             if k < raw_force.size:
                 f3[i] = float(raw_force[k])
         return f3
+
+    def _publish_predicted_xyz_trajectory(self, seq_den: np.ndarray):
+        if not self.trajectory_viz_enable or self.pub_predicted_xyz_trajectory is None:
+            return
+        if seq_den is None or seq_den.ndim != 2 or seq_den.shape[1] < 3 or seq_den.shape[0] < 2:
+            return
+
+        marker = Marker()
+        marker.header.stamp = self.get_clock().now().to_msg()
+        marker.header.frame_id = self.trajectory_viz_frame_id
+        marker.ns = "predicted_xyz_trajectory"
+        marker.id = 0
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = float(self.trajectory_viz_line_width_m)
+        marker.color.r = 0.1
+        marker.color.g = 0.9
+        marker.color.b = 1.0
+        marker.color.a = 0.95
+
+        lifetime_sec = float(self.trajectory_viz_lifetime_sec)
+        marker.lifetime.sec = int(lifetime_sec)
+        marker.lifetime.nanosec = int((lifetime_sec - int(lifetime_sec)) * 1e9)
+
+        n = int(seq_den.shape[0])
+        stride = max(1, int(math.ceil(n / float(self.trajectory_viz_max_points))))
+        scale = float(self.trajectory_viz_xyz_scale)
+        for xyz in seq_den[::stride, :3]:
+            p = Point()
+            p.x = float(xyz[0]) * scale
+            p.y = float(xyz[1]) * scale
+            p.z = float(xyz[2]) * scale
+            marker.points.append(p)
+
+        self.pub_predicted_xyz_trajectory.publish(marker)
+
+    def _make_local_xyz_overlay(self, local_rgb: np.ndarray, seq_den: np.ndarray, current_xyz_mm: Optional[np.ndarray] = None) -> np.ndarray:
+        origin_xyz_mm = current_xyz_mm if self.trajectory_overlay_origin == "current" else None
+        return _draw_xyz_trajectory_overlay_rgb(
+            local_rgb,
+            seq_den[:, :3],
+            origin_xyz_mm=origin_xyz_mm,
+            max_points=self.trajectory_overlay_max_points,
+            pixels_per_mm=self.trajectory_overlay_pixels_per_mm,
+            center_u_ratio=self.trajectory_overlay_center_u_ratio,
+            center_v_ratio=self.trajectory_overlay_center_v_ratio,
+            line_width_px=self.trajectory_overlay_line_width_px,
+            point_radius_px=self.trajectory_overlay_point_radius_px,
+        )
+
+    def _publish_trajectory_only_overlay(self, local_rgb: np.ndarray, seq_den: np.ndarray, current_xyz_mm: Optional[np.ndarray] = None, stamp=None):
+        if not self.trajectory_overlay_enable or self.pub_gradcam_overlay is None:
+            return
+        if local_rgb is None or seq_den is None:
+            return
+        overlay = self._make_local_xyz_overlay(local_rgb, seq_den, current_xyz_mm=current_xyz_mm)
+        msg = _rgb_numpy_to_image_msg(overlay, stamp=stamp, frame_id="xyz_trajectory_local")
+        self.pub_gradcam_overlay.publish(msg)
 
     def _build_live_force_history(self, hist_list: List[np.ndarray], current_force3: np.ndarray) -> np.ndarray:
         """
@@ -1647,18 +1837,27 @@ class NodeCmdMotionInfer(Node):
             return self.policy(q_gc, img_gc, force_history=fh_gc)
         return self.policy(q_gc, img_gc)
 
-    def _run_gradcam_debug(self, images_rgb: List[np.ndarray], q_t: torch.Tensor, img_t: torch.Tensor, force_hist_t: Optional[torch.Tensor]):
+    def _run_gradcam_debug(
+        self,
+        images_rgb: List[np.ndarray],
+        q_t: torch.Tensor,
+        img_t: torch.Tensor,
+        force_hist_t: Optional[torch.Tensor],
+        seq_den_for_overlay: Optional[np.ndarray] = None,
+        current_xyz_mm_for_overlay: Optional[np.ndarray] = None,
+    ) -> bool:
         if not self.gradcam_enable:
-            return
+            return False
         if self._gradcam_target_layer is None:
-            return
+            return False
         if self._infer_plan_count <= 0 or (self._infer_plan_count % self.gradcam_every_n_infer) != 0:
-            return
+            return False
 
         self._gradcam_activation = None
         self._gradcam_gradient = None
         gradcam_params = None
         gradcam_param_states = None
+        local_published = False
 
         try:
             was_training = self.policy.training
@@ -1716,6 +1915,12 @@ class NodeCmdMotionInfer(Node):
                     alpha=self.gradcam_alpha,
                     colormap=self.gradcam_colormap,
                 )
+                if cam_i == 0 and self.trajectory_overlay_enable and seq_den_for_overlay is not None:
+                    overlay = self._make_local_xyz_overlay(
+                        overlay,
+                        seq_den_for_overlay,
+                        current_xyz_mm=current_xyz_mm_for_overlay,
+                    )
 
                 cam_name = self.camera_names[cam_i] if cam_i < len(self.camera_names) else f"cam{cam_i}"
                 heat_shapes.append(f"{cam_name}:{tuple(heat.shape)}")
@@ -1725,6 +1930,7 @@ class NodeCmdMotionInfer(Node):
                         msg = _rgb_numpy_to_image_msg(overlay, stamp=stamp, frame_id=f"gradcam_{cam_name}")
                         self.pub_gradcam_overlay.publish(msg)
                         published_names.append(cam_name)
+                        local_published = True
                     elif cam_i == 1 and self.pub_gradcam_global_overlay is not None:
                         msg = _rgb_numpy_to_image_msg(overlay, stamp=stamp, frame_id=f"gradcam_{cam_name}")
                         self.pub_gradcam_global_overlay.publish(msg)
@@ -1747,6 +1953,7 @@ class NodeCmdMotionInfer(Node):
                     f"heat_shape={';'.join(heat_shapes)} publish={int(self.gradcam_publish)} "
                     f"published={published_names} save={int(self.gradcam_save)}"
                 )
+            return local_published
 
         except Exception as e:
             self._gradcam_fail_count += 1
@@ -1754,6 +1961,7 @@ class NodeCmdMotionInfer(Node):
             if self._gradcam_fail_count <= 3 or (now_t - self._gradcam_last_log_t) > 2.0:
                 self._gradcam_last_log_t = now_t
                 self.get_logger().warn(f"[GRADCAM] failed #{self._gradcam_fail_count}: {e}")
+            return False
         finally:
             try:
                 self.policy.zero_grad(set_to_none=True)
@@ -2191,10 +2399,25 @@ class NodeCmdMotionInfer(Node):
 
         self.plans.append(Plan(t0=_monotonic(), seq_den=seq_den))
         self._infer_plan_count += 1
+        self._publish_predicted_xyz_trajectory(seq_den)
 
         # Optional Grad-CAM debug visualization. This performs a separate backward pass
         # at a low rate, so the control loop and command generation remain unchanged.
-        self._run_gradcam_debug(images_rgb=images, q_t=q_t, img_t=img_t, force_hist_t=force_hist_t)
+        local_overlay_published = self._run_gradcam_debug(
+            images_rgb=images,
+            q_t=q_t,
+            img_t=img_t,
+            force_hist_t=force_hist_t,
+            seq_den_for_overlay=seq_den,
+            current_xyz_mm_for_overlay=pose6[:3],
+        )
+        if self.trajectory_overlay_enable and not local_overlay_published:
+            self._publish_trajectory_only_overlay(
+                images[0],
+                seq_den,
+                current_xyz_mm=pose6[:3],
+                stamp=self.get_clock().now().to_msg(),
+            )
 
         if self._infer_plan_count <= 3 or (self._infer_plan_count % 20 == 0):
             self.get_logger().info(

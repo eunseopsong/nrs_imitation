@@ -41,6 +41,11 @@ from typing import Optional, List, Tuple, Dict, Set
 import numpy as np
 import h5py
 
+try:
+    import cv2
+except Exception:
+    cv2 = None
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
@@ -165,6 +170,51 @@ def stack_images_repeat_last(frames: List[Optional[np.ndarray]], logger=None, ta
         )
 
     return out
+
+
+def preprocess_rgb_image(
+    image: Optional[np.ndarray],
+    mode: str,
+    specular_v_thresh: int,
+    specular_s_thresh: int,
+    specular_dilate_px: int,
+    specular_inpaint_radius: float,
+) -> Optional[np.ndarray]:
+    if image is None:
+        return None
+
+    mode = str(mode or "raw").strip().lower()
+    if mode in ("", "raw", "none", "off"):
+        return image
+
+    if mode not in ("specular_inpaint", "deglare", "highlight_inpaint"):
+        return image
+
+    rgb = np.asarray(image)
+    if rgb.ndim != 3 or rgb.shape[2] != 3:
+        return image
+    if rgb.dtype != np.uint8:
+        rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+
+    if cv2 is None:
+        return rgb.copy()
+
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    sat = hsv[:, :, 1]
+    val = hsv[:, :, 2]
+    mask = ((val >= int(specular_v_thresh)) & (sat <= int(specular_s_thresh))).astype(np.uint8) * 255
+
+    dilate_px = max(0, int(specular_dilate_px))
+    if dilate_px > 0:
+        k = 2 * dilate_px + 1
+        kernel = np.ones((k, k), dtype=np.uint8)
+        mask = cv2.dilate(mask, kernel, iterations=1)
+
+    if int(np.count_nonzero(mask)) == 0:
+        return rgb.copy()
+
+    radius = max(0.1, float(specular_inpaint_radius))
+    return cv2.inpaint(rgb, mask, radius, cv2.INPAINT_TELEA)
 
 
 # ============================================================
@@ -305,6 +355,11 @@ class HDF5Recorder(Node):
         declare("image_dataset_name", "cam0")
         declare("image_compression", "gzip")  # gzip, lzf, none
         declare("image_gzip_level", 4)
+        declare("image_preprocess_mode", "raw")  # raw | specular_inpaint
+        declare("image_specular_v_thresh", 230)
+        declare("image_specular_s_thresh", 80)
+        declare("image_specular_dilate_px", 2)
+        declare("image_specular_inpaint_radius", 3.0)
 
         # Load parameters
         self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
@@ -378,6 +433,16 @@ class HDF5Recorder(Node):
         self.image_dataset_name = str(self.get_parameter("image_dataset_name").value)
         self.image_compression = str(self.get_parameter("image_compression").value).lower()
         self.image_gzip_level = int(self.get_parameter("image_gzip_level").value)
+        self.image_preprocess_mode = str(self.get_parameter("image_preprocess_mode").value).strip().lower()
+        self.image_specular_v_thresh = int(self.get_parameter("image_specular_v_thresh").value)
+        self.image_specular_s_thresh = int(self.get_parameter("image_specular_s_thresh").value)
+        self.image_specular_dilate_px = int(self.get_parameter("image_specular_dilate_px").value)
+        self.image_specular_inpaint_radius = float(self.get_parameter("image_specular_inpaint_radius").value)
+        if self.image_preprocess_mode not in ("", "raw", "none", "off", "specular_inpaint", "deglare", "highlight_inpaint"):
+            self.get_logger().warn(f"[IMAGE] unknown image_preprocess_mode={self.image_preprocess_mode}; using raw")
+            self.image_preprocess_mode = "raw"
+        if self.image_preprocess_mode not in ("", "raw", "none", "off") and cv2 is None:
+            self.get_logger().warn("[IMAGE] cv2 is not available; image preprocessing will fall back to raw RGB")
 
         # HDF5 setup
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -401,6 +466,11 @@ class HDF5Recorder(Node):
         self.h5.attrs["force_msg_type"] = str(self.force_msg_type)
         self.h5.attrs["image_topic"] = str(self.image_topic)
         self.h5.attrs["global_image_topic"] = str(self.global_image_topic)
+        self.h5.attrs["image_preprocess_mode"] = str(self.image_preprocess_mode)
+        self.h5.attrs["image_specular_v_thresh"] = int(self.image_specular_v_thresh)
+        self.h5.attrs["image_specular_s_thresh"] = int(self.image_specular_s_thresh)
+        self.h5.attrs["image_specular_dilate_px"] = int(self.image_specular_dilate_px)
+        self.h5.attrs["image_specular_inpaint_radius"] = float(self.image_specular_inpaint_radius)
         self.grp_eps = self.h5.create_group("episodes")
 
         # Runtime state
@@ -452,6 +522,7 @@ class HDF5Recorder(Node):
             ("force_topic", f"{self.force_topic} ({self.force_msg_type})"),
             ("cam0", f"{self.image_topic} -> images/{self.image_dataset_name}"),
             ("cam1", f"{int(self.enable_global_cam)} {self.global_image_topic} -> images/{self.global_image_dataset_name}"),
+            ("image_preprocess", self.image_preprocess_mode),
             ("sample_hz", self.sample_hz),
             ("command", self.command_topic),
         ]))
@@ -593,6 +664,24 @@ class HDF5Recorder(Node):
                 self.last_status_t = now
                 self.get_logger().warn("[WAIT] " + ", ".join(missing))
             return
+
+        image = preprocess_rgb_image(
+            image,
+            mode=self.image_preprocess_mode,
+            specular_v_thresh=self.image_specular_v_thresh,
+            specular_s_thresh=self.image_specular_s_thresh,
+            specular_dilate_px=self.image_specular_dilate_px,
+            specular_inpaint_radius=self.image_specular_inpaint_radius,
+        )
+        if self.enable_global_cam and global_image is not None:
+            global_image = preprocess_rgb_image(
+                global_image,
+                mode=self.image_preprocess_mode,
+                specular_v_thresh=self.image_specular_v_thresh,
+                specular_s_thresh=self.image_specular_s_thresh,
+                specular_dilate_px=self.image_specular_dilate_px,
+                specular_inpaint_radius=self.image_specular_inpaint_radius,
+            )
 
         self.P_buf.append(pose.astype(np.float32))
         self.F_buf.append(force[:3].astype(np.float32))
