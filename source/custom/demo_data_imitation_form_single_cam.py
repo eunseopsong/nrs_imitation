@@ -9,6 +9,11 @@ Output HDF5 layout:
   observations/position
   observations/force
   observations/images/cam0
+  observations/images/stain_mask, optional
+
+If the merged HDF5 was recorded with hdf5_recorder_single_cam_stain_mask,
+episode_0 is treated as a clean surface reference by default and is used to
+generate stain_mask/blob proposals for the remaining episodes.
 """
 
 from __future__ import annotations

@@ -4,12 +4,19 @@
 Single-camera HDF5 recorder that also stores a polishing stain mask.
 
 This wrapper leaves hdf5_recorder_single_cam.py and hdf5_recorder_base.py
-unchanged. It records the same cam0 RGB stream as the baseline recorder and
-adds:
+unchanged. It records the same cam0 RGB stream as the baseline recorder.
+
+Default workflow:
+
+  ep_0000 is recorded without stain and marked as a clean reference episode.
+  demo_data_imitation_form_single_cam.py then compares later stained episodes
+  against ep_0000 to generate observations/images/stain_mask and blob proposals.
+
+Optional rgb_threshold mode can still write a rough online mask:
 
   episodes/ep_xxxx/images/stain_mask    (T, H, W, 1) uint8, values 0 or 255
 
-The mask is generated from cam0 RGB with a small rule-based prior:
+The online mask is generated from cam0 RGB with a small rule-based prior:
 
   stain_candidate   = dark_region
   reflection_region = very_bright_region with low saturation
@@ -174,8 +181,10 @@ class StainMaskHDF5Recorder(HDF5Recorder):
         super().__init__(node_name=node_name, fixed_defaults=fixed_defaults)
 
         self.declare_parameter("use_stain_mask", True)
-        self.declare_parameter("stain_mask_source", "auto")
+        self.declare_parameter("stain_mask_source", "reference_episode")
         self.declare_parameter("stain_mask_dataset_name", "stain_mask")
+        self.declare_parameter("stain_reference_first_episode", True)
+        self.declare_parameter("stain_reference_episode_index", 0)
         self.declare_parameter("stain_dark_thresh", 80)
         self.declare_parameter("reflection_v_thresh", 235)
         self.declare_parameter("reflection_s_thresh", 60)
@@ -190,6 +199,8 @@ class StainMaskHDF5Recorder(HDF5Recorder):
         self.use_stain_mask = bool(self.get_parameter("use_stain_mask").value)
         self.stain_mask_source = str(self.get_parameter("stain_mask_source").value).strip().lower()
         self.stain_mask_dataset_name = str(self.get_parameter("stain_mask_dataset_name").value).strip()
+        self.stain_reference_first_episode = bool(self.get_parameter("stain_reference_first_episode").value)
+        self.stain_reference_episode_index = int(self.get_parameter("stain_reference_episode_index").value)
         self.stain_dark_thresh = int(self.get_parameter("stain_dark_thresh").value)
         self.reflection_v_thresh = int(self.get_parameter("reflection_v_thresh").value)
         self.reflection_s_thresh = int(self.get_parameter("reflection_s_thresh").value)
@@ -198,17 +209,17 @@ class StainMaskHDF5Recorder(HDF5Recorder):
         self.stain_debug_save_samples = int(self.get_parameter("stain_debug_save_samples").value)
         self.stain_debug_dir = os.path.expanduser(str(self.get_parameter("stain_debug_dir").value))
 
-        if self.stain_mask_source not in ("auto", "hdf5", "none"):
+        if self.stain_mask_source not in ("reference_episode", "rgb_threshold", "auto", "hdf5", "none"):
             self.get_logger().warn(
-                f"[STAIN_MASK] unknown stain_mask_source={self.stain_mask_source}; using auto"
+                f"[STAIN_MASK] unknown stain_mask_source={self.stain_mask_source}; using reference_episode"
             )
-            self.stain_mask_source = "auto"
+            self.stain_mask_source = "reference_episode"
         if self.stain_mask_source == "hdf5":
             self.get_logger().warn(
                 "[STAIN_MASK] stain_mask_source=hdf5 is a loader-side concept; "
-                "this recorder will generate and write images/stain_mask from cam0."
+                "this recorder will use reference_episode metadata instead."
             )
-            self.stain_mask_source = "auto"
+            self.stain_mask_source = "reference_episode"
         if self.stain_mask_dataset_name == "":
             self.stain_mask_dataset_name = "stain_mask"
 
@@ -216,6 +227,9 @@ class StainMaskHDF5Recorder(HDF5Recorder):
             self.h5.attrs["use_stain_mask"] = int(self.use_stain_mask)
             self.h5.attrs["stain_mask_source"] = str(self.stain_mask_source)
             self.h5.attrs["stain_mask_dataset_name"] = str(self.stain_mask_dataset_name)
+            self.h5.attrs["stain_reference_first_episode"] = int(self.stain_reference_first_episode)
+            self.h5.attrs["stain_reference_episode_index"] = int(self.stain_reference_episode_index)
+            self.h5.attrs["stain_reference_episode"] = f"ep_{int(self.stain_reference_episode_index):04d}"
             self.h5.attrs["stain_dark_thresh"] = int(self.stain_dark_thresh)
             self.h5.attrs["reflection_v_thresh"] = int(self.reflection_v_thresh)
             self.h5.attrs["reflection_s_thresh"] = int(self.reflection_s_thresh)
@@ -232,6 +246,8 @@ class StainMaskHDF5Recorder(HDF5Recorder):
         self.get_logger().info(block("STAIN MASK RECORDER READY", [
             ("enabled", int(self.use_stain_mask)),
             ("source", self.stain_mask_source),
+            ("reference_first_ep", int(self.stain_reference_first_episode)),
+            ("reference_ep", f"ep_{int(self.stain_reference_episode_index):04d}"),
             ("dataset", f"images/{self.stain_mask_dataset_name}"),
             ("dark_thresh", self.stain_dark_thresh),
             ("reflection_v", self.reflection_v_thresh),
@@ -243,6 +259,8 @@ class StainMaskHDF5Recorder(HDF5Recorder):
 
     def _generate_masks(self, images0: np.ndarray) -> Optional[np.ndarray]:
         if not self.use_stain_mask or self.stain_mask_source == "none":
+            return None
+        if self.stain_mask_source == "reference_episode":
             return None
         return generate_stain_mask_sequence_from_rgb(
             images0,
@@ -275,7 +293,14 @@ class StainMaskHDF5Recorder(HDF5Recorder):
         self.get_logger().info(f"[STAIN_MASK] saved debug samples -> {out_dir}")
 
     def _save_episode_to_hdf5(self, ep_idx, position, ft, images0, images1, sample_times, reason):
+        is_reference_episode = (
+            self.use_stain_mask
+            and self.stain_reference_first_episode
+            and int(ep_idx) == int(self.stain_reference_episode_index)
+        )
         masks = self._generate_masks(images0)
+        if is_reference_episode:
+            masks = None
         if masks is not None:
             mask_float = masks.astype(np.float32) / 255.0
             self.get_logger().info(
@@ -289,10 +314,23 @@ class StainMaskHDF5Recorder(HDF5Recorder):
 
         super()._save_episode_to_hdf5(ep_idx, position, ft, images0, images1, sample_times, reason)
 
+        ep_name = self._ep_name(ep_idx)
+        if is_reference_episode:
+            with self.h5_lock:
+                g = self.grp_eps[ep_name]
+                g.attrs["stain_reference_episode"] = 1
+                g.attrs["exclude_from_imitation_training"] = 1
+                g.attrs["stain_reference_role"] = "clean_surface_reference"
+                if self.flush_each_episode:
+                    self.h5.flush()
+            self.get_logger().info(
+                f"[STAIN_MASK] {ep_name} marked as clean reference episode; "
+                "demo_data_imitation_form_single_cam.py will use it to generate masks."
+            )
+
         if masks is None:
             return
 
-        ep_name = self._ep_name(ep_idx)
         with self.h5_lock:
             g = self.grp_eps[ep_name]
             g_img = g["images"]

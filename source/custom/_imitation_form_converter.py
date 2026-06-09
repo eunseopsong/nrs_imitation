@@ -14,7 +14,12 @@ Output episode layout is intentionally compact:
       ├── force
       └── images/
           ├── cam0
-          └── cam1  # dual-camera only
+          ├── cam1  # dual-camera only
+          └── stain_mask  # optional, copied when present in merged HDF5
+
+When the input file marks episode_0 as a clean reference, this converter can
+generate stain masks for the remaining episodes by comparing each frame to the
+nearest clean reference frame in pose space.
 """
 
 from __future__ import annotations
@@ -25,10 +30,15 @@ import json
 import os
 import shutil
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -147,6 +157,431 @@ def _ensure_image4(arr: np.ndarray, name: str) -> np.ndarray:
     return arr
 
 
+def _ensure_stain_mask4(arr: np.ndarray) -> np.ndarray:
+    arr = np.asarray(arr)
+    if arr.ndim == 3:
+        arr = arr[:, :, :, None]
+    elif arr.ndim == 4 and arr.shape[1] == 1 and arr.shape[-1] != 1:
+        arr = np.transpose(arr, (0, 2, 3, 1))
+    if arr.ndim != 4 or arr.shape[-1] != 1:
+        raise ValueError(f"stain_mask must be (T,H,W), (T,H,W,1), or (T,1,H,W), got {arr.shape}")
+
+    if arr.dtype != np.uint8:
+        arr = arr.astype(np.float32)
+        if float(np.nanmax(arr)) <= 1.5:
+            arr = arr * 255.0
+        arr = np.clip(arr, 0, 255).astype(np.uint8)
+    return arr
+
+
+def _as_uint8_rgb(arr: np.ndarray) -> np.ndarray:
+    arr = np.asarray(arr)
+    if arr.ndim != 3 or arr.shape[-1] != 3:
+        raise ValueError(f"RGB frame must be (H,W,3), got {arr.shape}")
+    if arr.dtype == np.uint8:
+        return arr
+    out = arr.astype(np.float32)
+    if float(np.nanmax(out)) <= 1.5:
+        out = out * 255.0
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def _rgb_to_value_saturation(rgb: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    rgb_u8 = _as_uint8_rgb(rgb)
+    if cv2 is not None:
+        hsv = cv2.cvtColor(rgb_u8, cv2.COLOR_RGB2HSV)
+        return hsv[:, :, 2].astype(np.float32), hsv[:, :, 1].astype(np.float32)
+
+    x = rgb_u8.astype(np.float32)
+    vmax = np.max(x, axis=2)
+    vmin = np.min(x, axis=2)
+    sat = np.zeros_like(vmax, dtype=np.float32)
+    valid = vmax > 1e-6
+    sat[valid] = (vmax[valid] - vmin[valid]) / vmax[valid] * 255.0
+    return vmax, sat
+
+
+def _resize_rgb_like(src: np.ndarray, target_hw: Tuple[int, int]) -> np.ndarray:
+    src = _as_uint8_rgb(src)
+    target_h, target_w = int(target_hw[0]), int(target_hw[1])
+    if src.shape[:2] == (target_h, target_w):
+        return src
+    if cv2 is None:
+        raise RuntimeError("cv2 is required to resize reference RGB frames")
+    return cv2.resize(src, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
+
+
+def _odd_kernel_size(value: int) -> int:
+    k = int(value)
+    if k <= 1:
+        return 0
+    return k if k % 2 == 1 else k + 1
+
+
+def _lighting_normalized_value(value: np.ndarray, blur_kernel: int) -> np.ndarray:
+    v = np.asarray(value, dtype=np.float32)
+    k = _odd_kernel_size(blur_kernel)
+    if k <= 1 or cv2 is None:
+        return v
+    local = cv2.GaussianBlur(v, (k, k), 0)
+    scale = float(np.mean(local)) if local.size else 128.0
+    return np.clip(v / np.maximum(local, 1.0) * scale, 0.0, 255.0).astype(np.float32)
+
+
+def _align_reference_to_current(
+    reference_rgb: np.ndarray,
+    current_rgb: np.ndarray,
+    mode: str,
+    max_iters: int,
+    eps: float,
+) -> np.ndarray:
+    mode = str(mode or "none").strip().lower()
+    if cv2 is None or mode in ("", "none", "off"):
+        return reference_rgb
+
+    ref = _as_uint8_rgb(reference_rgb)
+    cur = _as_uint8_rgb(current_rgb)
+    if ref.shape != cur.shape:
+        return ref
+
+    if mode not in ("translation", "euclidean", "affine"):
+        return ref
+
+    warp_mode = {
+        "translation": cv2.MOTION_TRANSLATION,
+        "euclidean": cv2.MOTION_EUCLIDEAN,
+        "affine": cv2.MOTION_AFFINE,
+    }[mode]
+    warp = np.eye(2, 3, dtype=np.float32)
+    criteria = (
+        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+        max(1, int(max_iters)),
+        max(float(eps), 1e-9),
+    )
+
+    try:
+        ref_gray = cv2.cvtColor(ref, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
+        cur_gray = cv2.cvtColor(cur, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
+        _, warp = cv2.findTransformECC(
+            cur_gray,
+            ref_gray,
+            warp,
+            warp_mode,
+            criteria,
+            None,
+            1,
+        )
+        aligned = cv2.warpAffine(
+            ref,
+            warp,
+            (cur.shape[1], cur.shape[0]),
+            flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+            borderMode=cv2.BORDER_REFLECT,
+        )
+        return aligned.astype(np.uint8)
+    except Exception:
+        return ref
+
+
+def _constrain_to_near_mask(mask_u8: np.ndarray, core_bool: np.ndarray, kernel_size: int) -> np.ndarray:
+    k = _odd_kernel_size(kernel_size)
+    if cv2 is None or k <= 1:
+        return mask_u8
+    core = np.asarray(core_bool, dtype=np.uint8)
+    kernel = np.ones((k, k), dtype=np.uint8)
+    allowed = cv2.dilate(core, kernel) > 0
+    return (np.asarray(mask_u8) * allowed.astype(np.uint8)).astype(np.uint8)
+
+
+def _postprocess_binary_mask(
+    mask_bool: np.ndarray,
+    min_area: int,
+    max_area: int,
+    morph_kernel: int,
+    hole_close_kernel: int = 0,
+    ignore_border_px: int = 0,
+    component_context_mask: Optional[np.ndarray] = None,
+    component_context_pad: int = 12,
+    component_context_min_ratio: float = 0.0,
+    component_max_width_frac: float = 0.0,
+    component_max_height_frac: float = 0.0,
+    component_max_area_frac: float = 0.0,
+    fill_holes_max_area: int = 0,
+) -> np.ndarray:
+    mask = np.asarray(mask_bool, dtype=np.uint8) * 255
+    if cv2 is not None:
+        k = _odd_kernel_size(morph_kernel)
+        if k > 1:
+            kernel = np.ones((k, k), dtype=np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        hk = _odd_kernel_size(hole_close_kernel)
+        if hk > 1:
+            hole_kernel = np.ones((hk, hk), dtype=np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, hole_kernel)
+
+    if cv2 is None:
+        return mask.astype(np.uint8)
+
+    min_area = max(0, int(min_area))
+    max_area = max(0, int(max_area))
+    binary = (mask > 0).astype(np.uint8)
+    H, W = binary.shape[:2]
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
+    out = np.zeros_like(mask, dtype=np.uint8)
+    context = None if component_context_mask is None else np.asarray(component_context_mask).astype(bool)
+    border = max(0, int(ignore_border_px))
+    pad = max(1, int(component_context_pad))
+    min_context_ratio = max(0.0, float(component_context_min_ratio))
+    max_width_frac = max(0.0, float(component_max_width_frac))
+    max_height_frac = max(0.0, float(component_max_height_frac))
+    max_area_frac = max(0.0, float(component_max_area_frac))
+    for label in range(1, num_labels):
+        x = int(stats[label, cv2.CC_STAT_LEFT])
+        y = int(stats[label, cv2.CC_STAT_TOP])
+        w = int(stats[label, cv2.CC_STAT_WIDTH])
+        h = int(stats[label, cv2.CC_STAT_HEIGHT])
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        if min_area > 0 and area < min_area:
+            continue
+        if max_area > 0 and area > max_area:
+            continue
+        if max_width_frac > 0.0 and (float(w) / max(W, 1)) > max_width_frac:
+            continue
+        if max_height_frac > 0.0 and (float(h) / max(H, 1)) > max_height_frac:
+            continue
+        if max_area_frac > 0.0 and (float(area) / max(H * W, 1)) > max_area_frac:
+            continue
+        if border > 0 and (x <= border or y <= border or x + w >= W - border or y + h >= H - border):
+            continue
+        if context is not None and min_context_ratio > 0.0 and context.shape == binary.shape:
+            x0 = max(0, x - pad)
+            y0 = max(0, y - pad)
+            x1 = min(W, x + w + pad)
+            y1 = min(H, y + h + pad)
+            comp_roi = labels[y0:y1, x0:x1] == label
+            ring = ~comp_roi
+            denom = int(np.count_nonzero(ring))
+            if denom > 0:
+                ratio = float(np.count_nonzero(context[y0:y1, x0:x1] & ring)) / float(denom)
+                if ratio < min_context_ratio:
+                    continue
+        out[labels == label] = 255
+    return _fill_mask_holes(out, fill_holes_max_area)
+
+
+def _fill_mask_holes(mask_u8: np.ndarray, max_hole_area: int) -> np.ndarray:
+    max_hole_area = int(max_hole_area)
+    if max_hole_area == 0 or cv2 is None:
+        return mask_u8.astype(np.uint8)
+
+    binary = (np.asarray(mask_u8) > 0).astype(np.uint8)
+    inv = (binary == 0).astype(np.uint8)
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(inv, connectivity=8)
+    H, W = binary.shape[:2]
+    out = binary.copy()
+    for label in range(1, num_labels):
+        x = int(stats[label, cv2.CC_STAT_LEFT])
+        y = int(stats[label, cv2.CC_STAT_TOP])
+        w = int(stats[label, cv2.CC_STAT_WIDTH])
+        h = int(stats[label, cv2.CC_STAT_HEIGHT])
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        touches_border = x == 0 or y == 0 or (x + w) >= W or (y + h) >= H
+        if touches_border:
+            continue
+        if max_hole_area < 0 or area <= max_hole_area:
+            out[labels == label] = 1
+    return (out.astype(np.uint8) * 255)
+
+
+def _extract_blob_proposals(
+    mask_u8: np.ndarray,
+    score_map: Optional[np.ndarray],
+    max_blobs: int,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    max_blobs = max(0, int(max_blobs))
+    bboxes = np.zeros((max_blobs, 4), dtype=np.float32)
+    features = np.zeros((max_blobs, 6), dtype=np.float32)
+    is_pad = np.ones((max_blobs,), dtype=np.bool_)
+    if max_blobs <= 0 or cv2 is None:
+        return bboxes, features, is_pad
+
+    binary = (np.asarray(mask_u8) > 0).astype(np.uint8)
+    h, w = binary.shape[:2]
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
+    proposals = []
+    score_arr = None if score_map is None else np.asarray(score_map, dtype=np.float32)
+    for label in range(1, num_labels):
+        x = int(stats[label, cv2.CC_STAT_LEFT])
+        y = int(stats[label, cv2.CC_STAT_TOP])
+        bw = int(stats[label, cv2.CC_STAT_WIDTH])
+        bh = int(stats[label, cv2.CC_STAT_HEIGHT])
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        if area <= 0:
+            continue
+        if score_arr is not None:
+            comp = labels == label
+            score = float(np.mean(score_arr[comp])) * float(area)
+        else:
+            score = float(area)
+        proposals.append((score, x, y, x + bw, y + bh, area))
+
+    proposals.sort(key=lambda item: item[0], reverse=True)
+    for out_i, (score, x1, y1, x2, y2, area) in enumerate(proposals[:max_blobs]):
+        bboxes[out_i] = np.asarray([x1, y1, x2, y2], dtype=np.float32)
+        features[out_i] = np.asarray(
+            [
+                ((x1 + x2) * 0.5) / max(w, 1),
+                ((y1 + y2) * 0.5) / max(h, 1),
+                (x2 - x1) / max(w, 1),
+                (y2 - y1) / max(h, 1),
+                area / max(h * w, 1),
+                score / max(h * w * 255.0, 1.0),
+            ],
+            dtype=np.float32,
+        )
+        is_pad[out_i] = False
+    return bboxes, features, is_pad
+
+
+def _nearest_reference_indices(
+    current_position: np.ndarray,
+    reference_position: np.ndarray,
+    pos_scale: float,
+    rot_scale: float,
+) -> np.ndarray:
+    cur = _ensure_2d_min_dim(current_position, 6, "current_position").astype(np.float32)
+    ref = _ensure_2d_min_dim(reference_position, 6, "reference_position").astype(np.float32)
+    pos_scale = max(float(pos_scale), 1e-6)
+    rot_scale = max(float(rot_scale), 1e-6)
+    ref_pos = ref[:, :3] / pos_scale
+    ref_rot = ref[:, 3:6] / rot_scale
+    ref_scaled = np.concatenate([ref_pos, ref_rot], axis=1)
+
+    out = np.zeros((cur.shape[0],), dtype=np.int64)
+    for i in range(cur.shape[0]):
+        cur_scaled = np.concatenate([cur[i, :3] / pos_scale, cur[i, 3:6] / rot_scale], axis=0)
+        dist = np.sum((ref_scaled - cur_scaled[None, :]) ** 2, axis=1)
+        out[i] = int(np.argmin(dist))
+    return out
+
+
+def generate_reference_stain_artifacts(
+    current_rgb: np.ndarray,
+    current_position: np.ndarray,
+    reference_rgb: np.ndarray,
+    reference_position: np.ndarray,
+    diff_thresh: float,
+    dark_thresh: float,
+    reflection_v_thresh: float,
+    reflection_s_thresh: float,
+    min_area: int,
+    max_area: int,
+    morph_kernel: int,
+    hole_close_kernel: int,
+    blur_kernel: int,
+    ref_align_mode: str,
+    ref_align_max_iters: int,
+    ref_align_eps: float,
+    ref_surface_v_min: float,
+    context_v_min: float,
+    context_kernel: int,
+    dark_prior_enable: bool,
+    output_constraint_kernel: int,
+    ignore_border_px: int,
+    component_context_pad: int,
+    component_context_min_ratio: float,
+    component_max_width_frac: float,
+    component_max_height_frac: float,
+    component_max_area_frac: float,
+    fill_holes_max_area: int,
+    max_blobs: int,
+    pose_pos_scale: float,
+    pose_rot_scale: float,
+) -> Dict[str, np.ndarray]:
+    cur_rgb = _ensure_image4(current_rgb, "cam0")
+    ref_rgb = _ensure_image4(reference_rgb, "reference_cam0")
+    T, H, W, _ = cur_rgb.shape
+    ref_indices = _nearest_reference_indices(
+        current_position=current_position,
+        reference_position=reference_position,
+        pos_scale=pose_pos_scale,
+        rot_scale=pose_rot_scale,
+    )
+
+    masks = np.zeros((T, H, W, 1), dtype=np.uint8)
+    bboxes = np.zeros((T, max(0, int(max_blobs)), 4), dtype=np.float32)
+    features = np.zeros((T, max(0, int(max_blobs)), 6), dtype=np.float32)
+    is_pad = np.ones((T, max(0, int(max_blobs))), dtype=np.bool_)
+
+    for i in range(T):
+        cur_frame = _as_uint8_rgb(cur_rgb[i])
+        ref_frame = _resize_rgb_like(ref_rgb[int(ref_indices[i])], (H, W))
+        ref_frame = _align_reference_to_current(
+            reference_rgb=ref_frame,
+            current_rgb=cur_frame,
+            mode=ref_align_mode,
+            max_iters=ref_align_max_iters,
+            eps=ref_align_eps,
+        )
+        cur_v, cur_s = _rgb_to_value_saturation(cur_frame)
+        ref_v, _ = _rgb_to_value_saturation(ref_frame)
+        cur_norm = _lighting_normalized_value(cur_v, blur_kernel)
+        ref_norm = _lighting_normalized_value(ref_v, blur_kernel)
+        diff = ref_norm - cur_norm
+
+        dark_change = diff >= float(diff_thresh)
+        dark_current = cur_v <= float(dark_thresh)
+        reflection = (cur_v >= float(reflection_v_thresh)) & (cur_s <= float(reflection_s_thresh))
+        ref_surface = ref_v >= float(ref_surface_v_min) if float(ref_surface_v_min) > 0.0 else True
+        bright_context = cur_v >= float(context_v_min) if float(context_v_min) > 0.0 else None
+        if cv2 is not None and float(context_v_min) > 0.0:
+            k = _odd_kernel_size(context_kernel)
+            if k > 1:
+                kernel = np.ones((k, k), dtype=np.uint8)
+                surface_context = cv2.dilate(bright_context.astype(np.uint8), kernel) > 0
+            else:
+                surface_context = bright_context
+        else:
+            surface_context = True
+        stain_evidence = dark_change | (bool(dark_prior_enable) & dark_current)
+        raw_candidate = stain_evidence & dark_current & ref_surface & surface_context & (~reflection)
+        mask = _postprocess_binary_mask(
+            raw_candidate,
+            min_area=min_area,
+            max_area=max_area,
+            morph_kernel=morph_kernel,
+            hole_close_kernel=hole_close_kernel,
+            ignore_border_px=ignore_border_px,
+            component_context_mask=bright_context,
+            component_context_pad=component_context_pad,
+            component_context_min_ratio=component_context_min_ratio,
+            component_max_width_frac=component_max_width_frac,
+            component_max_height_frac=component_max_height_frac,
+            component_max_area_frac=component_max_area_frac,
+            fill_holes_max_area=fill_holes_max_area,
+        )
+        mask = _constrain_to_near_mask(mask, raw_candidate, output_constraint_kernel)
+        masks[i, :, :, 0] = mask
+        frame_bboxes, frame_features, frame_is_pad = _extract_blob_proposals(
+            mask,
+            score_map=np.clip(diff, 0.0, 255.0),
+            max_blobs=max_blobs,
+        )
+        if max_blobs > 0:
+            bboxes[i] = frame_bboxes
+            features[i] = frame_features
+            is_pad[i] = frame_is_pad
+
+    return {
+        "stain_mask": masks,
+        "stain_blob_bboxes": bboxes,
+        "stain_blob_features": features,
+        "stain_blob_is_pad": is_pad,
+        "stain_reference_indices": ref_indices.astype(np.int64),
+    }
+
+
 def _trim_to_min_len(items: Dict[str, np.ndarray]) -> Tuple[Dict[str, np.ndarray], int]:
     lengths = [int(v.shape[0]) for v in items.values()]
     if not lengths:
@@ -191,6 +626,18 @@ def load_episode(g_ep: h5py.Group, camera_names: Sequence[str]) -> Dict[str, np.
         if image is None:
             raise KeyError(f"Missing {cam} image in {g_ep.name}")
         data[cam] = _ensure_image4(image, cam)
+
+    stain_mask, _ = _read_optional_array(
+        g_ep,
+        [
+            "images/stain_mask",
+            "observations/images/stain_mask",
+            "stain_mask",
+        ],
+        dtype=None,
+    )
+    if stain_mask is not None:
+        data["stain_mask"] = _ensure_stain_mask4(stain_mask)
 
     data, _ = _trim_to_min_len(data)
     return data
@@ -246,6 +693,62 @@ def write_episode(
         g_images = g_obs.create_group("images")
         for cam in camera_names:
             g_images.create_dataset(cam, data=data[cam].astype(np.uint8), **kwargs)
+        if "stain_mask" in data:
+            ds = g_images.create_dataset("stain_mask", data=data["stain_mask"].astype(np.uint8), **kwargs)
+            ds.attrs["shape_convention"] = "T,H,W,1"
+            ds.attrs["storage"] = "uint8_0_255"
+            ds.attrs["model_value_range_after_div255"] = "float32_0_1"
+            f.attrs["has_stain_mask"] = 1
+        if "stain_blob_bboxes" in data:
+            g_obs.create_dataset("stain_blob_bboxes", data=data["stain_blob_bboxes"].astype(np.float32), **kwargs)
+        if "stain_blob_features" in data:
+            g_obs.create_dataset("stain_blob_features", data=data["stain_blob_features"].astype(np.float32), **kwargs)
+        if "stain_blob_is_pad" in data:
+            g_obs.create_dataset("stain_blob_is_pad", data=data["stain_blob_is_pad"].astype(np.bool_), **kwargs)
+        if "stain_reference_indices" in data:
+            g_obs.create_dataset("stain_reference_indices", data=data["stain_reference_indices"].astype(np.int64), **kwargs)
+
+
+def _attr_to_bool(value, default: bool = False) -> bool:
+    try:
+        if isinstance(value, bytes):
+            value = value.decode("utf-8")
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on")
+        return bool(int(value))
+    except Exception:
+        return bool(default)
+
+
+def _resolve_stain_mask_mode(f: h5py.File, requested_mode: str) -> str:
+    mode = str(requested_mode or "auto").strip().lower()
+    if mode not in ("auto", "copy", "reference_episode", "none"):
+        raise ValueError(f"Unsupported stain_mask_mode={requested_mode}")
+    if mode != "auto":
+        return mode
+
+    source = str(f.attrs.get("stain_mask_source", "")).strip().lower()
+    reference_marked = _attr_to_bool(f.attrs.get("stain_reference_first_episode", 0))
+    if source == "reference_episode" or reference_marked:
+        return "reference_episode"
+    return "copy"
+
+
+def _resolve_reference_episode_name(ep_names: Sequence[str], requested: str) -> str:
+    if not ep_names:
+        raise RuntimeError("No episode names available")
+    raw = str(requested or "ep_0000").strip()
+    if raw in ("", "first", "episode_0", "0"):
+        return ep_names[0]
+    if raw in ep_names:
+        return raw
+    if raw.startswith("episode_"):
+        suffix = raw.split("episode_", 1)[1]
+        if suffix.isdigit():
+            candidate = f"ep_{int(suffix):04d}"
+            if candidate in ep_names:
+                return candidate
+    raise KeyError(f"Reference episode {requested!r} not found. Available: {list(ep_names)[:8]}...")
 
 
 def convert_merged_h5(
@@ -258,6 +761,36 @@ def convert_merged_h5(
     gzip_level: int,
     overwrite: bool,
     write_summary: bool,
+    stain_mask_mode: str = "auto",
+    stain_reference_episode: str = "ep_0000",
+    stain_exclude_reference_episode: bool = True,
+    stain_diff_thresh: float = 18.0,
+    stain_dark_thresh: float = 165.0,
+    reflection_v_thresh: float = 235.0,
+    reflection_s_thresh: float = 60.0,
+    stain_min_area: int = 15,
+    stain_max_area: int = 0,
+    stain_morph_kernel: int = 5,
+    stain_hole_close_kernel: int = 7,
+    stain_ref_blur_kernel: int = 31,
+    stain_ref_align_mode: str = "translation",
+    stain_ref_align_max_iters: int = 40,
+    stain_ref_align_eps: float = 1e-4,
+    stain_ref_surface_v_min: float = 120.0,
+    stain_context_v_min: float = 120.0,
+    stain_context_kernel: int = 31,
+    stain_dark_prior_enable: bool = True,
+    stain_output_constraint_kernel: int = 11,
+    stain_ignore_border_px: int = 3,
+    stain_component_context_pad: int = 12,
+    stain_component_context_min_ratio: float = 0.15,
+    stain_component_max_width_frac: float = 0.0,
+    stain_component_max_height_frac: float = 0.0,
+    stain_component_max_area_frac: float = 0.08,
+    stain_fill_holes_max_area: int = 400,
+    stain_max_blobs: int = 8,
+    stain_ref_pose_pos_scale: float = 50.0,
+    stain_ref_pose_rot_scale: float = 0.35,
 ) -> List[Path]:
     camera_names = [str(c).strip() for c in camera_names if str(c).strip()]
     if not camera_names:
@@ -281,15 +814,73 @@ def convert_merged_h5(
         if not ep_names:
             raise RuntimeError(f"No episodes found under {input_h5}/episodes")
 
+        effective_stain_mode = _resolve_stain_mask_mode(f, stain_mask_mode)
+        reference_ep_name = ""
+        reference_data = None
+        if effective_stain_mode == "reference_episode":
+            reference_ep_name = _resolve_reference_episode_name(ep_names, stain_reference_episode)
+            reference_data = load_episode(f["episodes"][reference_ep_name], camera_names)
+
         print(f"[INFO] input_h5       = {input_h5}")
         print(f"[INFO] output_dir     = {output_dir}")
         print(f"[INFO] camera_names   = {camera_names}")
         print(f"[INFO] episodes found = {len(ep_names)}")
+        print(f"[INFO] stain_mode     = {effective_stain_mode}")
+        if reference_ep_name:
+            print(f"[INFO] stain_ref_ep   = {reference_ep_name} (exclude={int(bool(stain_exclude_reference_episode))})")
 
         out_idx = 0
         for ep_name in ep_names:
             try:
+                if (
+                    effective_stain_mode == "reference_episode"
+                    and bool(stain_exclude_reference_episode)
+                    and ep_name == reference_ep_name
+                ):
+                    print(f"[SKIP] {ep_name}: clean stain reference episode")
+                    continue
+
                 data = load_episode(f["episodes"][ep_name], camera_names)
+                if effective_stain_mode == "none" and "stain_mask" in data:
+                    del data["stain_mask"]
+                elif effective_stain_mode == "reference_episode":
+                    if reference_data is None:
+                        raise RuntimeError("reference_data is not loaded")
+                    artifacts = generate_reference_stain_artifacts(
+                        current_rgb=data["cam0"],
+                        current_position=data["position"],
+                        reference_rgb=reference_data["cam0"],
+                        reference_position=reference_data["position"],
+                        diff_thresh=stain_diff_thresh,
+                        dark_thresh=stain_dark_thresh,
+                        reflection_v_thresh=reflection_v_thresh,
+                        reflection_s_thresh=reflection_s_thresh,
+                        min_area=stain_min_area,
+                        max_area=stain_max_area,
+                        morph_kernel=stain_morph_kernel,
+                        hole_close_kernel=stain_hole_close_kernel,
+                        blur_kernel=stain_ref_blur_kernel,
+                        ref_align_mode=stain_ref_align_mode,
+                        ref_align_max_iters=stain_ref_align_max_iters,
+                        ref_align_eps=stain_ref_align_eps,
+                        ref_surface_v_min=stain_ref_surface_v_min,
+                        context_v_min=stain_context_v_min,
+                        context_kernel=stain_context_kernel,
+                        dark_prior_enable=stain_dark_prior_enable,
+                        output_constraint_kernel=stain_output_constraint_kernel,
+                        ignore_border_px=stain_ignore_border_px,
+                        component_context_pad=stain_component_context_pad,
+                        component_context_min_ratio=stain_component_context_min_ratio,
+                        component_max_width_frac=stain_component_max_width_frac,
+                        component_max_height_frac=stain_component_max_height_frac,
+                        component_max_area_frac=stain_component_max_area_frac,
+                        fill_holes_max_area=stain_fill_holes_max_area,
+                        max_blobs=stain_max_blobs,
+                        pose_pos_scale=stain_ref_pose_pos_scale,
+                        pose_rot_scale=stain_ref_pose_rot_scale,
+                    )
+                    data.update(artifacts)
+
                 orig_len = int(data["position"].shape[0])
                 if orig_len < int(min_len):
                     raise RuntimeError(f"too short: T={orig_len} < min_len={min_len}")
@@ -308,7 +899,12 @@ def convert_merged_h5(
                     truncated=truncated,
                 )
 
-                image_shapes = ", ".join(f"{cam}={data[cam].shape}" for cam in camera_names)
+                image_items = [f"{cam}={data[cam].shape}" for cam in camera_names]
+                if "stain_mask" in data:
+                    image_items.append(f"stain_mask={data['stain_mask'].shape}")
+                if "stain_blob_bboxes" in data:
+                    image_items.append(f"stain_blobs={data['stain_blob_bboxes'].shape}")
+                image_shapes = ", ".join(image_items)
                 print(
                     f"[OK] {ep_name} -> episode_{out_idx}.hdf5 | "
                     f"T={T_out}, position={data['position'].shape}, force={data['force'].shape}, {image_shapes}"
@@ -334,6 +930,8 @@ def convert_merged_h5(
                     "num_failed": len(failed),
                     "failed": [{"episode": ep, "error": err} for ep, err in failed],
                     "schema_version": "imitation_form_compact_v1",
+                    "stain_mask_mode": effective_stain_mode,
+                    "stain_reference_episode": reference_ep_name,
                 },
                 fp,
                 indent=2,
@@ -374,6 +972,106 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument("--gzip_level", type=int, default=4)
     parser.add_argument("--overwrite", action="store_true", help="Replace output_dir if it contains old episodes.")
     parser.add_argument("--write_summary", action="store_true", help="Write conversion_summary.json into output_dir.")
+    parser.add_argument(
+        "--stain_mask_mode",
+        type=str,
+        default="auto",
+        choices=["auto", "copy", "reference_episode", "none"],
+        help=(
+            "auto uses recorder metadata; reference_episode uses a clean episode as a pose-indexed "
+            "reference bank and regenerates observations/images/stain_mask."
+        ),
+    )
+    parser.add_argument("--stain_reference_episode", type=str, default="ep_0000")
+    parser.add_argument(
+        "--keep_stain_reference_episode",
+        action="store_true",
+        help="Do not skip the clean reference episode when stain_mask_mode=reference_episode.",
+    )
+    parser.add_argument("--stain_diff_thresh", type=float, default=18.0)
+    parser.add_argument("--stain_dark_thresh", type=float, default=165.0)
+    parser.add_argument("--reflection_v_thresh", type=float, default=235.0)
+    parser.add_argument("--reflection_s_thresh", type=float, default=60.0)
+    parser.add_argument("--stain_min_area", type=int, default=15)
+    parser.add_argument("--stain_max_area", type=int, default=0, help="0 disables max-area filtering.")
+    parser.add_argument("--stain_morph_kernel", type=int, default=5)
+    parser.add_argument(
+        "--stain_hole_close_kernel",
+        type=int,
+        default=7,
+        help="Extra close kernel for filling small holes inside stain blobs. 0 disables.",
+    )
+    parser.add_argument("--stain_ref_blur_kernel", type=int, default=31)
+    parser.add_argument(
+        "--stain_ref_align_mode",
+        type=str,
+        default="translation",
+        choices=["none", "translation", "euclidean", "affine"],
+        help="Align the selected clean reference frame to the current frame before differencing.",
+    )
+    parser.add_argument("--stain_ref_align_max_iters", type=int, default=40)
+    parser.add_argument("--stain_ref_align_eps", type=float, default=1e-4)
+    parser.add_argument(
+        "--stain_ref_surface_v_min",
+        type=float,
+        default=120.0,
+        help="Require the clean reference pixel to be this bright; suppresses dark background/tool regions.",
+    )
+    parser.add_argument(
+        "--stain_context_v_min",
+        type=float,
+        default=120.0,
+        help="Require bright current-frame surface context near each stain candidate. 0 disables this gate.",
+    )
+    parser.add_argument("--stain_context_kernel", type=int, default=31)
+    parser.add_argument(
+        "--stain_dark_prior_enable",
+        action="store_true",
+        default=True,
+        help="Allow dark-on-bright-surface evidence even when reference difference is weak.",
+    )
+    parser.add_argument(
+        "--no_stain_dark_prior",
+        dest="stain_dark_prior_enable",
+        action="store_false",
+        help="Require reference difference evidence for every stain pixel.",
+    )
+    parser.add_argument(
+        "--stain_output_constraint_kernel",
+        type=int,
+        default=11,
+        help="Constrain the final postprocessed mask to this neighborhood around raw current-frame candidates.",
+    )
+    parser.add_argument(
+        "--stain_ignore_border_px",
+        type=int,
+        default=3,
+        help="Drop stain components touching the image border within this many pixels. 0 disables.",
+    )
+    parser.add_argument("--stain_component_context_pad", type=int, default=12)
+    parser.add_argument(
+        "--stain_component_context_min_ratio",
+        type=float,
+        default=0.15,
+        help="Require this ratio of bright surface pixels around each component. 0 disables.",
+    )
+    parser.add_argument("--stain_component_max_width_frac", type=float, default=0.0)
+    parser.add_argument("--stain_component_max_height_frac", type=float, default=0.0)
+    parser.add_argument(
+        "--stain_component_max_area_frac",
+        type=float,
+        default=0.08,
+        help="Drop components covering more than this image fraction. 0 disables.",
+    )
+    parser.add_argument(
+        "--stain_fill_holes_max_area",
+        type=int,
+        default=400,
+        help="Fill enclosed holes in stain components up to this area. -1 fills all holes, 0 disables.",
+    )
+    parser.add_argument("--stain_max_blobs", type=int, default=8)
+    parser.add_argument("--stain_ref_pose_pos_scale", type=float, default=50.0)
+    parser.add_argument("--stain_ref_pose_rot_scale", type=float, default=0.35)
     parser.set_defaults(camera_names=list(camera_names))
     return parser
 
@@ -394,4 +1092,34 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         gzip_level=int(args.gzip_level),
         overwrite=bool(args.overwrite),
         write_summary=bool(args.write_summary),
+        stain_mask_mode=str(args.stain_mask_mode),
+        stain_reference_episode=str(args.stain_reference_episode),
+        stain_exclude_reference_episode=not bool(args.keep_stain_reference_episode),
+        stain_diff_thresh=float(args.stain_diff_thresh),
+        stain_dark_thresh=float(args.stain_dark_thresh),
+        reflection_v_thresh=float(args.reflection_v_thresh),
+        reflection_s_thresh=float(args.reflection_s_thresh),
+        stain_min_area=int(args.stain_min_area),
+        stain_max_area=int(args.stain_max_area),
+        stain_morph_kernel=int(args.stain_morph_kernel),
+        stain_hole_close_kernel=int(args.stain_hole_close_kernel),
+        stain_ref_blur_kernel=int(args.stain_ref_blur_kernel),
+        stain_ref_align_mode=str(args.stain_ref_align_mode),
+        stain_ref_align_max_iters=int(args.stain_ref_align_max_iters),
+        stain_ref_align_eps=float(args.stain_ref_align_eps),
+        stain_ref_surface_v_min=float(args.stain_ref_surface_v_min),
+        stain_context_v_min=float(args.stain_context_v_min),
+        stain_context_kernel=int(args.stain_context_kernel),
+        stain_dark_prior_enable=bool(args.stain_dark_prior_enable),
+        stain_output_constraint_kernel=int(args.stain_output_constraint_kernel),
+        stain_ignore_border_px=int(args.stain_ignore_border_px),
+        stain_component_context_pad=int(args.stain_component_context_pad),
+        stain_component_context_min_ratio=float(args.stain_component_context_min_ratio),
+        stain_component_max_width_frac=float(args.stain_component_max_width_frac),
+        stain_component_max_height_frac=float(args.stain_component_max_height_frac),
+        stain_component_max_area_frac=float(args.stain_component_max_area_frac),
+        stain_fill_holes_max_area=int(args.stain_fill_holes_max_area),
+        stain_max_blobs=int(args.stain_max_blobs),
+        stain_ref_pose_pos_scale=float(args.stain_ref_pose_pos_scale),
+        stain_ref_pose_rot_scale=float(args.stain_ref_pose_rot_scale),
     )
