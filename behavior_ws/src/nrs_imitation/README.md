@@ -44,8 +44,8 @@ ros2 run nrs_imitation hdf5_recorder_single_cam
 ```bash
 ros2 run nrs_imitation hdf5_recorder_single_cam --ros-args \
   -p image_preprocess_mode:=specular_inpaint \
-  -p image_specular_v_thresh:=230 \
-  -p image_specular_s_thresh:=80 \
+  -p image_specular_mask_mode:=bright \
+  -p image_specular_v_thresh:=220 \
   -p image_specular_dilate_px:=2 \
   -p image_specular_inpaint_radius:=3.0
 ```

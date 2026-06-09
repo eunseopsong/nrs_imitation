@@ -175,6 +175,7 @@ def stack_images_repeat_last(frames: List[Optional[np.ndarray]], logger=None, ta
 def preprocess_rgb_image(
     image: Optional[np.ndarray],
     mode: str,
+    specular_mask_mode: str,
     specular_v_thresh: int,
     specular_s_thresh: int,
     specular_dilate_px: int,
@@ -202,7 +203,15 @@ def preprocess_rgb_image(
     hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
     sat = hsv[:, :, 1]
     val = hsv[:, :, 2]
-    mask = ((val >= int(specular_v_thresh)) & (sat <= int(specular_s_thresh))).astype(np.uint8) * 255
+    mask_mode = str(specular_mask_mode or "white").strip().lower()
+    bright = val >= int(specular_v_thresh)
+    if mask_mode in ("bright", "value", "v"):
+        mask_bool = bright
+    elif mask_mode in ("mixed", "white_or_bright"):
+        mask_bool = bright | ((val >= int(specular_v_thresh)) & (sat <= int(specular_s_thresh)))
+    else:
+        mask_bool = bright & (sat <= int(specular_s_thresh))
+    mask = mask_bool.astype(np.uint8) * 255
 
     dilate_px = max(0, int(specular_dilate_px))
     if dilate_px > 0:
@@ -356,6 +365,7 @@ class HDF5Recorder(Node):
         declare("image_compression", "gzip")  # gzip, lzf, none
         declare("image_gzip_level", 4)
         declare("image_preprocess_mode", "raw")  # raw | specular_inpaint
+        declare("image_specular_mask_mode", "white")  # white | bright
         declare("image_specular_v_thresh", 230)
         declare("image_specular_s_thresh", 80)
         declare("image_specular_dilate_px", 2)
@@ -434,6 +444,10 @@ class HDF5Recorder(Node):
         self.image_compression = str(self.get_parameter("image_compression").value).lower()
         self.image_gzip_level = int(self.get_parameter("image_gzip_level").value)
         self.image_preprocess_mode = str(self.get_parameter("image_preprocess_mode").value).strip().lower()
+        self.image_specular_mask_mode = str(self.get_parameter("image_specular_mask_mode").value).strip().lower()
+        if self.image_specular_mask_mode not in ("white", "bright", "value", "v", "mixed", "white_or_bright"):
+            self.get_logger().warn(f"[IMAGE] unknown image_specular_mask_mode={self.image_specular_mask_mode}; using white")
+            self.image_specular_mask_mode = "white"
         self.image_specular_v_thresh = int(self.get_parameter("image_specular_v_thresh").value)
         self.image_specular_s_thresh = int(self.get_parameter("image_specular_s_thresh").value)
         self.image_specular_dilate_px = int(self.get_parameter("image_specular_dilate_px").value)
@@ -467,6 +481,7 @@ class HDF5Recorder(Node):
         self.h5.attrs["image_topic"] = str(self.image_topic)
         self.h5.attrs["global_image_topic"] = str(self.global_image_topic)
         self.h5.attrs["image_preprocess_mode"] = str(self.image_preprocess_mode)
+        self.h5.attrs["image_specular_mask_mode"] = str(self.image_specular_mask_mode)
         self.h5.attrs["image_specular_v_thresh"] = int(self.image_specular_v_thresh)
         self.h5.attrs["image_specular_s_thresh"] = int(self.image_specular_s_thresh)
         self.h5.attrs["image_specular_dilate_px"] = int(self.image_specular_dilate_px)
@@ -522,7 +537,7 @@ class HDF5Recorder(Node):
             ("force_topic", f"{self.force_topic} ({self.force_msg_type})"),
             ("cam0", f"{self.image_topic} -> images/{self.image_dataset_name}"),
             ("cam1", f"{int(self.enable_global_cam)} {self.global_image_topic} -> images/{self.global_image_dataset_name}"),
-            ("image_preprocess", self.image_preprocess_mode),
+            ("image_preprocess", f"{self.image_preprocess_mode}/{self.image_specular_mask_mode}"),
             ("sample_hz", self.sample_hz),
             ("command", self.command_topic),
         ]))
@@ -668,6 +683,7 @@ class HDF5Recorder(Node):
         image = preprocess_rgb_image(
             image,
             mode=self.image_preprocess_mode,
+            specular_mask_mode=self.image_specular_mask_mode,
             specular_v_thresh=self.image_specular_v_thresh,
             specular_s_thresh=self.image_specular_s_thresh,
             specular_dilate_px=self.image_specular_dilate_px,
@@ -677,6 +693,7 @@ class HDF5Recorder(Node):
             global_image = preprocess_rgb_image(
                 global_image,
                 mode=self.image_preprocess_mode,
+                specular_mask_mode=self.image_specular_mask_mode,
                 specular_v_thresh=self.image_specular_v_thresh,
                 specular_s_thresh=self.image_specular_s_thresh,
                 specular_dilate_px=self.image_specular_dilate_px,

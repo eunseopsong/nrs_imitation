@@ -91,11 +91,29 @@ To record `cam0` after specular-highlight filtering:
 ```bash
 ros2 run nrs_imitation hdf5_recorder_single_cam --ros-args \
   -p image_preprocess_mode:=specular_inpaint \
-  -p image_specular_v_thresh:=230 \
-  -p image_specular_s_thresh:=80 \
+  -p image_specular_mask_mode:=bright \
+  -p image_specular_v_thresh:=220 \
   -p image_specular_dilate_px:=2 \
   -p image_specular_inpaint_radius:=3.0
 ```
+
+Filter modes:
+
+```text
+image_specular_mask_mode:=white   # bright low-saturation white glare
+image_specular_mask_mode:=bright  # bright colored glare, such as yellow/green reflection
+```
+
+Tuning:
+
+```text
+Lower image_specular_v_thresh -> removes more bright pixels
+Higher image_specular_v_thresh -> keeps more of the original image
+Higher image_specular_dilate_px -> expands the removed highlight region
+Higher image_specular_inpaint_radius -> fills a wider highlight region
+```
+
+Start with `bright` only for short test episodes, because it can also remove genuinely bright objects or background regions.
 
 Start one teaching episode:
 
