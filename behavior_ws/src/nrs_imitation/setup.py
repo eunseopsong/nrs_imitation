@@ -41,6 +41,7 @@ setup(
 
             # Demonstration recording
             'hdf5_recorder_single_cam = nrs_imitation.hdf5_recorder_single_cam:main',
+            'hdf5_recorder_single_cam_stain_mask = nrs_imitation.hdf5_recorder_single_cam_stain_mask:main',
             'hdf5_recorder_dual_cam = nrs_imitation.hdf5_recorder_dual_cam:main',
             'gripper_hdf5_recorder_single_cam = nrs_imitation.gripper_hdf5_recorder_single_cam:main',
             'gripper_hdf5_recorder_dual_cam = nrs_imitation.gripper_hdf5_recorder_dual_cam:main',
