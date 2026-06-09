@@ -180,6 +180,7 @@ def preprocess_rgb_image(
     specular_s_thresh: int,
     specular_dilate_px: int,
     specular_inpaint_radius: float,
+    specular_attenuate_gain: float,
 ) -> Optional[np.ndarray]:
     if image is None:
         return None
@@ -188,7 +189,7 @@ def preprocess_rgb_image(
     if mode in ("", "raw", "none", "off"):
         return image
 
-    if mode not in ("specular_inpaint", "deglare", "highlight_inpaint"):
+    if mode not in ("specular_inpaint", "deglare", "highlight_inpaint", "highlight_attenuate", "specular_attenuate"):
         return image
 
     rgb = np.asarray(image)
@@ -221,6 +222,20 @@ def preprocess_rgb_image(
 
     if int(np.count_nonzero(mask)) == 0:
         return rgb.copy()
+
+    if mode in ("highlight_attenuate", "specular_attenuate"):
+        soft = mask.astype(np.float32) / 255.0
+        if dilate_px > 0:
+            sigma = max(0.1, float(dilate_px))
+            soft = cv2.GaussianBlur(soft, (0, 0), sigmaX=sigma, sigmaY=sigma)
+            soft = np.clip(soft, 0.0, 1.0)
+
+        gain = float(np.clip(float(specular_attenuate_gain), 0.0, 1.0))
+        v = val.astype(np.float32)
+        target_v = np.minimum(v, float(specular_v_thresh) + np.maximum(v - float(specular_v_thresh), 0.0) * gain)
+        hsv_out = hsv.copy()
+        hsv_out[:, :, 2] = np.clip((1.0 - soft) * v + soft * target_v, 0, 255).astype(np.uint8)
+        return cv2.cvtColor(hsv_out, cv2.COLOR_HSV2RGB)
 
     radius = max(0.1, float(specular_inpaint_radius))
     return cv2.inpaint(rgb, mask, radius, cv2.INPAINT_TELEA)
@@ -364,12 +379,13 @@ class HDF5Recorder(Node):
         declare("image_dataset_name", "cam0")
         declare("image_compression", "gzip")  # gzip, lzf, none
         declare("image_gzip_level", 4)
-        declare("image_preprocess_mode", "raw")  # raw | specular_inpaint
+        declare("image_preprocess_mode", "raw")  # raw | highlight_attenuate | specular_inpaint
         declare("image_specular_mask_mode", "white")  # white | bright
         declare("image_specular_v_thresh", 230)
         declare("image_specular_s_thresh", 80)
         declare("image_specular_dilate_px", 2)
         declare("image_specular_inpaint_radius", 3.0)
+        declare("image_specular_attenuate_gain", 0.35)
 
         # Load parameters
         self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
@@ -452,7 +468,8 @@ class HDF5Recorder(Node):
         self.image_specular_s_thresh = int(self.get_parameter("image_specular_s_thresh").value)
         self.image_specular_dilate_px = int(self.get_parameter("image_specular_dilate_px").value)
         self.image_specular_inpaint_radius = float(self.get_parameter("image_specular_inpaint_radius").value)
-        if self.image_preprocess_mode not in ("", "raw", "none", "off", "specular_inpaint", "deglare", "highlight_inpaint"):
+        self.image_specular_attenuate_gain = float(self.get_parameter("image_specular_attenuate_gain").value)
+        if self.image_preprocess_mode not in ("", "raw", "none", "off", "specular_inpaint", "deglare", "highlight_inpaint", "highlight_attenuate", "specular_attenuate"):
             self.get_logger().warn(f"[IMAGE] unknown image_preprocess_mode={self.image_preprocess_mode}; using raw")
             self.image_preprocess_mode = "raw"
         if self.image_preprocess_mode not in ("", "raw", "none", "off") and cv2 is None:
@@ -486,6 +503,7 @@ class HDF5Recorder(Node):
         self.h5.attrs["image_specular_s_thresh"] = int(self.image_specular_s_thresh)
         self.h5.attrs["image_specular_dilate_px"] = int(self.image_specular_dilate_px)
         self.h5.attrs["image_specular_inpaint_radius"] = float(self.image_specular_inpaint_radius)
+        self.h5.attrs["image_specular_attenuate_gain"] = float(self.image_specular_attenuate_gain)
         self.grp_eps = self.h5.create_group("episodes")
 
         # Runtime state
@@ -688,6 +706,7 @@ class HDF5Recorder(Node):
             specular_s_thresh=self.image_specular_s_thresh,
             specular_dilate_px=self.image_specular_dilate_px,
             specular_inpaint_radius=self.image_specular_inpaint_radius,
+            specular_attenuate_gain=self.image_specular_attenuate_gain,
         )
         if self.enable_global_cam and global_image is not None:
             global_image = preprocess_rgb_image(
@@ -698,6 +717,7 @@ class HDF5Recorder(Node):
                 specular_s_thresh=self.image_specular_s_thresh,
                 specular_dilate_px=self.image_specular_dilate_px,
                 specular_inpaint_radius=self.image_specular_inpaint_radius,
+                specular_attenuate_gain=self.image_specular_attenuate_gain,
             )
 
         self.P_buf.append(pose.astype(np.float32))
