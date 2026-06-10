@@ -260,24 +260,24 @@ def _adaptive_v_floor(
     return min(requested_floor, adaptive_floor)
 
 
-def _align_reference_to_current(
+def _estimate_alignment_warp(
     reference_rgb: np.ndarray,
     current_rgb: np.ndarray,
     mode: str,
     max_iters: int,
     eps: float,
-) -> np.ndarray:
+) -> Tuple[str, Optional[np.ndarray], float]:
     mode = str(mode or "none").strip().lower()
     if cv2 is None or mode in ("", "none", "off"):
-        return reference_rgb
+        return mode, None, 0.0
 
     ref = _as_uint8_rgb(reference_rgb)
     cur = _as_uint8_rgb(current_rgb)
     if ref.shape != cur.shape:
-        return ref
+        return mode, None, 0.0
 
     if mode not in ("translation", "euclidean", "affine", "homography"):
-        return ref
+        return mode, None, 0.0
 
     if mode == "homography":
         warp_mode = cv2.MOTION_HOMOGRAPHY
@@ -298,7 +298,7 @@ def _align_reference_to_current(
     try:
         ref_gray = cv2.cvtColor(ref, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
         cur_gray = cv2.cvtColor(cur, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
-        _, warp = cv2.findTransformECC(
+        cc, warp = cv2.findTransformECC(
             cur_gray,
             ref_gray,
             warp,
@@ -307,25 +307,100 @@ def _align_reference_to_current(
             None,
             1,
         )
-        if mode == "homography":
-            aligned = cv2.warpPerspective(
-                ref,
-                warp,
-                (cur.shape[1], cur.shape[0]),
-                flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
-                borderMode=cv2.BORDER_REFLECT,
-            )
-        else:
-            aligned = cv2.warpAffine(
-                ref,
-                warp,
-                (cur.shape[1], cur.shape[0]),
-                flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
-                borderMode=cv2.BORDER_REFLECT,
-            )
-        return aligned.astype(np.uint8)
+        return mode, warp, float(cc)
     except Exception:
+        return mode, None, 0.0
+
+
+def _warp_array_to_current(
+    arr: np.ndarray,
+    alignment_mode: str,
+    warp: Optional[np.ndarray],
+    interpolation: int,
+    border_mode: int,
+    border_value: int = 0,
+) -> np.ndarray:
+    if cv2 is None or warp is None:
+        return np.asarray(arr)
+    src = np.asarray(arr)
+    h, w = src.shape[:2]
+    flags = int(interpolation) | cv2.WARP_INVERSE_MAP
+    if alignment_mode == "homography":
+        return cv2.warpPerspective(
+            src,
+            warp,
+            (w, h),
+            flags=flags,
+            borderMode=border_mode,
+            borderValue=border_value,
+        )
+    return cv2.warpAffine(
+        src,
+        warp,
+        (w, h),
+        flags=flags,
+        borderMode=border_mode,
+        borderValue=border_value,
+    )
+
+
+def _align_reference_to_current(
+    reference_rgb: np.ndarray,
+    current_rgb: np.ndarray,
+    mode: str,
+    max_iters: int,
+    eps: float,
+) -> np.ndarray:
+    ref = _as_uint8_rgb(reference_rgb)
+    alignment_mode, warp, _ = _estimate_alignment_warp(
+        reference_rgb=ref,
+        current_rgb=current_rgb,
+        mode=mode,
+        max_iters=max_iters,
+        eps=eps,
+    )
+    if warp is None:
         return ref
+    aligned = _warp_array_to_current(
+        ref,
+        alignment_mode=alignment_mode,
+        warp=warp,
+        interpolation=cv2.INTER_LINEAR,
+        border_mode=cv2.BORDER_REFLECT,
+    )
+    return aligned.astype(np.uint8)
+
+
+def _align_mask_to_current(
+    reference_mask_u8: np.ndarray,
+    reference_rgb: np.ndarray,
+    current_rgb: np.ndarray,
+    mode: str,
+    max_iters: int,
+    eps: float,
+    min_cc: float,
+) -> Tuple[np.ndarray, bool, float]:
+    mask = (np.asarray(reference_mask_u8) > 0).astype(np.uint8) * 255
+    if cv2 is None:
+        return np.zeros_like(mask, dtype=np.uint8), False, 0.0
+    alignment_mode, warp, cc = _estimate_alignment_warp(
+        reference_rgb=reference_rgb,
+        current_rgb=current_rgb,
+        mode=mode,
+        max_iters=max_iters,
+        eps=eps,
+    )
+    if warp is None or float(cc) < float(min_cc):
+        return np.zeros_like(mask, dtype=np.uint8), False, float(cc)
+    aligned = _warp_array_to_current(
+        mask,
+        alignment_mode=alignment_mode,
+        warp=warp,
+        interpolation=cv2.INTER_NEAREST,
+        border_mode=cv2.BORDER_CONSTANT,
+        border_value=0,
+    )
+    return aligned.astype(np.uint8), True, float(cc)
 
 
 def _constrain_to_near_mask(mask_u8: np.ndarray, core_bool: np.ndarray, kernel_size: int) -> np.ndarray:
@@ -522,6 +597,115 @@ def _bool_consensus(candidates: Sequence[np.ndarray], min_support: float):
     return np.mean(stack, axis=0) >= support
 
 
+def _find_nearest_strong_mask(
+    counts: np.ndarray,
+    index: int,
+    direction: int,
+    max_gap: int,
+    min_pixels: int,
+) -> int:
+    T = int(counts.shape[0])
+    step = 1 if int(direction) >= 0 else -1
+    for gap in range(1, max(0, int(max_gap)) + 1):
+        j = int(index) + step * gap
+        if j < 0 or j >= T:
+            break
+        if int(counts[j]) >= int(min_pixels):
+            return j
+    return -1
+
+
+def _temporal_fill_stain_mask_gaps(
+    images_rgb: np.ndarray,
+    masks: np.ndarray,
+    rescue_gates: np.ndarray,
+    min_pixels: int,
+    max_gap: int,
+    align_mode: str,
+    align_max_iters: int,
+    align_eps: float,
+    min_align_cc: float,
+    min_area: int,
+    max_area: int,
+    morph_kernel: int,
+    hole_close_kernel: int,
+    ignore_border_px: int,
+    component_max_width_frac: float,
+    component_max_height_frac: float,
+    component_max_area_frac: float,
+    component_max_aspect_ratio: float,
+    fill_holes_max_area: int,
+) -> Tuple[np.ndarray, np.ndarray]:
+    if cv2 is None or int(max_gap) <= 0:
+        return masks, np.zeros((int(masks.shape[0]),), dtype=np.uint8)
+
+    imgs = _ensure_image4(images_rgb, "cam0")
+    out = np.asarray(masks, dtype=np.uint8).copy()
+    if out.ndim != 4 or out.shape[-1] != 1:
+        raise ValueError(f"masks must be (T,H,W,1), got {out.shape}")
+
+    min_pixels = max(1, int(min_pixels))
+    counts = np.count_nonzero(out[:, :, :, 0] > 0, axis=(1, 2)).astype(np.int64)
+    filled = np.zeros((int(out.shape[0]),), dtype=np.uint8)
+    gates = np.asarray(rescue_gates).astype(bool)
+    if gates.shape != out.shape[:3]:
+        gates = np.ones(out.shape[:3], dtype=bool)
+
+    for i in range(int(out.shape[0])):
+        if int(counts[i]) >= min_pixels:
+            continue
+
+        proposals: List[np.ndarray] = []
+        for direction in (-1, 1):
+            j = _find_nearest_strong_mask(
+                counts=counts,
+                index=i,
+                direction=direction,
+                max_gap=max_gap,
+                min_pixels=min_pixels,
+            )
+            if j < 0:
+                continue
+            warped, ok, _ = _align_mask_to_current(
+                reference_mask_u8=out[j, :, :, 0],
+                reference_rgb=imgs[j],
+                current_rgb=imgs[i],
+                mode=align_mode,
+                max_iters=align_max_iters,
+                eps=align_eps,
+                min_cc=min_align_cc,
+            )
+            if ok and int(np.count_nonzero(warped)) >= min_pixels:
+                proposals.append(warped > 0)
+
+        if not proposals:
+            continue
+
+        candidate = np.any(np.stack(proposals, axis=0), axis=0) & gates[i]
+        mask = _postprocess_binary_mask(
+            candidate,
+            min_area=min_area,
+            max_area=max_area,
+            morph_kernel=morph_kernel,
+            hole_close_kernel=hole_close_kernel,
+            ignore_border_px=ignore_border_px,
+            component_context_mask=None,
+            component_context_pad=0,
+            component_context_min_ratio=0.0,
+            component_max_width_frac=component_max_width_frac,
+            component_max_height_frac=component_max_height_frac,
+            component_max_area_frac=component_max_area_frac,
+            component_max_aspect_ratio=component_max_aspect_ratio,
+            fill_holes_max_area=fill_holes_max_area,
+        )
+        if int(np.count_nonzero(mask)) >= min_pixels:
+            out[i, :, :, 0] = mask
+            counts[i] = int(np.count_nonzero(mask))
+            filled[i] = 1
+
+    return out, filled
+
+
 def generate_reference_stain_artifacts(
     current_rgb: np.ndarray,
     current_position: np.ndarray,
@@ -566,6 +750,11 @@ def generate_reference_stain_artifacts(
     adaptive_v_floor_percentile: float,
     adaptive_v_floor_ratio: float,
     adaptive_v_floor_min: float,
+    temporal_fill_enable: bool,
+    temporal_fill_max_gap: int,
+    temporal_fill_min_pixels: int,
+    temporal_fill_align_mode: str,
+    temporal_fill_min_align_cc: float,
 ) -> Dict[str, np.ndarray]:
     cur_rgb = _ensure_image4(current_rgb, "cam0")
     ref_rgb = _ensure_image4(reference_rgb, "reference_cam0")
@@ -581,18 +770,53 @@ def generate_reference_stain_artifacts(
     masks = np.zeros((T, H, W, 1), dtype=np.uint8)
     nearest_pose_distances = np.sqrt(np.maximum(ref_distance_bank[:, 0], 0.0)).astype(np.float32)
     pose_rejected = np.zeros((T,), dtype=np.uint8)
+    rescue_gates = np.zeros((T, H, W), dtype=bool)
 
     for i in range(T):
+        cur_frame = _as_uint8_rgb(cur_rgb[i])
+        cur_v, cur_s = _rgb_to_value_saturation(cur_frame)
+        cur_norm = _lighting_normalized_value(cur_v, blur_kernel)
+        local_dark, local_surface = _local_darkness(cur_v, local_dark_blur_kernel)
+        context_floor = _adaptive_v_floor(
+            local_surface,
+            requested_floor=context_v_min,
+            percentile=adaptive_v_floor_percentile,
+            ratio=adaptive_v_floor_ratio,
+            min_floor=adaptive_v_floor_min,
+        )
+        absolute_dark = (
+            cur_v <= float(dark_thresh)
+            if float(dark_thresh) > 0.0
+            else np.zeros_like(cur_v, dtype=bool)
+        )
+        local_dark_current = (
+            local_dark >= float(local_dark_thresh)
+            if float(local_dark_thresh) > 0.0
+            else np.zeros_like(cur_v, dtype=bool)
+        )
+        dark_current = absolute_dark | local_dark_current
+        reflection = (cur_v >= float(reflection_v_thresh)) & (cur_s <= float(reflection_s_thresh))
+        bright_context = (
+            (cur_v >= context_floor) | (local_surface >= context_floor)
+            if context_floor > 0.0
+            else None
+        )
+        if cv2 is not None and bright_context is not None:
+            k = _odd_kernel_size(context_kernel)
+            if k > 1:
+                kernel = np.ones((k, k), dtype=np.uint8)
+                surface_context = cv2.dilate(bright_context.astype(np.uint8), kernel) > 0
+            else:
+                surface_context = bright_context
+        else:
+            surface_context = True
+        rescue_gates[i] = dark_current & surface_context & (~reflection)
+
         max_pose_dist = float(reference_max_pose_dist)
         nearest_pose_dist = float(nearest_pose_distances[i])
         if max_pose_dist > 0.0 and nearest_pose_dist > max_pose_dist:
             pose_rejected[i] = 1
             continue
-
-        cur_frame = _as_uint8_rgb(cur_rgb[i])
-        cur_v, cur_s = _rgb_to_value_saturation(cur_frame)
-        cur_norm = _lighting_normalized_value(cur_v, blur_kernel)
-        local_dark, local_surface = _local_darkness(cur_v, local_dark_blur_kernel)
 
         diff_candidates: List[np.ndarray] = []
         diff_support_candidates: List[np.ndarray] = []
@@ -647,46 +871,13 @@ def generate_reference_stain_artifacts(
         else:
             ref_surface = True
 
-        context_floor = _adaptive_v_floor(
-            local_surface,
-            requested_floor=context_v_min,
-            percentile=adaptive_v_floor_percentile,
-            ratio=adaptive_v_floor_ratio,
-            min_floor=adaptive_v_floor_min,
-        )
         dark_change = (diff >= float(diff_thresh)) & _bool_consensus(
             diff_support_candidates,
             reference_diff_min_support,
         )
-        absolute_dark = (
-            cur_v <= float(dark_thresh)
-            if float(dark_thresh) > 0.0
-            else np.zeros_like(cur_v, dtype=bool)
-        )
-        local_dark_current = (
-            local_dark >= float(local_dark_thresh)
-            if float(local_dark_thresh) > 0.0
-            else np.zeros_like(cur_v, dtype=bool)
-        )
         local_dark_novel = local_dark_current & (
             (local_dark - ref_local_dark) >= float(local_dark_ref_delta)
         )
-        dark_current = absolute_dark | local_dark_current
-        reflection = (cur_v >= float(reflection_v_thresh)) & (cur_s <= float(reflection_s_thresh))
-        bright_context = (
-            (cur_v >= context_floor) | (local_surface >= context_floor)
-            if context_floor > 0.0
-            else None
-        )
-        if cv2 is not None and bright_context is not None:
-            k = _odd_kernel_size(context_kernel)
-            if k > 1:
-                kernel = np.ones((k, k), dtype=np.uint8)
-                surface_context = cv2.dilate(bright_context.astype(np.uint8), kernel) > 0
-            else:
-                surface_context = bright_context
-        else:
-            surface_context = True
         dark_prior = bool(dark_prior_enable) & local_dark_novel
         stain_evidence = dark_change | dark_prior
         raw_candidate = stain_evidence & dark_current & ref_surface & surface_context & (~reflection)
@@ -709,10 +900,38 @@ def generate_reference_stain_artifacts(
         mask = _constrain_to_near_mask(mask, raw_candidate, output_constraint_kernel)
         masks[i, :, :, 0] = mask
 
+    temporal_filled = np.zeros((T,), dtype=np.uint8)
+    if bool(temporal_fill_enable):
+        min_pixels = int(temporal_fill_min_pixels)
+        if min_pixels <= 0:
+            min_pixels = max(int(min_area) * 2, 30)
+        masks, temporal_filled = _temporal_fill_stain_mask_gaps(
+            images_rgb=cur_rgb,
+            masks=masks,
+            rescue_gates=rescue_gates,
+            min_pixels=min_pixels,
+            max_gap=int(temporal_fill_max_gap),
+            align_mode=str(temporal_fill_align_mode),
+            align_max_iters=ref_align_max_iters,
+            align_eps=ref_align_eps,
+            min_align_cc=float(temporal_fill_min_align_cc),
+            min_area=min_area,
+            max_area=max_area,
+            morph_kernel=morph_kernel,
+            hole_close_kernel=hole_close_kernel,
+            ignore_border_px=ignore_border_px,
+            component_max_width_frac=component_max_width_frac,
+            component_max_height_frac=component_max_height_frac,
+            component_max_area_frac=component_max_area_frac,
+            component_max_aspect_ratio=component_max_aspect_ratio,
+            fill_holes_max_area=fill_holes_max_area,
+        )
+
     return {
         "stain_mask": masks,
         "_stain_reference_pose_dist": nearest_pose_distances,
         "_stain_reference_pose_rejected": pose_rejected,
+        "_stain_temporal_filled": temporal_filled,
     }
 
 
@@ -922,7 +1141,7 @@ def convert_merged_h5(
     stain_ref_surface_v_min: float = 120.0,
     stain_context_v_min: float = 120.0,
     stain_context_kernel: int = 31,
-    stain_dark_prior_enable: bool = False,
+    stain_dark_prior_enable: bool = True,
     stain_output_constraint_kernel: int = 11,
     stain_ignore_border_px: int = 2,
     stain_component_context_pad: int = 12,
@@ -946,6 +1165,11 @@ def convert_merged_h5(
     stain_adaptive_v_floor_percentile: float = 75.0,
     stain_adaptive_v_floor_ratio: float = 0.85,
     stain_adaptive_v_floor_min: float = 60.0,
+    stain_temporal_fill_enable: bool = True,
+    stain_temporal_fill_max_gap: int = 24,
+    stain_temporal_fill_min_pixels: int = 0,
+    stain_temporal_fill_align_mode: str = "homography",
+    stain_temporal_fill_min_align_cc: float = 0.45,
 ) -> List[Path]:
     camera_names = [str(c).strip() for c in camera_names if str(c).strip()]
     if not camera_names:
@@ -1045,9 +1269,15 @@ def convert_merged_h5(
                         adaptive_v_floor_percentile=stain_adaptive_v_floor_percentile,
                         adaptive_v_floor_ratio=stain_adaptive_v_floor_ratio,
                         adaptive_v_floor_min=stain_adaptive_v_floor_min,
+                        temporal_fill_enable=stain_temporal_fill_enable,
+                        temporal_fill_max_gap=stain_temporal_fill_max_gap,
+                        temporal_fill_min_pixels=stain_temporal_fill_min_pixels,
+                        temporal_fill_align_mode=stain_temporal_fill_align_mode,
+                        temporal_fill_min_align_cc=stain_temporal_fill_min_align_cc,
                     )
                     pose_rejected = artifacts.pop("_stain_reference_pose_rejected", None)
                     pose_dist = artifacts.pop("_stain_reference_pose_dist", None)
+                    temporal_filled = artifacts.pop("_stain_temporal_filled", None)
                     if pose_rejected is not None:
                         rejected_count = int(np.count_nonzero(np.asarray(pose_rejected)))
                         if rejected_count > 0:
@@ -1056,6 +1286,13 @@ def convert_merged_h5(
                                 f"[WARN] {ep_name}: {rejected_count}/{len(pose_rejected)} frames had no close "
                                 f"clean reference (max_scaled_pose_dist={max_dist:.3f}, "
                                 f"limit={float(stain_reference_max_pose_dist):.3f}); wrote empty masks for them."
+                            )
+                    if temporal_filled is not None:
+                        filled_count = int(np.count_nonzero(np.asarray(temporal_filled)))
+                        if filled_count > 0:
+                            print(
+                                f"[INFO] {ep_name}: temporal-filled {filled_count}/{len(temporal_filled)} "
+                                "weak stain-mask frames from neighboring frames."
                             )
                     data.update(artifacts)
 
@@ -1121,6 +1358,11 @@ def convert_merged_h5(
                     "stain_component_max_width_frac": float(stain_component_max_width_frac),
                     "stain_component_max_height_frac": float(stain_component_max_height_frac),
                     "stain_component_max_aspect_ratio": float(stain_component_max_aspect_ratio),
+                    "stain_temporal_fill_enable": bool(stain_temporal_fill_enable),
+                    "stain_temporal_fill_max_gap": int(stain_temporal_fill_max_gap),
+                    "stain_temporal_fill_min_pixels": int(stain_temporal_fill_min_pixels),
+                    "stain_temporal_fill_align_mode": str(stain_temporal_fill_align_mode),
+                    "stain_temporal_fill_min_align_cc": float(stain_temporal_fill_min_align_cc),
                 },
                 fp,
                 indent=2,
@@ -1216,7 +1458,7 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_dark_prior_enable",
         action="store_true",
-        default=False,
+        default=True,
         help="Allow local-dark evidence even when reference-difference consensus is weak.",
     )
     parser.add_argument(
@@ -1321,6 +1563,43 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument("--stain_adaptive_v_floor_percentile", type=float, default=75.0)
     parser.add_argument("--stain_adaptive_v_floor_ratio", type=float, default=0.85)
     parser.add_argument("--stain_adaptive_v_floor_min", type=float, default=60.0)
+    parser.add_argument(
+        "--stain_temporal_fill_enable",
+        action="store_true",
+        default=True,
+        help="Fill weak/empty stain-mask frames by warping nearby confident masks.",
+    )
+    parser.add_argument(
+        "--no_stain_temporal_fill",
+        dest="stain_temporal_fill_enable",
+        action="store_false",
+        help="Disable temporal stain-mask gap filling.",
+    )
+    parser.add_argument(
+        "--stain_temporal_fill_max_gap",
+        type=int,
+        default=24,
+        help="Search this many frames forward/backward for confident masks when filling a weak frame.",
+    )
+    parser.add_argument(
+        "--stain_temporal_fill_min_pixels",
+        type=int,
+        default=0,
+        help="Frames below this mask-pixel count are fill candidates. 0 uses max(2*min_area, 30).",
+    )
+    parser.add_argument(
+        "--stain_temporal_fill_align_mode",
+        type=str,
+        default="homography",
+        choices=["translation", "euclidean", "affine", "homography"],
+        help="Image alignment model used when warping neighboring masks for temporal fill.",
+    )
+    parser.add_argument(
+        "--stain_temporal_fill_min_align_cc",
+        type=float,
+        default=0.45,
+        help="Minimum ECC alignment score required to accept a warped neighboring mask.",
+    )
     parser.set_defaults(camera_names=list(camera_names))
     return parser
 
@@ -1383,4 +1662,9 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         stain_adaptive_v_floor_percentile=float(args.stain_adaptive_v_floor_percentile),
         stain_adaptive_v_floor_ratio=float(args.stain_adaptive_v_floor_ratio),
         stain_adaptive_v_floor_min=float(args.stain_adaptive_v_floor_min),
+        stain_temporal_fill_enable=bool(args.stain_temporal_fill_enable),
+        stain_temporal_fill_max_gap=int(args.stain_temporal_fill_max_gap),
+        stain_temporal_fill_min_pixels=int(args.stain_temporal_fill_min_pixels),
+        stain_temporal_fill_align_mode=str(args.stain_temporal_fill_align_mode),
+        stain_temporal_fill_min_align_cc=float(args.stain_temporal_fill_min_align_cc),
     )

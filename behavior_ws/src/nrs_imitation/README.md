@@ -131,7 +131,7 @@ action/force
 python3 source/custom/demo_data_imitation_form_single_cam.py --write_summary
 ```
 
-moving-camera stain mask 변환은 homography 정렬, top-k reference consensus, pose-distance guard를 사용합니다. 변환 로그에 `had no close clean reference`가 나오면 같은 이동 경로의 clean reference sweep을 다시 녹화하거나, overlay를 확인한 뒤 `--stain_reference_max_pose_dist`를 조정합니다.
+moving-camera stain mask 변환은 homography 정렬, top-k reference consensus, pose-distance guard, temporal gap filling을 사용합니다. 변환 로그에 `temporal-filled`가 나오면 짧게 누락된 mask frame을 인접 frame에서 복구한 것입니다. `had no close clean reference`가 많이 나오면 같은 이동 경로의 clean reference sweep을 다시 녹화하거나, overlay를 확인한 뒤 `--stain_reference_max_pose_dist`를 조정합니다.
 
 특정 파일을 지정:
 
