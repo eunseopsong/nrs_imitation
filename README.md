@@ -152,7 +152,7 @@ cd ~/nrs_imitation
 python3 source/custom/demo_data_imitation_form_single_cam.py --overwrite --write_summary
 ```
 
-For moving-camera stain masks, conversion uses homography alignment, top-k reference consensus, a pose-distance guard, and temporal gap filling. If the log says `temporal-filled`, short mask dropouts were repaired from neighboring frames. If many frames still say `had no close clean reference`, re-record the clean reference sweep with the same motion, or relax `--stain_reference_max_pose_dist` only after checking the overlay.
+For moving-camera stain masks, conversion first matches the current episode to the clean reference episode with monotonic pose-sequence DTW, then uses homography alignment, top-k reference consensus, a pose-distance guard, reference-diff core masking with constrained dark-prior expansion, temporal gap filling, and temporal pruning. If the log says `temporal-filled`, short mask dropouts were repaired from neighboring frames. If it says `temporal-pruned`, isolated mask components without support from nearby aligned frames were removed. If many frames still say `had no close clean reference`, re-record the clean reference sweep with the same motion, or relax `--stain_reference_max_pose_dist` only after checking the overlay.
 
 Output:
 
