@@ -9,7 +9,11 @@ Output HDF5 layout:
   observations/position
   observations/force
   observations/images/cam0
+  observations/images/stain_mask, optional
   observations/images/cam1
+
+Stain masks are generated/copied for cam0 only; cam1 is stored as RGB context
+without its own stain mask.
 """
 
 from __future__ import annotations

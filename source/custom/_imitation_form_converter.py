@@ -14,8 +14,8 @@ Output episode layout is intentionally compact:
       ├── force
       └── images/
           ├── cam0
-          ├── cam1  # dual-camera only
-          └── stain_mask  # optional, copied when present in merged HDF5
+          ├── stain_mask  # optional, generated/copied from cam0 only
+          └── cam1  # dual-camera only
 
 When the input file marks episode_0 as a clean reference, this converter can
 generate stain masks for the remaining episodes by comparing each frame to
@@ -426,56 +426,6 @@ def _fill_mask_holes(mask_u8: np.ndarray, max_hole_area: int) -> np.ndarray:
     return (out.astype(np.uint8) * 255)
 
 
-def _extract_blob_proposals(
-    mask_u8: np.ndarray,
-    score_map: Optional[np.ndarray],
-    max_blobs: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    max_blobs = max(0, int(max_blobs))
-    bboxes = np.zeros((max_blobs, 4), dtype=np.float32)
-    features = np.zeros((max_blobs, 6), dtype=np.float32)
-    is_pad = np.ones((max_blobs,), dtype=np.bool_)
-    if max_blobs <= 0 or cv2 is None:
-        return bboxes, features, is_pad
-
-    binary = (np.asarray(mask_u8) > 0).astype(np.uint8)
-    h, w = binary.shape[:2]
-    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
-    proposals = []
-    score_arr = None if score_map is None else np.asarray(score_map, dtype=np.float32)
-    for label in range(1, num_labels):
-        x = int(stats[label, cv2.CC_STAT_LEFT])
-        y = int(stats[label, cv2.CC_STAT_TOP])
-        bw = int(stats[label, cv2.CC_STAT_WIDTH])
-        bh = int(stats[label, cv2.CC_STAT_HEIGHT])
-        area = int(stats[label, cv2.CC_STAT_AREA])
-        if area <= 0:
-            continue
-        if score_arr is not None:
-            comp = labels == label
-            score = float(np.mean(score_arr[comp])) * float(area)
-        else:
-            score = float(area)
-        proposals.append((score, x, y, x + bw, y + bh, area))
-
-    proposals.sort(key=lambda item: item[0], reverse=True)
-    for out_i, (score, x1, y1, x2, y2, area) in enumerate(proposals[:max_blobs]):
-        bboxes[out_i] = np.asarray([x1, y1, x2, y2], dtype=np.float32)
-        features[out_i] = np.asarray(
-            [
-                ((x1 + x2) * 0.5) / max(w, 1),
-                ((y1 + y2) * 0.5) / max(h, 1),
-                (x2 - x1) / max(w, 1),
-                (y2 - y1) / max(h, 1),
-                area / max(h * w, 1),
-                score / max(h * w * 255.0, 1.0),
-            ],
-            dtype=np.float32,
-        )
-        is_pad[out_i] = False
-    return bboxes, features, is_pad
-
-
 def _nearest_reference_index_bank(
     current_position: np.ndarray,
     reference_position: np.ndarray,
@@ -550,12 +500,13 @@ def generate_reference_stain_artifacts(
     component_max_height_frac: float,
     component_max_area_frac: float,
     fill_holes_max_area: int,
-    max_blobs: int,
     pose_pos_scale: float,
     pose_rot_scale: float,
     reference_top_k: int,
     reference_diff_percentile: float,
     local_dark_thresh: float,
+    local_dark_ref_delta: float,
+    local_dark_ref_percentile: float,
     local_dark_blur_kernel: int,
     adaptive_v_floor_percentile: float,
     adaptive_v_floor_ratio: float,
@@ -571,12 +522,8 @@ def generate_reference_stain_artifacts(
         rot_scale=pose_rot_scale,
         top_k=reference_top_k,
     )
-    ref_indices = ref_index_bank[:, 0]
 
     masks = np.zeros((T, H, W, 1), dtype=np.uint8)
-    bboxes = np.zeros((T, max(0, int(max_blobs)), 4), dtype=np.float32)
-    features = np.zeros((T, max(0, int(max_blobs)), 6), dtype=np.float32)
-    is_pad = np.ones((T, max(0, int(max_blobs))), dtype=np.bool_)
 
     for i in range(T):
         cur_frame = _as_uint8_rgb(cur_rgb[i])
@@ -586,6 +533,7 @@ def generate_reference_stain_artifacts(
 
         diff_candidates: List[np.ndarray] = []
         ref_surface_candidates: List[np.ndarray] = []
+        ref_local_dark_candidates: List[np.ndarray] = []
         for ref_idx in ref_index_bank[i]:
             ref_frame = _resize_rgb_like(ref_rgb[int(ref_idx)], (H, W))
             ref_frame = _align_reference_to_current(
@@ -598,6 +546,8 @@ def generate_reference_stain_artifacts(
             ref_v, _ = _rgb_to_value_saturation(ref_frame)
             ref_norm = _lighting_normalized_value(ref_v, blur_kernel)
             diff_candidates.append((ref_norm - cur_norm).astype(np.float32))
+            ref_local_dark, _ = _local_darkness(ref_v, local_dark_blur_kernel)
+            ref_local_dark_candidates.append(ref_local_dark)
             if float(ref_surface_v_min) > 0.0:
                 ref_floor = _adaptive_v_floor(
                     ref_v,
@@ -614,6 +564,17 @@ def generate_reference_stain_artifacts(
         else:
             diff_pct = np.clip(float(reference_diff_percentile), 0.0, 100.0)
             diff = np.percentile(diff_stack, diff_pct, axis=0).astype(np.float32)
+
+        ref_local_dark_stack = np.stack(ref_local_dark_candidates, axis=0)
+        if ref_local_dark_stack.shape[0] == 1:
+            ref_local_dark = ref_local_dark_stack[0]
+        else:
+            ref_local_dark_pct = np.clip(float(local_dark_ref_percentile), 0.0, 100.0)
+            ref_local_dark = np.percentile(
+                ref_local_dark_stack,
+                ref_local_dark_pct,
+                axis=0,
+            ).astype(np.float32)
 
         if ref_surface_candidates:
             ref_surface = np.any(np.stack(ref_surface_candidates, axis=0), axis=0)
@@ -638,6 +599,9 @@ def generate_reference_stain_artifacts(
             if float(local_dark_thresh) > 0.0
             else np.zeros_like(cur_v, dtype=bool)
         )
+        local_dark_novel = local_dark_current & (
+            (local_dark - ref_local_dark) >= float(local_dark_ref_delta)
+        )
         dark_current = absolute_dark | local_dark_current
         reflection = (cur_v >= float(reflection_v_thresh)) & (cur_s <= float(reflection_s_thresh))
         bright_context = (
@@ -654,7 +618,7 @@ def generate_reference_stain_artifacts(
                 surface_context = bright_context
         else:
             surface_context = True
-        dark_prior = bool(dark_prior_enable) & local_dark_current
+        dark_prior = bool(dark_prior_enable) & local_dark_novel
         stain_evidence = dark_change | dark_prior
         raw_candidate = stain_evidence & dark_current & ref_surface & surface_context & (~reflection)
         mask = _postprocess_binary_mask(
@@ -674,25 +638,9 @@ def generate_reference_stain_artifacts(
         )
         mask = _constrain_to_near_mask(mask, raw_candidate, output_constraint_kernel)
         masks[i, :, :, 0] = mask
-        frame_bboxes, frame_features, frame_is_pad = _extract_blob_proposals(
-            mask,
-            score_map=np.maximum(
-                np.clip(diff, 0.0, 255.0),
-                np.clip(local_dark, 0.0, 255.0),
-            ),
-            max_blobs=max_blobs,
-        )
-        if max_blobs > 0:
-            bboxes[i] = frame_bboxes
-            features[i] = frame_features
-            is_pad[i] = frame_is_pad
 
     return {
         "stain_mask": masks,
-        "stain_blob_bboxes": bboxes,
-        "stain_blob_features": features,
-        "stain_blob_is_pad": is_pad,
-        "stain_reference_indices": ref_indices.astype(np.int64),
     }
 
 
@@ -773,6 +721,17 @@ def _compression_kwargs(mode: str, gzip_level: int) -> Dict:
     return {}
 
 
+def _ordered_image_dataset_names(camera_names: Sequence[str], has_stain_mask: bool) -> List[str]:
+    order: List[str] = []
+    for cam in camera_names:
+        order.append(str(cam))
+        if has_stain_mask and str(cam) == "cam0":
+            order.append("stain_mask")
+    if has_stain_mask and "stain_mask" not in order:
+        order.append("stain_mask")
+    return order
+
+
 def write_episode(
     out_path: Path,
     data: Dict[str, np.ndarray],
@@ -800,27 +759,25 @@ def write_episode(
         g_action.create_dataset("position", data=data["position"].astype(np.float32), **kwargs)
         g_action.create_dataset("force", data=data["force"].astype(np.float32), **kwargs)
 
-        g_obs = f.create_group("observations")
+        g_obs = f.create_group("observations", track_order=True)
         g_obs.create_dataset("position", data=data["position"].astype(np.float32), **kwargs)
         g_obs.create_dataset("force", data=data["force"].astype(np.float32), **kwargs)
 
-        g_images = g_obs.create_group("images")
-        for cam in camera_names:
-            g_images.create_dataset(cam, data=data[cam].astype(np.uint8), **kwargs)
-        if "stain_mask" in data:
-            ds = g_images.create_dataset("stain_mask", data=data["stain_mask"].astype(np.uint8), **kwargs)
-            ds.attrs["shape_convention"] = "T,H,W,1"
-            ds.attrs["storage"] = "uint8_0_255"
-            ds.attrs["model_value_range_after_div255"] = "float32_0_1"
-            f.attrs["has_stain_mask"] = 1
-        if "stain_blob_bboxes" in data:
-            g_obs.create_dataset("stain_blob_bboxes", data=data["stain_blob_bboxes"].astype(np.float32), **kwargs)
-        if "stain_blob_features" in data:
-            g_obs.create_dataset("stain_blob_features", data=data["stain_blob_features"].astype(np.float32), **kwargs)
-        if "stain_blob_is_pad" in data:
-            g_obs.create_dataset("stain_blob_is_pad", data=data["stain_blob_is_pad"].astype(np.bool_), **kwargs)
-        if "stain_reference_indices" in data:
-            g_obs.create_dataset("stain_reference_indices", data=data["stain_reference_indices"].astype(np.int64), **kwargs)
+        has_stain_mask = "stain_mask" in data
+        g_images = g_obs.create_group("images", track_order=True)
+        for name in _ordered_image_dataset_names(camera_names, has_stain_mask):
+            if name == "stain_mask":
+                ds = g_images.create_dataset(
+                    "stain_mask",
+                    data=data["stain_mask"].astype(np.uint8),
+                    **kwargs,
+                )
+                ds.attrs["shape_convention"] = "T,H,W,1"
+                ds.attrs["storage"] = "uint8_0_255"
+                ds.attrs["model_value_range_after_div255"] = "float32_0_1"
+                f.attrs["has_stain_mask"] = 1
+            else:
+                g_images.create_dataset(name, data=data[name].astype(np.uint8), **kwargs)
 
 
 def _attr_to_bool(value, default: bool = False) -> bool:
@@ -902,12 +859,13 @@ def convert_merged_h5(
     stain_component_max_height_frac: float = 0.0,
     stain_component_max_area_frac: float = 0.12,
     stain_fill_holes_max_area: int = 400,
-    stain_max_blobs: int = 8,
     stain_ref_pose_pos_scale: float = 50.0,
     stain_ref_pose_rot_scale: float = 0.35,
     stain_reference_top_k: int = 3,
     stain_reference_diff_percentile: float = 75.0,
     stain_local_dark_thresh: float = 14.0,
+    stain_local_dark_ref_delta: float = 10.0,
+    stain_local_dark_ref_percentile: float = 75.0,
     stain_local_dark_blur_kernel: int = 41,
     stain_adaptive_v_floor_percentile: float = 75.0,
     stain_adaptive_v_floor_ratio: float = 0.85,
@@ -996,12 +954,13 @@ def convert_merged_h5(
                         component_max_height_frac=stain_component_max_height_frac,
                         component_max_area_frac=stain_component_max_area_frac,
                         fill_holes_max_area=stain_fill_holes_max_area,
-                        max_blobs=stain_max_blobs,
                         pose_pos_scale=stain_ref_pose_pos_scale,
                         pose_rot_scale=stain_ref_pose_rot_scale,
                         reference_top_k=stain_reference_top_k,
                         reference_diff_percentile=stain_reference_diff_percentile,
                         local_dark_thresh=stain_local_dark_thresh,
+                        local_dark_ref_delta=stain_local_dark_ref_delta,
+                        local_dark_ref_percentile=stain_local_dark_ref_percentile,
                         local_dark_blur_kernel=stain_local_dark_blur_kernel,
                         adaptive_v_floor_percentile=stain_adaptive_v_floor_percentile,
                         adaptive_v_floor_ratio=stain_adaptive_v_floor_ratio,
@@ -1030,8 +989,6 @@ def convert_merged_h5(
                 image_items = [f"{cam}={data[cam].shape}" for cam in camera_names]
                 if "stain_mask" in data:
                     image_items.append(f"stain_mask={data['stain_mask'].shape}")
-                if "stain_blob_bboxes" in data:
-                    image_items.append(f"stain_blobs={data['stain_blob_bboxes'].shape}")
                 image_shapes = ", ".join(image_items)
                 print(
                     f"[OK] {ep_name} -> episode_{out_idx}.hdf5 | "
@@ -1063,6 +1020,8 @@ def convert_merged_h5(
                     "stain_reference_top_k": int(stain_reference_top_k),
                     "stain_reference_diff_percentile": float(stain_reference_diff_percentile),
                     "stain_local_dark_thresh": float(stain_local_dark_thresh),
+                    "stain_local_dark_ref_delta": float(stain_local_dark_ref_delta),
+                    "stain_local_dark_ref_percentile": float(stain_local_dark_ref_percentile),
                     "stain_ref_align_mode": str(stain_ref_align_mode),
                 },
                 fp,
@@ -1201,7 +1160,6 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
         default=400,
         help="Fill enclosed holes in stain components up to this area. -1 fills all holes, 0 disables.",
     )
-    parser.add_argument("--stain_max_blobs", type=int, default=8)
     parser.add_argument("--stain_ref_pose_pos_scale", type=float, default=50.0)
     parser.add_argument("--stain_ref_pose_rot_scale", type=float, default=0.35)
     parser.add_argument(
@@ -1221,6 +1179,18 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
         type=float,
         default=14.0,
         help="Local contrast threshold for dark stains, independent of absolute image brightness.",
+    )
+    parser.add_argument(
+        "--stain_local_dark_ref_delta",
+        type=float,
+        default=10.0,
+        help="Require current local darkness to exceed clean-reference local darkness by this margin.",
+    )
+    parser.add_argument(
+        "--stain_local_dark_ref_percentile",
+        type=float,
+        default=75.0,
+        help="Percentile used to fuse reference local-dark maps for fixed-structure suppression.",
     )
     parser.add_argument("--stain_local_dark_blur_kernel", type=int, default=41)
     parser.add_argument("--stain_adaptive_v_floor_percentile", type=float, default=75.0)
@@ -1273,12 +1243,13 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         stain_component_max_height_frac=float(args.stain_component_max_height_frac),
         stain_component_max_area_frac=float(args.stain_component_max_area_frac),
         stain_fill_holes_max_area=int(args.stain_fill_holes_max_area),
-        stain_max_blobs=int(args.stain_max_blobs),
         stain_ref_pose_pos_scale=float(args.stain_ref_pose_pos_scale),
         stain_ref_pose_rot_scale=float(args.stain_ref_pose_rot_scale),
         stain_reference_top_k=int(args.stain_reference_top_k),
         stain_reference_diff_percentile=float(args.stain_reference_diff_percentile),
         stain_local_dark_thresh=float(args.stain_local_dark_thresh),
+        stain_local_dark_ref_delta=float(args.stain_local_dark_ref_delta),
+        stain_local_dark_ref_percentile=float(args.stain_local_dark_ref_percentile),
         stain_local_dark_blur_kernel=int(args.stain_local_dark_blur_kernel),
         stain_adaptive_v_floor_percentile=float(args.stain_adaptive_v_floor_percentile),
         stain_adaptive_v_floor_ratio=float(args.stain_adaptive_v_floor_ratio),
