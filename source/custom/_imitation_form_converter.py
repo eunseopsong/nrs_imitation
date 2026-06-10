@@ -312,6 +312,17 @@ def _estimate_alignment_warp(
         return mode, None, 0.0
 
 
+def _alignment_mode_candidates(mode: str) -> Tuple[str, ...]:
+    mode = str(mode or "none").strip().lower()
+    fallback_order = {
+        "homography": ("homography", "affine", "euclidean", "translation"),
+        "affine": ("affine", "euclidean", "translation"),
+        "euclidean": ("euclidean", "translation"),
+        "translation": ("translation",),
+    }
+    return fallback_order.get(mode, (mode,))
+
+
 def _warp_array_to_current(
     arr: np.ndarray,
     alignment_mode: str,
@@ -352,23 +363,25 @@ def _align_reference_to_current(
     eps: float,
 ) -> np.ndarray:
     ref = _as_uint8_rgb(reference_rgb)
-    alignment_mode, warp, _ = _estimate_alignment_warp(
-        reference_rgb=ref,
-        current_rgb=current_rgb,
-        mode=mode,
-        max_iters=max_iters,
-        eps=eps,
-    )
-    if warp is None:
-        return ref
-    aligned = _warp_array_to_current(
-        ref,
-        alignment_mode=alignment_mode,
-        warp=warp,
-        interpolation=cv2.INTER_LINEAR,
-        border_mode=cv2.BORDER_REFLECT,
-    )
-    return aligned.astype(np.uint8)
+    for candidate_mode in _alignment_mode_candidates(mode):
+        alignment_mode, warp, _ = _estimate_alignment_warp(
+            reference_rgb=ref,
+            current_rgb=current_rgb,
+            mode=candidate_mode,
+            max_iters=max_iters,
+            eps=eps,
+        )
+        if warp is None:
+            continue
+        aligned = _warp_array_to_current(
+            ref,
+            alignment_mode=alignment_mode,
+            warp=warp,
+            interpolation=cv2.INTER_LINEAR,
+            border_mode=cv2.BORDER_REFLECT,
+        )
+        return aligned.astype(np.uint8)
+    return ref
 
 
 def _align_mask_to_current(
@@ -383,24 +396,28 @@ def _align_mask_to_current(
     mask = (np.asarray(reference_mask_u8) > 0).astype(np.uint8) * 255
     if cv2 is None:
         return np.zeros_like(mask, dtype=np.uint8), False, 0.0
-    alignment_mode, warp, cc = _estimate_alignment_warp(
-        reference_rgb=reference_rgb,
-        current_rgb=current_rgb,
-        mode=mode,
-        max_iters=max_iters,
-        eps=eps,
-    )
-    if warp is None or float(cc) < float(min_cc):
-        return np.zeros_like(mask, dtype=np.uint8), False, float(cc)
-    aligned = _warp_array_to_current(
-        mask,
-        alignment_mode=alignment_mode,
-        warp=warp,
-        interpolation=cv2.INTER_NEAREST,
-        border_mode=cv2.BORDER_CONSTANT,
-        border_value=0,
-    )
-    return aligned.astype(np.uint8), True, float(cc)
+    best_cc = 0.0
+    for candidate_mode in _alignment_mode_candidates(mode):
+        alignment_mode, warp, cc = _estimate_alignment_warp(
+            reference_rgb=reference_rgb,
+            current_rgb=current_rgb,
+            mode=candidate_mode,
+            max_iters=max_iters,
+            eps=eps,
+        )
+        best_cc = max(best_cc, float(cc))
+        if warp is None or float(cc) < float(min_cc):
+            continue
+        aligned = _warp_array_to_current(
+            mask,
+            alignment_mode=alignment_mode,
+            warp=warp,
+            interpolation=cv2.INTER_NEAREST,
+            border_mode=cv2.BORDER_CONSTANT,
+            border_value=0,
+        )
+        return aligned.astype(np.uint8), True, float(cc)
+    return np.zeros_like(mask, dtype=np.uint8), False, best_cc
 
 
 def _constrain_to_near_mask(mask_u8: np.ndarray, core_bool: np.ndarray, kernel_size: int) -> np.ndarray:
@@ -779,6 +796,7 @@ def _temporal_fill_stain_mask_gaps(
     align_max_iters: int,
     align_eps: float,
     min_align_cc: float,
+    identity_fallback_max_gap: int,
     min_area: int,
     max_area: int,
     morph_kernel: int,
@@ -804,6 +822,7 @@ def _temporal_fill_stain_mask_gaps(
     gates = np.asarray(rescue_gates).astype(bool)
     if gates.shape != out.shape[:3]:
         gates = np.ones(out.shape[:3], dtype=bool)
+    identity_fallback_max_gap = max(0, int(identity_fallback_max_gap))
 
     for i in range(int(out.shape[0])):
         if int(counts[i]) >= min_pixels:
@@ -820,6 +839,7 @@ def _temporal_fill_stain_mask_gaps(
             )
             if j < 0:
                 continue
+            gap = abs(int(j) - int(i))
             warped, ok, _ = _align_mask_to_current(
                 reference_mask_u8=out[j, :, :, 0],
                 reference_rgb=imgs[j],
@@ -829,13 +849,24 @@ def _temporal_fill_stain_mask_gaps(
                 eps=align_eps,
                 min_cc=min_align_cc,
             )
+            warped_pixels = int(np.count_nonzero(warped)) if ok else 0
+            if (
+                (not ok or warped_pixels < min_pixels)
+                and identity_fallback_max_gap > 0
+                and gap <= identity_fallback_max_gap
+            ):
+                warped = out[j, :, :, 0].copy()
+                ok = True
             if ok and int(np.count_nonzero(warped)) >= min_pixels:
                 proposals.append(warped > 0)
 
         if not proposals:
             continue
 
-        candidate = np.any(np.stack(proposals, axis=0), axis=0) & gates[i]
+        candidate = np.any(np.stack(proposals, axis=0), axis=0)
+        gated_candidate = candidate & gates[i]
+        if int(np.count_nonzero(gated_candidate)) >= min_pixels:
+            candidate = gated_candidate
         mask = _postprocess_binary_mask(
             candidate,
             min_area=min_area,
@@ -852,6 +883,29 @@ def _temporal_fill_stain_mask_gaps(
             component_max_aspect_ratio=component_max_aspect_ratio,
             fill_holes_max_area=fill_holes_max_area,
         )
+        if int(np.count_nonzero(mask)) < min_pixels and len(proposals) > 1:
+            proposal_masks: List[np.ndarray] = []
+            for proposal in proposals:
+                proposal_mask = _postprocess_binary_mask(
+                    proposal,
+                    min_area=min_area,
+                    max_area=max_area,
+                    morph_kernel=morph_kernel,
+                    hole_close_kernel=hole_close_kernel,
+                    ignore_border_px=ignore_border_px,
+                    component_context_mask=None,
+                    component_context_pad=0,
+                    component_context_min_ratio=0.0,
+                    component_max_width_frac=component_max_width_frac,
+                    component_max_height_frac=component_max_height_frac,
+                    component_max_area_frac=component_max_area_frac,
+                    component_max_aspect_ratio=component_max_aspect_ratio,
+                    fill_holes_max_area=fill_holes_max_area,
+                )
+                if int(np.count_nonzero(proposal_mask)) >= min_pixels:
+                    proposal_masks.append(proposal_mask)
+            if proposal_masks:
+                mask = np.maximum.reduce(proposal_masks).astype(np.uint8)
         if int(np.count_nonzero(mask)) >= min_pixels:
             out[i, :, :, 0] = mask
             counts[i] = int(np.count_nonzero(mask))
@@ -868,6 +922,7 @@ def _temporal_prune_inconsistent_components(
     align_max_iters: int,
     align_eps: float,
     min_align_cc: float,
+    identity_fallback_max_gap: int,
     support_dilate_kernel: int,
     min_overlap_ratio: float,
     min_area: int,
@@ -896,6 +951,7 @@ def _temporal_prune_inconsistent_components(
     comps_removed = np.zeros((T,), dtype=np.uint16)
     comps_kept = np.zeros((T,), dtype=np.uint16)
     min_overlap = max(0.0, float(min_overlap_ratio))
+    identity_fallback_max_gap = max(0, int(identity_fallback_max_gap))
     support_kernel_size = _odd_kernel_size(support_dilate_kernel)
     support_kernel = (
         np.ones((support_kernel_size, support_kernel_size), dtype=np.uint8)
@@ -919,6 +975,7 @@ def _temporal_prune_inconsistent_components(
             )
             if j < 0:
                 continue
+            gap = abs(int(j) - int(i))
             warped, ok, _ = _align_mask_to_current(
                 reference_mask_u8=src_masks[j, :, :, 0],
                 reference_rgb=imgs[j],
@@ -928,6 +985,14 @@ def _temporal_prune_inconsistent_components(
                 eps=align_eps,
                 min_cc=min_align_cc,
             )
+            warped_pixels = int(np.count_nonzero(warped)) if ok else 0
+            if (
+                (not ok or warped_pixels == 0)
+                and identity_fallback_max_gap > 0
+                and gap <= identity_fallback_max_gap
+            ):
+                warped = src_masks[j, :, :, 0].copy()
+                ok = True
             if ok:
                 support |= (warped > 0).astype(np.uint8)
 
@@ -1025,10 +1090,12 @@ def generate_reference_stain_artifacts(
     temporal_fill_min_pixels: int,
     temporal_fill_align_mode: str,
     temporal_fill_min_align_cc: float,
+    temporal_fill_identity_fallback_max_gap: int,
     temporal_prune_enable: bool,
     temporal_prune_max_gap: int,
     temporal_prune_align_mode: str,
     temporal_prune_min_align_cc: float,
+    temporal_prune_identity_fallback_max_gap: int,
     temporal_prune_support_dilate_kernel: int,
     temporal_prune_min_overlap_ratio: float,
 ) -> Dict[str, np.ndarray]:
@@ -1218,6 +1285,7 @@ def generate_reference_stain_artifacts(
             align_max_iters=ref_align_max_iters,
             align_eps=ref_align_eps,
             min_align_cc=float(temporal_fill_min_align_cc),
+            identity_fallback_max_gap=int(temporal_fill_identity_fallback_max_gap),
             min_area=min_area,
             max_area=max_area,
             morph_kernel=morph_kernel,
@@ -1241,6 +1309,7 @@ def generate_reference_stain_artifacts(
             align_max_iters=ref_align_max_iters,
             align_eps=ref_align_eps,
             min_align_cc=float(temporal_prune_min_align_cc),
+            identity_fallback_max_gap=int(temporal_prune_identity_fallback_max_gap),
             support_dilate_kernel=int(temporal_prune_support_dilate_kernel),
             min_overlap_ratio=float(temporal_prune_min_overlap_ratio),
             min_area=min_area,
@@ -1463,7 +1532,7 @@ def convert_merged_h5(
     reflection_s_thresh: float = 60.0,
     stain_min_area: int = 15,
     stain_max_area: int = 0,
-    stain_morph_kernel: int = 5,
+    stain_morph_kernel: int = 3,
     stain_hole_close_kernel: int = 7,
     stain_ref_blur_kernel: int = 31,
     stain_ref_align_mode: str = "homography",
@@ -1504,10 +1573,12 @@ def convert_merged_h5(
     stain_temporal_fill_min_pixels: int = 0,
     stain_temporal_fill_align_mode: str = "homography",
     stain_temporal_fill_min_align_cc: float = 0.45,
+    stain_temporal_fill_identity_fallback_max_gap: int = 3,
     stain_temporal_prune_enable: bool = True,
     stain_temporal_prune_max_gap: int = 12,
     stain_temporal_prune_align_mode: str = "homography",
     stain_temporal_prune_min_align_cc: float = 0.45,
+    stain_temporal_prune_identity_fallback_max_gap: int = 3,
     stain_temporal_prune_support_dilate_kernel: int = 15,
     stain_temporal_prune_min_overlap_ratio: float = 0.12,
 ) -> List[Path]:
@@ -1617,10 +1688,12 @@ def convert_merged_h5(
                         temporal_fill_min_pixels=stain_temporal_fill_min_pixels,
                         temporal_fill_align_mode=stain_temporal_fill_align_mode,
                         temporal_fill_min_align_cc=stain_temporal_fill_min_align_cc,
+                        temporal_fill_identity_fallback_max_gap=stain_temporal_fill_identity_fallback_max_gap,
                         temporal_prune_enable=stain_temporal_prune_enable,
                         temporal_prune_max_gap=stain_temporal_prune_max_gap,
                         temporal_prune_align_mode=stain_temporal_prune_align_mode,
                         temporal_prune_min_align_cc=stain_temporal_prune_min_align_cc,
+                        temporal_prune_identity_fallback_max_gap=stain_temporal_prune_identity_fallback_max_gap,
                         temporal_prune_support_dilate_kernel=stain_temporal_prune_support_dilate_kernel,
                         temporal_prune_min_overlap_ratio=stain_temporal_prune_min_overlap_ratio,
                     )
@@ -1726,10 +1799,16 @@ def convert_merged_h5(
                     "stain_temporal_fill_min_pixels": int(stain_temporal_fill_min_pixels),
                     "stain_temporal_fill_align_mode": str(stain_temporal_fill_align_mode),
                     "stain_temporal_fill_min_align_cc": float(stain_temporal_fill_min_align_cc),
+                    "stain_temporal_fill_identity_fallback_max_gap": int(
+                        stain_temporal_fill_identity_fallback_max_gap
+                    ),
                     "stain_temporal_prune_enable": bool(stain_temporal_prune_enable),
                     "stain_temporal_prune_max_gap": int(stain_temporal_prune_max_gap),
                     "stain_temporal_prune_align_mode": str(stain_temporal_prune_align_mode),
                     "stain_temporal_prune_min_align_cc": float(stain_temporal_prune_min_align_cc),
+                    "stain_temporal_prune_identity_fallback_max_gap": int(
+                        stain_temporal_prune_identity_fallback_max_gap
+                    ),
                     "stain_temporal_prune_support_dilate_kernel": int(stain_temporal_prune_support_dilate_kernel),
                     "stain_temporal_prune_min_overlap_ratio": float(stain_temporal_prune_min_overlap_ratio),
                 },
@@ -1794,7 +1873,7 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument("--reflection_s_thresh", type=float, default=60.0)
     parser.add_argument("--stain_min_area", type=int, default=15)
     parser.add_argument("--stain_max_area", type=int, default=0, help="0 disables max-area filtering.")
-    parser.add_argument("--stain_morph_kernel", type=int, default=5)
+    parser.add_argument("--stain_morph_kernel", type=int, default=3)
     parser.add_argument(
         "--stain_hole_close_kernel",
         type=int,
@@ -1995,6 +2074,15 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
         help="Minimum ECC alignment score required to accept a warped neighboring mask.",
     )
     parser.add_argument(
+        "--stain_temporal_fill_identity_fallback_max_gap",
+        type=int,
+        default=3,
+        help=(
+            "If temporal alignment fails, directly reuse a neighboring mask for weak frames within "
+            "this many frames. 0 disables."
+        ),
+    )
+    parser.add_argument(
         "--stain_temporal_prune_enable",
         action="store_true",
         default=True,
@@ -2024,6 +2112,15 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
         type=float,
         default=0.45,
         help="Minimum ECC alignment score required to use a neighbor for pruning support.",
+    )
+    parser.add_argument(
+        "--stain_temporal_prune_identity_fallback_max_gap",
+        type=int,
+        default=3,
+        help=(
+            "If temporal prune alignment fails, directly use neighboring mask support within this many "
+            "frames. 0 disables."
+        ),
     )
     parser.add_argument(
         "--stain_temporal_prune_support_dilate_kernel",
@@ -2107,10 +2204,12 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         stain_temporal_fill_min_pixels=int(args.stain_temporal_fill_min_pixels),
         stain_temporal_fill_align_mode=str(args.stain_temporal_fill_align_mode),
         stain_temporal_fill_min_align_cc=float(args.stain_temporal_fill_min_align_cc),
+        stain_temporal_fill_identity_fallback_max_gap=int(args.stain_temporal_fill_identity_fallback_max_gap),
         stain_temporal_prune_enable=bool(args.stain_temporal_prune_enable),
         stain_temporal_prune_max_gap=int(args.stain_temporal_prune_max_gap),
         stain_temporal_prune_align_mode=str(args.stain_temporal_prune_align_mode),
         stain_temporal_prune_min_align_cc=float(args.stain_temporal_prune_min_align_cc),
+        stain_temporal_prune_identity_fallback_max_gap=int(args.stain_temporal_prune_identity_fallback_max_gap),
         stain_temporal_prune_support_dilate_kernel=int(args.stain_temporal_prune_support_dilate_kernel),
         stain_temporal_prune_min_overlap_ratio=float(args.stain_temporal_prune_min_overlap_ratio),
     )
