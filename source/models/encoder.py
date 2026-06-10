@@ -6,6 +6,12 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
+from .stain_pooling import (
+    masked_mean_pool_feature_map,
+    save_stain_pooling_debug_images,
+    stain_pooling_debug_stats,
+)
+
 
 def split_position_and_force_from_qpos(
     qpos: torch.Tensor,
@@ -263,15 +269,35 @@ class ImageObservationEncoder(nn.Module):
     - shared backbone across cameras when len(backbones) == 1
     """
 
-    def __init__(self, backbones, hidden_dim: int, camera_names):
+    def __init__(
+        self,
+        backbones,
+        hidden_dim: int,
+        camera_names,
+        use_stain_mask: bool = False,
+        stain_pooling_type: str = "masked_mean",
+        empty_stain_feature_mode: str = "zero",
+        stain_mask_threshold: float = 0.5,
+        debug_stain_pooling: bool = False,
+    ):
         super().__init__()
         self.camera_names = list(camera_names)
         self.backbones = nn.ModuleList(backbones)
         self.input_proj = nn.Conv2d(backbones[0].num_channels, hidden_dim, kernel_size=1)
+        self.use_stain_mask = bool(use_stain_mask)
+        self.stain_pooling_type = str(stain_pooling_type)
+        self.empty_stain_feature_mode = str(empty_stain_feature_mode)
+        self.stain_mask_threshold = float(stain_mask_threshold)
+        self.debug_stain_pooling = bool(debug_stain_pooling)
+        self._debug_stain_pooling_printed = False
+        if self.stain_pooling_type != "masked_mean":
+            raise ValueError(f"Unsupported stain_pooling_type: {self.stain_pooling_type}")
 
-    def forward(self, image: torch.Tensor):
+    def forward(self, image: torch.Tensor, stain_mask: Optional[torch.Tensor] = None):
         if image.dim() == 6:
             image = image[:, 0, ...]
+        if self.use_stain_mask and stain_mask is None:
+            raise RuntimeError("use_stain_mask=True but stain_mask was not provided to ImageObservationEncoder")
 
         all_cam_features = []
         all_cam_pos = []
@@ -289,6 +315,37 @@ class ImageObservationEncoder(nn.Module):
             proj_feat = self.input_proj(features)
             all_cam_features.append(proj_feat)
             all_cam_pos.append(pos)
+            if self.use_stain_mask and cam_id == 0:
+                stain_feature, mask_small, mask_sum = masked_mean_pool_feature_map(
+                    proj_feat,
+                    stain_mask,
+                    threshold=self.stain_mask_threshold,
+                    empty_mode=self.empty_stain_feature_mode,
+                )
+                stain_token = stain_feature[:, :, None, None].expand(-1, -1, proj_feat.shape[-2], 1)
+                stain_pos = torch.zeros_like(pos[:, :, :, :1])
+                all_cam_features.append(stain_token)
+                all_cam_pos.append(stain_pos)
+                if self.debug_stain_pooling and not self._debug_stain_pooling_printed:
+                    global_feature = proj_feat.mean(dim=(2, 3))
+                    image_feature = torch.cat([global_feature, stain_feature], dim=-1)
+                    stats = stain_pooling_debug_stats(
+                        rgb=cam_img,
+                        stain_mask=stain_mask,
+                        feature_map=proj_feat,
+                        resized_mask=mask_small,
+                        global_feature=global_feature,
+                        stain_feature=stain_feature,
+                        image_feature=image_feature,
+                        mask_sum=mask_sum,
+                    )
+                    print(f"[STAIN_POOLING][ACT] {stats}")
+                    save_stain_pooling_debug_images(
+                        rgb=cam_img,
+                        stain_mask=stain_mask,
+                        prefix="act",
+                    )
+                    self._debug_stain_pooling_printed = True
 
         src = torch.cat(all_cam_features, dim=3)
         pos = torch.cat(all_cam_pos, dim=3)
@@ -300,10 +357,27 @@ class CNNMLPImageEncoder(nn.Module):
     image encoder for CNNMLP policy
     """
 
-    def __init__(self, backbones, camera_names):
+    def __init__(
+        self,
+        backbones,
+        camera_names,
+        use_stain_mask: bool = False,
+        stain_pooling_type: str = "masked_mean",
+        empty_stain_feature_mode: str = "zero",
+        stain_mask_threshold: float = 0.5,
+        debug_stain_pooling: bool = False,
+    ):
         super().__init__()
         self.camera_names = list(camera_names)
         self.backbones = nn.ModuleList(backbones)
+        self.use_stain_mask = bool(use_stain_mask)
+        self.stain_pooling_type = str(stain_pooling_type)
+        self.empty_stain_feature_mode = str(empty_stain_feature_mode)
+        self.stain_mask_threshold = float(stain_mask_threshold)
+        self.debug_stain_pooling = bool(debug_stain_pooling)
+        self._debug_stain_pooling_printed = False
+        if self.stain_pooling_type != "masked_mean":
+            raise ValueError(f"Unsupported stain_pooling_type: {self.stain_pooling_type}")
 
         backbone_down_projs = []
         for backbone in backbones:
@@ -317,18 +391,53 @@ class CNNMLPImageEncoder(nn.Module):
 
         # 기존 구현과 동일한 flatten 차원 가정 유지
         self.output_dim = 768 * len(backbones)
+        if self.use_stain_mask:
+            self.output_dim += int(backbones[0].num_channels)
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
+    def forward(self, image: torch.Tensor, stain_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         if image.dim() == 6:
             image = image[:, 0, ...]
+        if self.use_stain_mask and stain_mask is None:
+            raise RuntimeError("use_stain_mask=True but stain_mask was not provided to CNNMLPImageEncoder")
 
         bs = image.size(0)
         all_cam_features = []
+        stain_debug = None
 
         for cam_id, _ in enumerate(self.camera_names):
             features, _ = self.backbones[cam_id](image[:, cam_id])
             features = features[0]
             cam_feat = self.backbone_down_projs[cam_id](features)
             all_cam_features.append(cam_feat.reshape([bs, -1]))
+            if self.use_stain_mask and cam_id == 0:
+                stain_feature, mask_small, mask_sum = masked_mean_pool_feature_map(
+                    features,
+                    stain_mask,
+                    threshold=self.stain_mask_threshold,
+                    empty_mode=self.empty_stain_feature_mode,
+                )
+                all_cam_features.append(stain_feature)
+                stain_debug = (features, mask_small, mask_sum, stain_feature)
 
-        return torch.cat(all_cam_features, dim=1)
+        image_feature = torch.cat(all_cam_features, dim=1)
+        if self.debug_stain_pooling and self.use_stain_mask and not self._debug_stain_pooling_printed and stain_debug is not None:
+            feature_map, mask_small, mask_sum, stain_feature = stain_debug
+            global_feature = feature_map.mean(dim=(2, 3))
+            stats = stain_pooling_debug_stats(
+                rgb=image[:, 0],
+                stain_mask=stain_mask,
+                feature_map=feature_map,
+                resized_mask=mask_small,
+                global_feature=global_feature,
+                stain_feature=stain_feature,
+                image_feature=image_feature,
+                mask_sum=mask_sum,
+            )
+            print(f"[STAIN_POOLING][CNNMLP] {stats}")
+            save_stain_pooling_debug_images(
+                rgb=image[:, 0],
+                stain_mask=stain_mask,
+                prefix="cnnmlp",
+            )
+            self._debug_stain_pooling_printed = True
+        return image_feature

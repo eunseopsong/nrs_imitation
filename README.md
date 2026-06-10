@@ -159,7 +159,13 @@ cd ~/nrs_imitation
 python3 scripts/flow/train_flow_single_cam.py
 ```
 
-ACT uses the same single-cam dataset root and common training arguments:
+By default, Flow training uses `observations/images/stain_mask` and adds VIOLA-style masked feature pooling on top of the `cam0` RGB feature map. To train the RGB-only baseline instead:
+
+```bash
+python3 scripts/flow/train_flow_single_cam.py --no_stain_mask
+```
+
+ACT uses the same single-cam dataset root and common training arguments. It also uses `stain_mask` by default; add `--no_stain_mask` for RGB-only ACT:
 
 ```bash
 cd ~/nrs_imitation
@@ -188,6 +194,16 @@ Default inference uses Flow checkpoints under `checkpoints/flow/polishing/single
 ```bash
 ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py policy_class:=ACT
 ```
+
+Checkpoints trained with the default stain-mask pooling require inference to receive a live `stain_mask` for `cam0`:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
+  use_stain_mask:=true \
+  stain_mask_topic:=<live_cam0_stain_mask_topic>
+```
+
+If you trained with `--no_stain_mask`, keep inference RGB-only with `use_stain_mask:=false`.
 
 Visualization topics:
 
@@ -378,7 +394,13 @@ cd ~/nrs_imitation
 python3 scripts/flow/train_flow_dual_cam.py
 ```
 
-ACT uses the same dual-cam dataset root and common training arguments:
+By default, dual-cam Flow training uses `cam0`, `stain_mask`, and `cam1` in that order. The `stain_mask` is applied only to `cam0`; `cam1` remains a normal RGB/global camera feature. To train the RGB-only baseline:
+
+```bash
+python3 scripts/flow/train_flow_dual_cam.py --no_stain_mask
+```
+
+ACT uses the same dual-cam dataset root and common training arguments. It also uses `stain_mask` by default; add `--no_stain_mask` for RGB-only ACT:
 
 ```bash
 cd ~/nrs_imitation
@@ -407,6 +429,16 @@ Default inference uses Flow checkpoints under `checkpoints/flow/polishing/dual_c
 ```bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py policy_class:=ACT
 ```
+
+Checkpoints trained with the default stain-mask pooling require inference to receive a live `stain_mask` for `cam0`:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
+  use_stain_mask:=true \
+  stain_mask_topic:=<live_cam0_stain_mask_topic>
+```
+
+If you trained with `--no_stain_mask`, keep inference RGB-only with `use_stain_mask:=false`.
 
 Visualization topics:
 
@@ -500,6 +532,8 @@ python3 scripts/act/train_act_single_cam.py \
   --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
+Both commands use `observations/images/stain_mask` by default. Add `--no_stain_mask` to either command to train the RGB-only baseline.
+
 Dual-cam training with explicit dataset:
 
 ```bash
@@ -510,6 +544,8 @@ python3 scripts/flow/train_flow_dual_cam.py \
 python3 scripts/act/train_act_dual_cam.py \
   --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
+
+Dual-cam stain pooling is cam0-only: policy observation order is `cam0`, `stain_mask`, `cam1`, and `cam1` is not masked.
 
 Single-cam inference with explicit checkpoint:
 

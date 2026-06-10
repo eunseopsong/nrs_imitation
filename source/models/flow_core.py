@@ -27,6 +27,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as T
 
+from .stain_pooling import (
+    masked_mean_pool_feature_map,
+    save_stain_pooling_debug_images,
+    stain_pooling_debug_stats,
+)
+
 try:
     from torchvision.models import resnet18, ResNet18_Weights
 except Exception:
@@ -186,6 +192,14 @@ class FlowRGBObservationEncoder(nn.Module):
         marker_feature_dim = int(cfg.get("flow_marker_feature_dim", 128))
         global_cond_dim = int(cfg.get("flow_global_cond_dim", 256))
         pretrained_backbone = bool(cfg.get("pretrained_backbone", True))
+        self.use_stain_mask = bool(cfg.get("use_stain_mask", False))
+        self.stain_pooling_type = str(cfg.get("stain_pooling_type", "masked_mean"))
+        self.empty_stain_feature_mode = str(cfg.get("empty_stain_feature_mode", "zero"))
+        self.stain_mask_threshold = float(cfg.get("stain_mask_threshold", 0.5))
+        self.debug_stain_pooling = bool(cfg.get("debug_stain_pooling", False))
+        self._debug_stain_pooling_printed = False
+        if self.stain_pooling_type != "masked_mean":
+            raise ValueError(f"Unsupported stain_pooling_type: {self.stain_pooling_type}")
 
         self.qpos_encoder = _mish_mlp(state_dim, obs_hidden_dim, obs_hidden_dim)
 
@@ -217,7 +231,7 @@ class FlowRGBObservationEncoder(nn.Module):
             nn.LayerNorm(image_feature_dim),
             nn.Mish(),
         )
-        image_out_dim = self.num_cameras * image_feature_dim
+        image_out_dim = (self.num_cameras + (1 if self.use_stain_mask else 0)) * image_feature_dim
 
         if self.use_marker:
             self.marker_encoder = _mish_mlp(marker_dim, marker_feature_dim, marker_feature_dim)
@@ -236,12 +250,28 @@ class FlowRGBObservationEncoder(nn.Module):
         self.global_cond_dim = global_cond_dim
         self.marker_dim = marker_dim
 
+    def _forward_image_features(self, x: torch.Tensor) -> torch.Tensor:
+        b = self.image_backbone
+        x = b.conv1(x)
+        x = b.bn1(x)
+        x = b.relu(x)
+        x = b.maxpool(x)
+        x = b.layer1(x)
+        x = b.layer2(x)
+        x = b.layer3(x)
+        x = b.layer4(x)
+        return x
+
+    def _global_pool_image_features(self, feature_map: torch.Tensor) -> torch.Tensor:
+        return torch.flatten(self.image_backbone.avgpool(feature_map), 1)
+
     def forward(
         self,
         qpos: torch.Tensor,
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
         marker: Optional[torch.Tensor] = None,
+        stain_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if qpos.dim() == 3:
             qpos = qpos[:, 0, :]
@@ -259,9 +289,45 @@ class FlowRGBObservationEncoder(nn.Module):
         q_feat = self.qpos_encoder(qpos)
 
         img_flat = image.reshape(B * K, C, H, W)
-        img_feat = self.image_backbone(img_flat)
-        img_feat = self.image_proj(img_feat)
-        img_feat = img_feat.reshape(B, K, -1).flatten(1)
+        feature_map = self._forward_image_features(img_flat)
+        global_raw = self._global_pool_image_features(feature_map)
+        global_proj = self.image_proj(global_raw).reshape(B, K, -1)
+        image_feature_parts = [global_proj[:, cam_i] for cam_i in range(K)]
+
+        if self.use_stain_mask:
+            if stain_mask is None:
+                raise RuntimeError("use_stain_mask=True but stain_mask was not provided to FlowRGBObservationEncoder")
+            feature_map_by_cam = feature_map.reshape(B, K, feature_map.shape[1], feature_map.shape[2], feature_map.shape[3])
+            cam0_feature_map = feature_map_by_cam[:, 0]
+            stain_raw, mask_small, mask_sum = masked_mean_pool_feature_map(
+                cam0_feature_map,
+                stain_mask,
+                threshold=self.stain_mask_threshold,
+                empty_mode=self.empty_stain_feature_mode,
+            )
+            stain_proj = self.image_proj(stain_raw)
+            image_feature_parts.insert(1, stain_proj)
+            if self.debug_stain_pooling and not self._debug_stain_pooling_printed:
+                image_feature_debug = torch.cat([global_proj[:, 0], stain_proj], dim=-1)
+                stats = stain_pooling_debug_stats(
+                    rgb=image[:, 0],
+                    stain_mask=stain_mask,
+                    feature_map=cam0_feature_map,
+                    resized_mask=mask_small,
+                    global_feature=global_raw.reshape(B, K, -1)[:, 0],
+                    stain_feature=stain_raw,
+                    image_feature=image_feature_debug,
+                    mask_sum=mask_sum,
+                )
+                print(f"[STAIN_POOLING][FLOW] {stats}")
+                save_stain_pooling_debug_images(
+                    rgb=image[:, 0],
+                    stain_mask=stain_mask,
+                    prefix="flow",
+                )
+                self._debug_stain_pooling_printed = True
+
+        img_feat = torch.cat(image_feature_parts, dim=-1)
 
         feats = [q_feat, img_feat]
 
@@ -416,12 +482,14 @@ class FlowRGBPolicy(nn.Module):
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
         marker: Optional[torch.Tensor] = None,
+        stain_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         return self.obs_encoder(
             qpos=qpos,
             image=self._normalize_image(image),
             force_history=force_history,
             marker=marker,
+            stain_mask=stain_mask,
         )
 
     def predict_velocity(
@@ -432,8 +500,15 @@ class FlowRGBPolicy(nn.Module):
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
         marker: Optional[torch.Tensor] = None,
+        stain_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        cond = self._condition(qpos=qpos, image=image, force_history=force_history, marker=marker)
+        cond = self._condition(
+            qpos=qpos,
+            image=image,
+            force_history=force_history,
+            marker=marker,
+            stain_mask=stain_mask,
+        )
         return self.velocity_net(sample=z_t, t=t, global_cond=cond)
 
     def _masked_loss(self, pred: torch.Tensor, target: torch.Tensor, is_pad: torch.Tensor) -> torch.Tensor:
@@ -450,6 +525,7 @@ class FlowRGBPolicy(nn.Module):
         is_pad: Optional[torch.Tensor] = None,
         force_history: Optional[torch.Tensor] = None,
         marker: Optional[torch.Tensor] = None,
+        stain_mask: Optional[torch.Tensor] = None,
     ):
         if actions is not None:
             assert is_pad is not None, "is_pad is required for training"
@@ -461,11 +537,11 @@ class FlowRGBPolicy(nn.Module):
             t = torch.rand(B, device=z1.device, dtype=z1.dtype) * (1.0 - 2.0 * eps) + eps
             z_t = (1.0 - t.view(B, 1, 1)) * z0 + t.view(B, 1, 1) * z1
             target_v = z1 - z0
-            pred_v = self.predict_velocity(z_t, t, qpos, image, force_history, marker)
+            pred_v = self.predict_velocity(z_t, t, qpos, image, force_history, marker, stain_mask)
             loss = self._masked_loss(pred_v, target_v, is_pad)
             return {"flow": loss, "loss": loss}
 
-        return self.sample_action(qpos=qpos, image=image, force_history=force_history, marker=marker)
+        return self.sample_action(qpos=qpos, image=image, force_history=force_history, marker=marker, stain_mask=stain_mask)
 
     def _sample_action_impl(
         self,
@@ -473,6 +549,7 @@ class FlowRGBPolicy(nn.Module):
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
         marker: Optional[torch.Tensor] = None,
+        stain_mask: Optional[torch.Tensor] = None,
         num_steps: Optional[int] = None,
     ) -> torch.Tensor:
         steps = max(1, int(num_steps or self.flow_infer_steps))
@@ -481,7 +558,7 @@ class FlowRGBPolicy(nn.Module):
         dt = 1.0 / float(steps)
         for k in range(steps):
             t = torch.full((B,), (k + 0.5) / float(steps), device=qpos.device, dtype=qpos.dtype)
-            v = self.predict_velocity(z, t, qpos, image, force_history, marker)
+            v = self.predict_velocity(z, t, qpos, image, force_history, marker, stain_mask)
             z = z + dt * v
         return z
 
@@ -492,6 +569,7 @@ class FlowRGBPolicy(nn.Module):
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
         marker: Optional[torch.Tensor] = None,
+        stain_mask: Optional[torch.Tensor] = None,
         num_steps: Optional[int] = None,
     ) -> torch.Tensor:
         return self._sample_action_impl(
@@ -499,6 +577,7 @@ class FlowRGBPolicy(nn.Module):
             image=image,
             force_history=force_history,
             marker=marker,
+            stain_mask=stain_mask,
             num_steps=num_steps,
         )
 
@@ -508,6 +587,7 @@ class FlowRGBPolicy(nn.Module):
         image: torch.Tensor,
         force_history: Optional[torch.Tensor] = None,
         marker: Optional[torch.Tensor] = None,
+        stain_mask: Optional[torch.Tensor] = None,
         num_steps: Optional[int] = None,
     ) -> torch.Tensor:
         return self._sample_action_impl(
@@ -515,6 +595,7 @@ class FlowRGBPolicy(nn.Module):
             image=image,
             force_history=force_history,
             marker=marker,
+            stain_mask=stain_mask,
             num_steps=num_steps,
         )
 

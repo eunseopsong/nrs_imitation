@@ -21,6 +21,7 @@ Canonical episode layout:
   ├── observations/gripper/present_position, optional
   ├── observations/gripper/present_current_mA, optional
   ├── observations/images/cam0
+  ├── observations/images/stain_mask, optional
   ├── observations/images/cam1, optional
   └── observations/is_pad, optional
 
@@ -36,6 +37,7 @@ Return tuple:
 
 Shapes:
   image         : (K,3,H,W), float32 in [0,1]
+  stain_mask    : (1,H,W), float32 in [0,1], appended when use_stain_mask=True
   qpos          : (9,), normalized
   action        : (seq_len,9) or (seq_len,10), normalized
   is_pad        : (seq_len,), bool
@@ -228,6 +230,31 @@ def _read_image_frame(f: h5py.File, camera_name: str, frame_idx: int) -> np.ndar
     return np.asarray(ds[idx])
 
 
+def _read_stain_mask_frame(f: h5py.File, stain_mask_key: str, frame_idx: int) -> np.ndarray:
+    key = str(stain_mask_key or "observations/images/stain_mask").strip()
+    keys = [key]
+    for fallback in [
+        "observations/images/stain_mask",
+        "images/stain_mask",
+        "stain_mask",
+    ]:
+        if fallback not in keys:
+            keys.append(fallback)
+    ds = _find_dataset(f, keys, required=True)
+    if ds.ndim == 2:
+        return np.asarray(ds)
+    if ds.ndim == 3:
+        # Either (T,H,W) or a single-channel image already shaped (H,W,1)/(1,H,W).
+        if ds.shape[-1] == 1 or ds.shape[0] == 1:
+            return np.asarray(ds)
+        idx = int(np.clip(frame_idx, 0, max(ds.shape[0] - 1, 0)))
+        return np.asarray(ds[idx])
+    if ds.ndim == 4:
+        idx = int(np.clip(frame_idx, 0, max(ds.shape[0] - 1, 0)))
+        return np.asarray(ds[idx])
+    raise ValueError(f"stain_mask dataset must be 2D, 3D, or 4D, got {ds.shape}")
+
+
 def _image_frame_to_chw_float(frame: np.ndarray) -> torch.Tensor:
     a = np.asarray(frame)
     if a.ndim != 3:
@@ -238,6 +265,26 @@ def _image_frame_to_chw_float(frame: np.ndarray) -> torch.Tensor:
         chw = np.transpose(a, (2, 0, 1))
     else:
         raise ValueError(f"cannot interpret image frame shape={a.shape}")
+    chw = chw.astype(np.float32)
+    if chw.max(initial=0.0) > 1.5:
+        chw = chw / 255.0
+    return torch.from_numpy(np.clip(chw, 0.0, 1.0))
+
+
+def _stain_mask_frame_to_chw_float(frame: np.ndarray) -> torch.Tensor:
+    a = np.asarray(frame)
+    if a.ndim == 2:
+        chw = a[None, ...]
+    elif a.ndim == 3:
+        if a.shape[0] == 1:
+            chw = a
+        elif a.shape[-1] == 1:
+            chw = np.transpose(a, (2, 0, 1))
+        else:
+            raise ValueError(f"cannot interpret stain_mask frame shape={a.shape}")
+    else:
+        raise ValueError(f"stain_mask frame must be 2D or 3D, got {a.shape}")
+
     chw = chw.astype(np.float32)
     if chw.max(initial=0.0) > 1.5:
         chw = chw / 255.0
@@ -384,6 +431,8 @@ class ImitationEpisodeDataset(Dataset):
         action_norm_mode: str = "minmax_m11",
         marker_norm_mode: str = "minmax_m11",
         include_gripper: bool = False,
+        use_stain_mask: bool = False,
+        stain_mask_key: str = "observations/images/stain_mask",
     ):
         super().__init__()
         self.episode_paths = list(episode_paths)
@@ -400,6 +449,8 @@ class ImitationEpisodeDataset(Dataset):
         self.action_norm_mode = str(action_norm_mode)
         self.marker_norm_mode = str(marker_norm_mode)
         self.include_gripper = bool(include_gripper)
+        self.use_stain_mask = bool(use_stain_mask)
+        self.stain_mask_key = str(stain_mask_key or "observations/images/stain_mask")
 
         self.return_marker = self.obs_mode in ("dual_cam_marker", "single_cam_marker")
         self.index = []
@@ -463,6 +514,11 @@ class ImitationEpisodeDataset(Dataset):
                 frame = _read_image_frame(f, cam, start)
                 imgs.append(_image_frame_to_chw_float(frame))
             image = torch.stack(imgs, dim=0)  # (K,3,H,W)
+            if self.use_stain_mask:
+                stain_frame = _read_stain_mask_frame(f, self.stain_mask_key, start)
+                stain_mask = _stain_mask_frame_to_chw_float(stain_frame)
+            else:
+                stain_mask = None
 
         qpos_raw = np.concatenate([pos[start, :6], force[start, :3]], axis=0).astype(np.float32)
         action_chunk, is_pad = _slice_pad(action, start, self.seq_len)
@@ -495,13 +551,14 @@ class ImitationEpisodeDataset(Dataset):
             gripper_position_t = None
             gripper_current_t = None
 
+        extra = (stain_mask.float(),) if self.use_stain_mask else ()
         if self.include_gripper and self.return_marker:
-            return image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t, gripper_position_t, gripper_current_t
+            return (image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t, gripper_position_t, gripper_current_t) + extra
         if self.include_gripper:
-            return image_t, qpos_t, action_t, is_pad_t, fh_t, gripper_position_t, gripper_current_t
+            return (image_t, qpos_t, action_t, is_pad_t, fh_t, gripper_position_t, gripper_current_t) + extra
         if self.return_marker:
-            return image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t
-        return image_t, qpos_t, action_t, is_pad_t, fh_t
+            return (image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t) + extra
+        return (image_t, qpos_t, action_t, is_pad_t, fh_t) + extra
 
 
 # =============================================================================
@@ -531,6 +588,9 @@ def make_loaders(
     marker_norm_mode: str = "minmax_m11",
     marker_dim: int = 7,
     include_gripper: bool = False,
+    use_stain_mask: bool = False,
+    stain_mask_key: str = "observations/images/stain_mask",
+    stain_mask_threshold: float = 0.5,
 ):
     paths = _episode_files(dataset_dir, num_episodes=num_episodes)
     n = len(paths)
@@ -557,6 +617,9 @@ def make_loaders(
     stats["dataset_dir"] = str(Path(dataset_dir).expanduser())
     stats["camera_names"] = list(camera_names)
     stats["obs_mode"] = str(obs_mode)
+    stats["use_stain_mask"] = bool(use_stain_mask)
+    stats["stain_mask_key"] = str(stain_mask_key or "observations/images/stain_mask")
+    stats["stain_mask_threshold"] = float(stain_mask_threshold)
 
     common = dict(
         stats=stats,
@@ -570,6 +633,8 @@ def make_loaders(
         action_norm_mode=action_norm_mode,
         marker_norm_mode=marker_norm_mode,
         include_gripper=include_gripper,
+        use_stain_mask=use_stain_mask,
+        stain_mask_key=stain_mask_key,
     )
     train_ds = ImitationEpisodeDataset(train_paths, seq_len=seq_len_train, seed=seed, **common)
     val_ds = ImitationEpisodeDataset(val_paths, seq_len=seq_len_val, seed=seed + 12345, **common)
@@ -596,5 +661,8 @@ def make_loaders(
         "marker_dim": int(marker_dim),
         "include_gripper": bool(include_gripper),
         "action_dim": int(stats["action_min"].shape[0]),
+        "use_stain_mask": bool(use_stain_mask),
+        "stain_mask_key": str(stain_mask_key or "observations/images/stain_mask"),
+        "stain_mask_threshold": float(stain_mask_threshold),
     }
     return train_loader, val_loader, stats, meta

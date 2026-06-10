@@ -54,6 +54,12 @@ def _build_args(args_override: dict) -> SimpleNamespace:
         force_encoder_dropout=0.0,
         observation_encoder_activation="gelu",
         cnnmlp_observation_embed_dim=256,
+        use_stain_mask=False,
+        stain_mask_key="observations/images/stain_mask",
+        stain_pooling_type="masked_mean",
+        empty_stain_feature_mode="zero",
+        stain_mask_threshold=0.5,
+        debug_stain_pooling=False,
     )
     defaults.update(args_override)
     return SimpleNamespace(**defaults)
@@ -105,6 +111,11 @@ class DETRVAE(nn.Module):
         force_encoder_num_layers=1,
         force_encoder_dropout=0.0,
         observation_encoder_activation="gelu",
+        use_stain_mask=False,
+        stain_pooling_type="masked_mean",
+        empty_stain_feature_mode="zero",
+        stain_mask_threshold=0.5,
+        debug_stain_pooling=False,
     ):
         super().__init__()
         self.num_queries = num_queries
@@ -123,6 +134,11 @@ class DETRVAE(nn.Module):
                 backbones=backbones,
                 hidden_dim=hidden_dim,
                 camera_names=camera_names,
+                use_stain_mask=use_stain_mask,
+                stain_pooling_type=stain_pooling_type,
+                empty_stain_feature_mode=empty_stain_feature_mode,
+                stain_mask_threshold=stain_mask_threshold,
+                debug_stain_pooling=debug_stain_pooling,
             )
         else:
             self.image_encoder = None
@@ -170,6 +186,7 @@ class DETRVAE(nn.Module):
         actions=None,
         is_pad=None,
         force_history=None,
+        stain_mask=None,
     ):
         if qpos.dim() == 3:
             qpos = qpos[:, 0, :]
@@ -216,7 +233,7 @@ class DETRVAE(nn.Module):
             latent_input = self.latent_out_proj(latent_sample)
 
         if self.image_encoder is not None:
-            src, pos = self.image_encoder(image)
+            src, pos = self.image_encoder(image, stain_mask=stain_mask)
 
             proprio_input = self.transformer_observation_encoder(
                 qpos=qpos,
@@ -265,6 +282,11 @@ class CNNMLP(nn.Module):
         force_encoder_dropout=0.0,
         observation_encoder_activation="gelu",
         observation_embed_dim=256,
+        use_stain_mask=False,
+        stain_pooling_type="masked_mean",
+        empty_stain_feature_mode="zero",
+        stain_mask_threshold=0.5,
+        debug_stain_pooling=False,
     ):
         super().__init__()
         self.camera_names = camera_names
@@ -272,6 +294,11 @@ class CNNMLP(nn.Module):
         self.image_encoder = CNNMLPImageEncoder(
             backbones=backbones,
             camera_names=camera_names,
+            use_stain_mask=use_stain_mask,
+            stain_pooling_type=stain_pooling_type,
+            empty_stain_feature_mode=empty_stain_feature_mode,
+            stain_mask_threshold=stain_mask_threshold,
+            debug_stain_pooling=debug_stain_pooling,
         )
 
         self.observation_encoder = PositionForceObservationEncoder(
@@ -297,13 +324,14 @@ class CNNMLP(nn.Module):
         env_state=None,
         actions=None,
         force_history=None,
+        stain_mask=None,
     ):
         if qpos.dim() == 3:
             qpos = qpos[:, 0, :]
         if image.dim() == 6:
             image = image[:, 0, ...]
 
-        image_embedding = self.image_encoder(image)
+        image_embedding = self.image_encoder(image, stain_mask=stain_mask)
         observation_embedding = self.observation_encoder(
             qpos=qpos,
             force_history=force_history,
@@ -365,6 +393,11 @@ def build_ACT_model(args):
         force_encoder_num_layers=getattr(args, "force_encoder_num_layers", 1),
         force_encoder_dropout=getattr(args, "force_encoder_dropout", 0.0),
         observation_encoder_activation=getattr(args, "observation_encoder_activation", "gelu"),
+        use_stain_mask=getattr(args, "use_stain_mask", False),
+        stain_pooling_type=getattr(args, "stain_pooling_type", "masked_mean"),
+        empty_stain_feature_mode=getattr(args, "empty_stain_feature_mode", "zero"),
+        stain_mask_threshold=getattr(args, "stain_mask_threshold", 0.5),
+        debug_stain_pooling=getattr(args, "debug_stain_pooling", False),
     )
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("number of parameters: %.2fM" % (n_params / 1e6,))
@@ -389,6 +422,11 @@ def build_CNNMLP_model(args):
         force_encoder_dropout=getattr(args, "force_encoder_dropout", 0.0),
         observation_encoder_activation=getattr(args, "observation_encoder_activation", "gelu"),
         observation_embed_dim=getattr(args, "cnnmlp_observation_embed_dim", 256),
+        use_stain_mask=getattr(args, "use_stain_mask", False),
+        stain_pooling_type=getattr(args, "stain_pooling_type", "masked_mean"),
+        empty_stain_feature_mode=getattr(args, "empty_stain_feature_mode", "zero"),
+        stain_mask_threshold=getattr(args, "stain_mask_threshold", 0.5),
+        debug_stain_pooling=getattr(args, "debug_stain_pooling", False),
     )
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print("number of parameters: %.2fM" % (n_params / 1e6,))

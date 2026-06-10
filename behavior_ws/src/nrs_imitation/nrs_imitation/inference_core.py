@@ -260,6 +260,48 @@ def _to_tensor_image_stack(
     return img_t
 
 
+def _mask_msg_to_float_numpy(msg: Image) -> np.ndarray:
+    h, w = int(msg.height), int(msg.width)
+    enc = (msg.encoding or "").lower()
+    if enc in ("mono16", "16uc1"):
+        arr = np.frombuffer(msg.data, dtype=np.uint16).reshape((h, w)).astype(np.float32)
+        mx = float(arr.max()) if arr.size else 0.0
+        return arr / max(mx, 1.0) if mx > 1.5 else arr
+    if enc in ("32fc1",):
+        arr = np.frombuffer(msg.data, dtype=np.float32).reshape((h, w)).astype(np.float32)
+        return np.clip(arr, 0.0, 1.0)
+    if enc in ("rgb8", "bgr8", "rgba8", "bgra8"):
+        rgb = _img_to_rgb_numpy(msg)
+        arr = rgb[..., 0].astype(np.float32)
+    else:
+        arr = np.frombuffer(msg.data, dtype=np.uint8)
+        try:
+            arr = arr.reshape((h, w)).astype(np.float32)
+        except Exception:
+            arr = arr.reshape((h, w, -1))[..., 0].astype(np.float32)
+    if float(arr.max()) > 1.5:
+        arr = arr / 255.0
+    return np.clip(arr, 0.0, 1.0)
+
+
+def _to_tensor_stain_mask(mask: np.ndarray, device: torch.device, resize_hw: int = 0) -> torch.Tensor:
+    if mask is None:
+        raise RuntimeError("stain_mask is None")
+    m = np.asarray(mask, dtype=np.float32)
+    if m.ndim == 3:
+        m = m[..., 0]
+    if m.ndim != 2:
+        raise RuntimeError(f"stain_mask must be 2D, got {m.shape}")
+    if resize_hw and resize_hw > 0:
+        try:
+            import cv2
+            m = cv2.resize(m, (resize_hw, resize_hw), interpolation=cv2.INTER_NEAREST)
+        except Exception as e:
+            raise RuntimeError(f"cv2 resize failed for stain_mask (resize_hw={resize_hw}): {e}")
+    m = np.clip(m, 0.0, 1.0)[None, None, ...]
+    return torch.from_numpy(m).to(device=device, dtype=torch.float32)
+
+
 def _parse_camera_names(value, obs_mode: str) -> List[str]:
     obs = str(obs_mode or "single_cam").strip().lower()
     default = ["cam0", "cam1"] if obs in ("dual_cam", "multi_cam") else ["cam0"]
@@ -913,6 +955,7 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("force_topic", "/ur10skku/currentF")
         self.declare_parameter("image_topic", "/realsense/robot/color/image_raw")
         self.declare_parameter("global_image_topic", "/realsense/global/color/image_raw")
+        self.declare_parameter("stain_mask_topic", "")
         self.declare_parameter("cmd_topic", "/ur10skku/cmdMotion")
 
         self.declare_parameter("image_qos", "best_effort")
@@ -1095,6 +1138,13 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("flow_n_groups", 8)
         self.declare_parameter("flow_cond_predict_scale", False)
 
+        self.declare_parameter("use_stain_mask", False)
+        self.declare_parameter("stain_mask_key", "observations/images/stain_mask")
+        self.declare_parameter("stain_pooling_type", "masked_mean")
+        self.declare_parameter("empty_stain_feature_mode", "zero")
+        self.declare_parameter("stain_mask_threshold", 0.5)
+        self.declare_parameter("debug_stain_pooling", False)
+
         # stall + recover
         self.declare_parameter("stall_sec", 1.2)
         self.declare_parameter("stall_min_after_start_sec", 1.0)
@@ -1164,6 +1214,7 @@ class NodeCmdMotionInfer(Node):
         self.force_topic = str(self.get_parameter("force_topic").value)
         self.image_topic = str(self.get_parameter("image_topic").value)
         self.global_image_topic = str(self.get_parameter("global_image_topic").value)
+        self.stain_mask_topic = str(self.get_parameter("stain_mask_topic").value).strip()
         self.cmd_topic = str(self.get_parameter("cmd_topic").value)
 
         self.image_qos_str = str(self.get_parameter("image_qos").value)
@@ -1366,6 +1417,15 @@ class NodeCmdMotionInfer(Node):
         self.flow_n_groups = int(self.get_parameter("flow_n_groups").value)
         self.flow_cond_predict_scale = bool(self.get_parameter("flow_cond_predict_scale").value)
 
+        self.use_stain_mask = bool(self.get_parameter("use_stain_mask").value)
+        self.stain_mask_key = str(self.get_parameter("stain_mask_key").value)
+        self.stain_pooling_type = str(self.get_parameter("stain_pooling_type").value)
+        self.empty_stain_feature_mode = str(self.get_parameter("empty_stain_feature_mode").value)
+        self.stain_mask_threshold = float(self.get_parameter("stain_mask_threshold").value)
+        self.debug_stain_pooling = bool(self.get_parameter("debug_stain_pooling").value)
+        if self.use_stain_mask and not self.stain_mask_topic:
+            raise RuntimeError("use_stain_mask=True requires a non-empty stain_mask_topic")
+
         # device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.get_logger().info(f"[INFO] Using device: {self.device}")
@@ -1374,6 +1434,11 @@ class NodeCmdMotionInfer(Node):
             f"obs_mode={self.obs_mode}, camera_names={self.camera_names}, "
             f"alpha={self.camera_stabilize_alpha:.3f}, border={self.camera_stabilize_border_mode}, "
             f"jitter_report={self.camera_jitter_report_enable}, log_every={self.camera_jitter_log_every_n}"
+        )
+        self.get_logger().info(
+            f"[STAIN] use_stain_mask={int(self.use_stain_mask)}, topic={self.stain_mask_topic or 'disabled'}, "
+            f"pooling={self.stain_pooling_type}, empty={self.empty_stain_feature_mode}, "
+            f"threshold={self.stain_mask_threshold:.3f}"
         )
         self.get_logger().info(
             f"[GRADCAM] enable={int(self.gradcam_enable)}, every_n_infer={self.gradcam_every_n_infer}, "
@@ -1463,6 +1528,7 @@ class NodeCmdMotionInfer(Node):
         self._force: Optional[np.ndarray] = None
         self._img_cam0: Optional[np.ndarray] = None
         self._img_cam1: Optional[np.ndarray] = None
+        self._stain_mask: Optional[np.ndarray] = None
 
         # Online camera stabilization state. All jitter values are pixel units.
         self._cam_prev_raw_gray: Optional[np.ndarray] = None
@@ -1563,6 +1629,8 @@ class NodeCmdMotionInfer(Node):
         self.create_subscription(Image, self.image_topic, self._on_img, img_qos)
         if self.use_global_image:
             self.create_subscription(Image, self.global_image_topic, self._on_global_img, img_qos)
+        if self.use_stain_mask:
+            self.create_subscription(Image, self.stain_mask_topic, self._on_stain_mask, img_qos)
 
         self.pub_cmd = self.create_publisher(Float64MultiArray, self.cmd_topic, 10)
         self.pub_gradcam_overlay = None
@@ -1810,12 +1878,18 @@ class NodeCmdMotionInfer(Node):
         q_gc: torch.Tensor,
         img_gc: torch.Tensor,
         fh_gc: Optional[torch.Tensor],
+        stain_mask_gc: Optional[torch.Tensor],
     ) -> torch.Tensor:
         if self.policy_class == "FLOW":
             if hasattr(self.policy, "sample_action_with_grad"):
                 if self.use_force_history:
-                    return self.policy.sample_action_with_grad(qpos=q_gc, image=img_gc, force_history=fh_gc)
-                return self.policy.sample_action_with_grad(qpos=q_gc, image=img_gc)
+                    return self.policy.sample_action_with_grad(
+                        qpos=q_gc,
+                        image=img_gc,
+                        force_history=fh_gc,
+                        stain_mask=stain_mask_gc,
+                    )
+                return self.policy.sample_action_with_grad(qpos=q_gc, image=img_gc, stain_mask=stain_mask_gc)
 
             if hasattr(self.policy, "predict_velocity"):
                 steps = max(1, int(getattr(self.policy, "flow_infer_steps", self.flow_infer_steps)))
@@ -1827,15 +1901,28 @@ class NodeCmdMotionInfer(Node):
                 for k in range(steps):
                     t = torch.full((B,), (k + 0.5) / float(steps), device=q_gc.device, dtype=q_gc.dtype)
                     if self.use_force_history:
-                        v = self.policy.predict_velocity(z_t=z, t=t, qpos=q_gc, image=img_gc, force_history=fh_gc)
+                        v = self.policy.predict_velocity(
+                            z_t=z,
+                            t=t,
+                            qpos=q_gc,
+                            image=img_gc,
+                            force_history=fh_gc,
+                            stain_mask=stain_mask_gc,
+                        )
                     else:
-                        v = self.policy.predict_velocity(z_t=z, t=t, qpos=q_gc, image=img_gc)
+                        v = self.policy.predict_velocity(
+                            z_t=z,
+                            t=t,
+                            qpos=q_gc,
+                            image=img_gc,
+                            stain_mask=stain_mask_gc,
+                        )
                     z = z + dt * v
                 return z
 
         if self.use_force_history:
-            return self.policy(q_gc, img_gc, force_history=fh_gc)
-        return self.policy(q_gc, img_gc)
+            return self.policy(q_gc, img_gc, force_history=fh_gc, stain_mask=stain_mask_gc)
+        return self.policy(q_gc, img_gc, stain_mask=stain_mask_gc)
 
     def _run_gradcam_debug(
         self,
@@ -1843,6 +1930,7 @@ class NodeCmdMotionInfer(Node):
         q_t: torch.Tensor,
         img_t: torch.Tensor,
         force_hist_t: Optional[torch.Tensor],
+        stain_mask_t: Optional[torch.Tensor],
         seq_den_for_overlay: Optional[np.ndarray] = None,
         current_xyz_mm_for_overlay: Optional[np.ndarray] = None,
     ) -> bool:
@@ -1872,9 +1960,15 @@ class NodeCmdMotionInfer(Node):
             img_gc = img_t.detach().clone()
             img_gc.requires_grad_(True)
             fh_gc = None if force_hist_t is None else force_hist_t.detach().clone()
+            stain_mask_gc = None if stain_mask_t is None else stain_mask_t.detach().clone()
 
             with torch.enable_grad():
-                out = self._gradcam_policy_forward(q_gc=q_gc, img_gc=img_gc, fh_gc=fh_gc)
+                out = self._gradcam_policy_forward(
+                    q_gc=q_gc,
+                    img_gc=img_gc,
+                    fh_gc=fh_gc,
+                    stain_mask_gc=stain_mask_gc,
+                )
                 seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class)
                 if self.denorm_action_enabled and self.stats is not None:
                     seq_phys = _denorm_action_seq(seq, self.stats)
@@ -2051,6 +2145,12 @@ class NodeCmdMotionInfer(Node):
             "flow_kernel_size": self.flow_kernel_size,
             "flow_n_groups": self.flow_n_groups,
             "flow_cond_predict_scale": self.flow_cond_predict_scale,
+            "use_stain_mask": self.use_stain_mask,
+            "stain_mask_key": self.stain_mask_key,
+            "stain_pooling_type": self.stain_pooling_type,
+            "empty_stain_feature_mode": self.empty_stain_feature_mode,
+            "stain_mask_threshold": self.stain_mask_threshold,
+            "debug_stain_pooling": self.debug_stain_pooling,
         }
 
         policy_class = str(self.policy_class).upper()
@@ -2075,6 +2175,14 @@ class NodeCmdMotionInfer(Node):
             raise RuntimeError(f"policy_best.ckpt not found: {ckpt_path}")
 
         ckpt_obj = torch.load(ckpt_path, map_location=self.device)
+        if isinstance(ckpt_obj, dict):
+            ckpt_cfg = ckpt_obj.get("config", {}).get("policy_config", {})
+            ckpt_use_stain = bool(ckpt_cfg.get("use_stain_mask", False))
+            if ckpt_use_stain != bool(self.use_stain_mask):
+                raise RuntimeError(
+                    f"use_stain_mask mismatch: checkpoint={ckpt_use_stain}, inference_arg={bool(self.use_stain_mask)}. "
+                    "Use the same stain-mask setting as training."
+                )
 
         if isinstance(ckpt_obj, dict):
             if "model_state_dict" in ckpt_obj:
@@ -2208,6 +2316,14 @@ class NodeCmdMotionInfer(Node):
         except Exception as e:
             self.get_logger().error(f"[CAM1 IMG] decode failed: {e}")
 
+    def _on_stain_mask(self, msg: Image):
+        try:
+            mask = _mask_msg_to_float_numpy(msg)
+            with self._lock:
+                self._stain_mask = mask.copy()
+        except Exception as e:
+            self.get_logger().error(f"[STAIN MASK] decode failed: {e}")
+
     # ------------------------------------------------------------
     # Contact update
     # ------------------------------------------------------------
@@ -2319,17 +2435,20 @@ class NodeCmdMotionInfer(Node):
             force = None if self._force is None else self._force.copy()
             cam0 = None if self._img_cam0 is None else self._img_cam0.copy()
             cam1 = None if self._img_cam1 is None else self._img_cam1.copy()
+            stain_mask_np = None if self._stain_mask is None else self._stain_mask.copy()
             force_hist_list = list(self._force_hist)
 
         cam1_missing = self.use_global_image and cam1 is None
-        if pose6 is None or force is None or cam0 is None or cam1_missing:
+        stain_missing = self.use_stain_mask and stain_mask_np is None
+        if pose6 is None or force is None or cam0 is None or cam1_missing or stain_missing:
             now_dbg = _monotonic()
             if now_dbg - self._infer_wait_last_log >= 1.0:
                 self._infer_wait_last_log = now_dbg
                 self.get_logger().warn(
                     "[INFER-WAIT] missing live input -> "
                     f"pose={pose6 is not None}, force={force is not None}, "
-                    f"cam0={cam0 is not None}, cam1={cam1 is not None if self.use_global_image else 'disabled'}. "
+                    f"cam0={cam0 is not None}, cam1={cam1 is not None if self.use_global_image else 'disabled'}, "
+                    f"stain_mask={stain_mask_np is not None if self.use_stain_mask else 'disabled'}. "
                     "No policy plan will be generated until all are available."
                 )
             return
@@ -2365,6 +2484,13 @@ class NodeCmdMotionInfer(Node):
                 resize_hw=self.resize_hw,
                 camera_names=self.camera_names,
             )
+            stain_mask_t = None
+            if self.use_stain_mask:
+                stain_mask_t = _to_tensor_stain_mask(
+                    stain_mask_np,
+                    device=self.device,
+                    resize_hw=self.resize_hw,
+                )
         except Exception as e:
             self.get_logger().error(f"[INFER] image stack failed: {e}")
             return
@@ -2372,9 +2498,9 @@ class NodeCmdMotionInfer(Node):
         try:
             with torch.inference_mode():
                 if self.use_force_history:
-                    out = self.policy(q_t, img_t, force_history=force_hist_t)
+                    out = self.policy(q_t, img_t, force_history=force_hist_t, stain_mask=stain_mask_t)
                 else:
-                    out = self.policy(q_t, img_t)
+                    out = self.policy(q_t, img_t, stain_mask=stain_mask_t)
 
             seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class)
 
@@ -2408,6 +2534,7 @@ class NodeCmdMotionInfer(Node):
             q_t=q_t,
             img_t=img_t,
             force_hist_t=force_hist_t,
+            stain_mask_t=stain_mask_t,
             seq_den_for_overlay=seq_den,
             current_xyz_mm_for_overlay=pose6[:3],
         )

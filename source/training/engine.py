@@ -58,14 +58,21 @@ def make_policy(policy_class: str, policy_config: Dict):
     raise ValueError(f"Unsupported policy_class: {policy_class}")
 
 
-def _unpack_batch(batch, device: torch.device):
+def _unpack_batch(batch, device: torch.device, use_stain_mask: bool = False):
     if not isinstance(batch, (list, tuple)):
         raise TypeError(f"batch must be tuple/list, got {type(batch)}")
-    if len(batch) == 4:
-        image, qpos, action, is_pad = batch
+    items = list(batch)
+    stain_mask = None
+    if use_stain_mask:
+        if len(items) < 5:
+            raise ValueError("use_stain_mask=True but batch does not include stain_mask")
+        stain_mask = items.pop(-1)
+
+    if len(items) == 4:
+        image, qpos, action, is_pad = items
         force_history = None
-    elif len(batch) == 5:
-        image, qpos, action, is_pad, force_history = batch
+    elif len(items) == 5:
+        image, qpos, action, is_pad, force_history = items
     else:
         raise ValueError(f"Unexpected batch length: {len(batch)}")
 
@@ -75,24 +82,33 @@ def _unpack_batch(batch, device: torch.device):
     is_pad = is_pad.to(device, non_blocking=True)
     if force_history is not None:
         force_history = force_history.to(device, non_blocking=True)
-    return image, qpos, action, is_pad, force_history
+    if stain_mask is not None:
+        stain_mask = stain_mask.to(device, non_blocking=True)
+    return image, qpos, action, is_pad, force_history, stain_mask
 
 
-def forward_pass(batch, policy, device):
-    image, qpos, action, is_pad, force_history = _unpack_batch(batch, device)
-    if force_history is None:
-        return policy(qpos, image, action, is_pad)
-    return policy(qpos, image, action, is_pad, force_history=force_history)
+def forward_pass(batch, policy, device, use_stain_mask: bool = False):
+    image, qpos, action, is_pad, force_history, stain_mask = _unpack_batch(
+        batch,
+        device,
+        use_stain_mask=use_stain_mask,
+    )
+    kwargs = {}
+    if force_history is not None:
+        kwargs["force_history"] = force_history
+    if use_stain_mask:
+        kwargs["stain_mask"] = stain_mask
+    return policy(qpos, image, action, is_pad, **kwargs)
 
 
 @torch.no_grad()
-def _run_validation(val_loader, policy, device, amp_enabled: bool = False) -> Dict[str, float]:
+def _run_validation(val_loader, policy, device, amp_enabled: bool = False, use_stain_mask: bool = False) -> Dict[str, float]:
     policy.eval()
     val_dicts = []
     val_iter = tqdm(val_loader, desc="Val", leave=False)
     for batch in val_iter:
         with autocast_context(amp_enabled, device):
-            out = forward_pass(batch, policy, device)
+            out = forward_pass(batch, policy, device, use_stain_mask=use_stain_mask)
         scalars = _scalarize_loss_dict(out)
         val_dicts.append(scalars)
         postfix = _loss_postfix(scalars)
@@ -127,6 +143,7 @@ def train_bc(train_loader, val_loader, config):
     seed = int(config.get("seed", 0))
     policy_class = config["policy_class"]
     policy_config = config["policy_config"]
+    use_stain_mask = bool(policy_config.get("use_stain_mask", False))
     num_epochs = int(config["num_epochs"])
     ckpt_dir = config["ckpt_dir"]
 
@@ -160,7 +177,7 @@ def train_bc(train_loader, val_loader, config):
 
     for epoch in epoch_pbar:
         print(f"Epoch {epoch}")
-        val_summary = _run_validation(val_loader, policy, device, amp_enabled)
+        val_summary = _run_validation(val_loader, policy, device, amp_enabled, use_stain_mask=use_stain_mask)
         history["val"].append({"epoch": epoch, **val_summary})
 
         if len(val_summary) > 0:
@@ -179,7 +196,7 @@ def train_bc(train_loader, val_loader, config):
         for batch_idx, batch in enumerate(train_iter):
             optimizer.zero_grad(set_to_none=True)
             with autocast_context(amp_enabled, device):
-                out = forward_pass(batch, policy, device)
+                out = forward_pass(batch, policy, device, use_stain_mask=use_stain_mask)
                 loss = out["loss"]
             if amp_enabled:
                 scaler.scale(loss).backward()

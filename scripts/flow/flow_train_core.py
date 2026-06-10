@@ -87,6 +87,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--flow_loss_type", type=str, default="mse", choices=["mse", "l1"])
     parser.add_argument("--flow_infer_steps", type=int, default=10)
 
+    parser.add_argument("--use_stain_mask", dest="use_stain_mask", action="store_true", default=True)
+    parser.add_argument("--no_stain_mask", dest="use_stain_mask", action="store_false")
+    parser.add_argument("--stain_mask_key", type=str, default="observations/images/stain_mask")
+    parser.add_argument("--stain_pooling_type", type=str, default="masked_mean", choices=["masked_mean"])
+    parser.add_argument("--empty_stain_feature_mode", type=str, default="zero", choices=["zero", "global"])
+    parser.add_argument("--stain_mask_threshold", type=float, default=0.5)
+    parser.add_argument("--debug_stain_pooling", action="store_true", default=False)
+
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--pin_memory", action="store_true")
     parser.add_argument("--persistent_workers", action="store_true")
@@ -246,6 +254,12 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "flow_train_eps": args.flow_train_eps,
         "flow_loss_type": args.flow_loss_type,
         "norm_mode": args.norm_mode,
+        "use_stain_mask": bool(args.use_stain_mask),
+        "stain_mask_key": args.stain_mask_key,
+        "stain_pooling_type": args.stain_pooling_type,
+        "empty_stain_feature_mode": args.empty_stain_feature_mode,
+        "stain_mask_threshold": float(args.stain_mask_threshold),
+        "debug_stain_pooling": bool(args.debug_stain_pooling),
     }
 
 
@@ -308,11 +322,15 @@ def _print_stats_debug(stats: Dict[str, object], obs_mode: str, camera_names: Se
     print("-" * 80 + "\n")
 
 
-def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
+def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str], use_stain_mask: bool = False):
     print("\n" + "-" * 80)
     print("[DBG] First train batch check")
     batch = next(iter(train_loader))
-    image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, torch.device("cpu"))
+    image, qpos, action, is_pad, force_history, marker, stain_mask = _unpack_batch(
+        batch,
+        torch.device("cpu"),
+        use_stain_mask=use_stain_mask,
+    )
 
     _tensor_debug_line("image", image)
     _tensor_debug_line("qpos", qpos)
@@ -320,6 +338,7 @@ def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
     _tensor_debug_line("is_pad", is_pad.float())
     _tensor_debug_line("force_history", force_history)
     _tensor_debug_line("marker", marker)
+    _tensor_debug_line("stain_mask", stain_mask)
 
     expected_k = len(list(camera_names))
     actual_k = int(image.shape[1]) if torch.is_tensor(image) and image.dim() >= 2 else -1
@@ -396,16 +415,23 @@ def collect_demo_start_pose_stats(dataset_dir: str, num_episodes: int = 0) -> Di
 # Training helpers
 # =============================================================================
 
-def _unpack_batch(batch, device: torch.device):
-    if len(batch) == 4:
-        image, qpos, action, is_pad = batch
+def _unpack_batch(batch, device: torch.device, use_stain_mask: bool = False):
+    items = list(batch)
+    stain_mask = None
+    if use_stain_mask:
+        if len(items) < 5:
+            raise RuntimeError("use_stain_mask=True but batch does not include stain_mask")
+        stain_mask = items.pop(-1)
+
+    if len(items) == 4:
+        image, qpos, action, is_pad = items
         force_history = None
         marker = None
-    elif len(batch) == 5:
-        image, qpos, action, is_pad, force_history = batch
+    elif len(items) == 5:
+        image, qpos, action, is_pad, force_history = items
         marker = None
-    elif len(batch) == 6:
-        image, qpos, action, is_pad, force_history, marker = batch
+    elif len(items) == 6:
+        image, qpos, action, is_pad, force_history, marker = items
     else:
         raise RuntimeError(f"Unexpected batch length: {len(batch)}")
     image = image.to(device, non_blocking=True)
@@ -416,7 +442,9 @@ def _unpack_batch(batch, device: torch.device):
         force_history = force_history.to(device, non_blocking=True)
     if marker is not None:
         marker = marker.to(device, non_blocking=True)
-    return image, qpos, action, is_pad, force_history, marker
+    if stain_mask is not None:
+        stain_mask = stain_mask.to(device, non_blocking=True)
+    return image, qpos, action, is_pad, force_history, marker, stain_mask
 
 
 def _scalar_dict(loss_dict: Dict[str, torch.Tensor]) -> Dict[str, float]:
@@ -431,13 +459,25 @@ def _mean_dict(items: List[Dict[str, float]]) -> Dict[str, float]:
 
 
 @torch.no_grad()
-def validate(policy, val_loader, device):
+def validate(policy, val_loader, device, use_stain_mask: bool = False):
     policy.eval()
     outs = []
     val_iter = tqdm(val_loader, desc="Val", leave=False)
     for batch in val_iter:
-        image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
-        out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
+        image, qpos, action, is_pad, force_history, marker, stain_mask = _unpack_batch(
+            batch,
+            device,
+            use_stain_mask=use_stain_mask,
+        )
+        out = policy(
+            qpos,
+            image,
+            actions=action,
+            is_pad=is_pad,
+            force_history=force_history,
+            marker=marker,
+            stain_mask=stain_mask,
+        )
         scalars = _scalar_dict(out)
         outs.append(scalars)
         if "loss" in scalars:
@@ -464,6 +504,7 @@ def train_flow(train_loader, val_loader, config):
     save_every = int(config.get("save_every", 0))
     debug_batches = int(config.get("debug_batches", 3))
     policy_config = config["policy_config"]
+    use_stain_mask = bool(policy_config.get("use_stain_mask", False))
 
     os.makedirs(ckpt_dir, exist_ok=True)
     set_seed(seed)
@@ -481,7 +522,7 @@ def train_flow(train_loader, val_loader, config):
     pbar = tqdm(range(num_epochs))
     for epoch in pbar:
         print(f"Epoch {epoch}")
-        val_summary = validate(policy, val_loader, device)
+        val_summary = validate(policy, val_loader, device, use_stain_mask=use_stain_mask)
         print("Val: " + " | ".join([f"{k}:{v:.6f}" for k, v in val_summary.items()]))
 
         val_loss = float(val_summary.get("loss", val_summary.get("flow", float("inf"))))
@@ -494,9 +535,21 @@ def train_flow(train_loader, val_loader, config):
         train_outs = []
         train_iter = tqdm(train_loader, desc=f"Train {epoch}", leave=False)
         for bi, batch in enumerate(train_iter):
-            image, qpos, action, is_pad, force_history, marker = _unpack_batch(batch, device)
+            image, qpos, action, is_pad, force_history, marker, stain_mask = _unpack_batch(
+                batch,
+                device,
+                use_stain_mask=use_stain_mask,
+            )
             optimizer.zero_grad(set_to_none=True)
-            out = policy(qpos, image, actions=action, is_pad=is_pad, force_history=force_history, marker=marker)
+            out = policy(
+                qpos,
+                image,
+                actions=action,
+                is_pad=is_pad,
+                force_history=force_history,
+                marker=marker,
+                stain_mask=stain_mask,
+            )
             loss = out["loss"]
             loss.backward()
             optimizer.step()
@@ -506,6 +559,8 @@ def train_flow(train_loader, val_loader, config):
                 train_iter.set_postfix(loss=f"{scalars['loss']:.4f}")
             if debug_batches < 0 or bi < debug_batches:
                 print(f"[DEBUG] Epoch {epoch}, batch {bi}, train loss = {float(loss.detach().cpu().item()):.6f}")
+                if use_stain_mask and stain_mask is not None:
+                    _tensor_debug_line("stain_mask", stain_mask)
 
         train_summary = _mean_dict(train_outs)
         history["train"].append(train_summary)
@@ -556,6 +611,13 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     print(f"[INFO] batch_size         = {args.batch_size}")
     print(f"[INFO] chunk_size         = {args.chunk_size}")
     print(f"[INFO] force_history      = {args.use_force_history}, L={args.force_history_len}")
+    print(f"[INFO] use_stain_mask     = {bool(args.use_stain_mask)}")
+    if args.use_stain_mask:
+        print(
+            f"[INFO] stain_mask_key    = {args.stain_mask_key}, "
+            f"pooling={args.stain_pooling_type}, empty={args.empty_stain_feature_mode}, "
+            f"threshold={args.stain_mask_threshold}"
+        )
 
     policy_config = default_policy_config(args, obs_mode, camera_names)
 
@@ -577,6 +639,13 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         policy, _ = build_flow_rgb_policy_and_optimizer(policy_config)
         policy = policy.to(device)
         ckpt = torch.load(best_ckpt, map_location=device)
+        if isinstance(ckpt, dict):
+            ckpt_cfg = ckpt.get("config", {}).get("policy_config", {})
+            ckpt_use_stain = bool(ckpt_cfg.get("use_stain_mask", False))
+            if ckpt_use_stain != bool(policy_config.get("use_stain_mask", False)):
+                raise RuntimeError(
+                    f"use_stain_mask mismatch: checkpoint={ckpt_use_stain}, current_arg={bool(policy_config.get('use_stain_mask', False))}"
+                )
         sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
         missing, unexpected = policy.load_state_dict(sd, strict=False)
         policy.eval()
@@ -617,6 +686,9 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         marker_norm_mode=args.norm_mode,
         marker_dim=args.marker_dim,
         include_gripper=False,
+        use_stain_mask=args.use_stain_mask,
+        stain_mask_key=args.stain_mask_key,
+        stain_mask_threshold=args.stain_mask_threshold,
     )
     print(f"[INFO] data meta: {meta}")
 

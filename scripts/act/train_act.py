@@ -181,6 +181,13 @@ def main(args):
     print(f"[INFO] AMP               = {args.amp}")
     print(f"[INFO] use_force_history = {args.use_force_history}")
     print(f"[INFO] force_history_len = {args.force_history_len}")
+    print(f"[INFO] use_stain_mask     = {bool(args.use_stain_mask)}")
+    if args.use_stain_mask:
+        print(
+            f"[INFO] stain_mask_key    = {args.stain_mask_key}, "
+            f"pooling={args.stain_pooling_type}, empty={args.empty_stain_feature_mode}, "
+            f"threshold={args.stain_mask_threshold}"
+        )
     if args.norm_mode == "minmax_m11":
         print("[INFO] qpos/action norm  = min-max per-dim -> [-1,1]")
     else:
@@ -219,6 +226,12 @@ def main(args):
             "force_encoder_dropout": args.force_encoder_dropout,
             "observation_encoder_activation": args.observation_encoder_activation,
             "norm_mode": args.norm_mode,
+            "use_stain_mask": bool(args.use_stain_mask),
+            "stain_mask_key": args.stain_mask_key,
+            "stain_pooling_type": args.stain_pooling_type,
+            "empty_stain_feature_mode": args.empty_stain_feature_mode,
+            "stain_mask_threshold": float(args.stain_mask_threshold),
+            "debug_stain_pooling": bool(args.debug_stain_pooling),
         }
     else:
         policy_config = {
@@ -247,6 +260,12 @@ def main(args):
             "observation_encoder_activation": args.observation_encoder_activation,
             "cnnmlp_observation_embed_dim": args.cnnmlp_observation_embed_dim,
             "norm_mode": args.norm_mode,
+            "use_stain_mask": bool(args.use_stain_mask),
+            "stain_mask_key": args.stain_mask_key,
+            "stain_pooling_type": args.stain_pooling_type,
+            "empty_stain_feature_mode": args.empty_stain_feature_mode,
+            "stain_mask_threshold": float(args.stain_mask_threshold),
+            "debug_stain_pooling": bool(args.debug_stain_pooling),
         }
 
     if args.eval:
@@ -272,6 +291,13 @@ def main(args):
 
         policy = make_policy(policy_class, policy_config).to(device)
         ckpt = torch.load(best_ckpt, map_location=device)
+        if isinstance(ckpt, dict):
+            ckpt_cfg = ckpt.get("config", {}).get("policy_config", {})
+            ckpt_use_stain = bool(ckpt_cfg.get("use_stain_mask", False))
+            if ckpt_use_stain != bool(policy_config.get("use_stain_mask", False)):
+                raise RuntimeError(
+                    f"use_stain_mask mismatch: checkpoint={ckpt_use_stain}, current_arg={bool(policy_config.get('use_stain_mask', False))}"
+                )
         state_dict = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
         missing, unexpected = policy.load_state_dict(state_dict, strict=False)
         policy.eval()
@@ -313,6 +339,9 @@ def main(args):
 
         qpos_norm_mode=args.norm_mode,
         action_norm_mode=args.norm_mode,
+        use_stain_mask=args.use_stain_mask,
+        stain_mask_key=args.stain_mask_key,
+        stain_mask_threshold=args.stain_mask_threshold,
     )
     print(f"[INFO] data meta: {meta}")
 
@@ -425,6 +454,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--observation_encoder_activation", type=str, default="gelu", choices=["relu", "gelu", "silu"])
 
     p.add_argument("--cnnmlp_observation_embed_dim", type=int, default=256)
+
+    p.add_argument("--use_stain_mask", dest="use_stain_mask", action="store_true", default=True)
+    p.add_argument("--no_stain_mask", dest="use_stain_mask", action="store_false")
+    p.add_argument("--stain_mask_key", type=str, default="observations/images/stain_mask")
+    p.add_argument("--stain_pooling_type", type=str, default="masked_mean", choices=["masked_mean"])
+    p.add_argument("--empty_stain_feature_mode", type=str, default="zero", choices=["zero", "global"])
+    p.add_argument("--stain_mask_threshold", type=float, default=0.5)
+    p.add_argument("--debug_stain_pooling", action="store_true", default=False)
     return p
 
 
@@ -472,6 +509,13 @@ if __name__ == "__main__":
         "--action_dim",
         "--debug_batches",
         "--no_force_history",
+        "--use_stain_mask",
+        "--no_stain_mask",
+        "--stain_mask_key",
+        "--stain_pooling_type",
+        "--empty_stain_feature_mode",
+        "--stain_mask_threshold",
+        "--debug_stain_pooling",
     ]:
         sys.argv = _strip_flag_with_optional_value(sys.argv, flag)
 
