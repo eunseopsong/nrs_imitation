@@ -39,6 +39,14 @@ dual_cam  : ~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf
 ros2 run nrs_imitation hdf5_recorder_single_cam
 ```
 
+stain mask를 변환 단계에서 생성하려면 stain-mask recorder를 사용합니다.
+
+```bash
+ros2 run nrs_imitation hdf5_recorder_single_cam_stain_mask
+```
+
+이 경우 `ep_0000`은 깨끗한 표면 reference입니다. 카메라를 움직이며 recording할 때는 `ep_0000`도 같은 이동 경로로 깨끗한 표면을 먼저 녹화해야 합니다. 고정 reference 한 장면만 있으면 이동 중 배경/경계가 stain으로 잘못 잡힐 수 있습니다.
+
 빛반사 하이라이트를 줄인 `cam0` RGB를 저장:
 
 ```bash
@@ -122,6 +130,8 @@ action/force
 ```bash
 python3 source/custom/demo_data_imitation_form_single_cam.py --write_summary
 ```
+
+moving-camera stain mask 변환은 homography 정렬, top-k reference consensus, pose-distance guard를 사용합니다. 변환 로그에 `had no close clean reference`가 나오면 같은 이동 경로의 clean reference sweep을 다시 녹화하거나, overlay를 확인한 뒤 `--stain_reference_max_pose_dist`를 조정합니다.
 
 특정 파일을 지정:
 

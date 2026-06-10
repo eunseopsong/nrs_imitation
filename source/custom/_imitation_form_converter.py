@@ -276,15 +276,19 @@ def _align_reference_to_current(
     if ref.shape != cur.shape:
         return ref
 
-    if mode not in ("translation", "euclidean", "affine"):
+    if mode not in ("translation", "euclidean", "affine", "homography"):
         return ref
 
-    warp_mode = {
-        "translation": cv2.MOTION_TRANSLATION,
-        "euclidean": cv2.MOTION_EUCLIDEAN,
-        "affine": cv2.MOTION_AFFINE,
-    }[mode]
-    warp = np.eye(2, 3, dtype=np.float32)
+    if mode == "homography":
+        warp_mode = cv2.MOTION_HOMOGRAPHY
+        warp = np.eye(3, 3, dtype=np.float32)
+    else:
+        warp_mode = {
+            "translation": cv2.MOTION_TRANSLATION,
+            "euclidean": cv2.MOTION_EUCLIDEAN,
+            "affine": cv2.MOTION_AFFINE,
+        }[mode]
+        warp = np.eye(2, 3, dtype=np.float32)
     criteria = (
         cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
         max(1, int(max_iters)),
@@ -303,13 +307,22 @@ def _align_reference_to_current(
             None,
             1,
         )
-        aligned = cv2.warpAffine(
-            ref,
-            warp,
-            (cur.shape[1], cur.shape[0]),
-            flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
-            borderMode=cv2.BORDER_REFLECT,
-        )
+        if mode == "homography":
+            aligned = cv2.warpPerspective(
+                ref,
+                warp,
+                (cur.shape[1], cur.shape[0]),
+                flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                borderMode=cv2.BORDER_REFLECT,
+            )
+        else:
+            aligned = cv2.warpAffine(
+                ref,
+                warp,
+                (cur.shape[1], cur.shape[0]),
+                flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP,
+                borderMode=cv2.BORDER_REFLECT,
+            )
         return aligned.astype(np.uint8)
     except Exception:
         return ref
@@ -338,6 +351,7 @@ def _postprocess_binary_mask(
     component_max_width_frac: float = 0.0,
     component_max_height_frac: float = 0.0,
     component_max_area_frac: float = 0.0,
+    component_max_aspect_ratio: float = 0.0,
     fill_holes_max_area: int = 0,
 ) -> np.ndarray:
     mask = np.asarray(mask_bool, dtype=np.uint8) * 255
@@ -368,6 +382,7 @@ def _postprocess_binary_mask(
     max_width_frac = max(0.0, float(component_max_width_frac))
     max_height_frac = max(0.0, float(component_max_height_frac))
     max_area_frac = max(0.0, float(component_max_area_frac))
+    max_aspect_ratio = max(0.0, float(component_max_aspect_ratio))
     for label in range(1, num_labels):
         x = int(stats[label, cv2.CC_STAT_LEFT])
         y = int(stats[label, cv2.CC_STAT_TOP])
@@ -384,6 +399,10 @@ def _postprocess_binary_mask(
             continue
         if max_area_frac > 0.0 and (float(area) / max(H * W, 1)) > max_area_frac:
             continue
+        if max_aspect_ratio > 0.0:
+            aspect = max(float(w) / max(float(h), 1.0), float(h) / max(float(w), 1.0))
+            if aspect > max_aspect_ratio:
+                continue
         if border > 0 and (x <= border or y <= border or x + w >= W - border or y + h >= H - border):
             continue
         if context is not None and min_context_ratio > 0.0 and context.shape == binary.shape:
@@ -426,13 +445,13 @@ def _fill_mask_holes(mask_u8: np.ndarray, max_hole_area: int) -> np.ndarray:
     return (out.astype(np.uint8) * 255)
 
 
-def _nearest_reference_index_bank(
+def _nearest_reference_index_bank_with_distances(
     current_position: np.ndarray,
     reference_position: np.ndarray,
     pos_scale: float,
     rot_scale: float,
     top_k: int,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     cur = _ensure_2d_min_dim(current_position, 6, "current_position").astype(np.float32)
     ref = _ensure_2d_min_dim(reference_position, 6, "reference_position").astype(np.float32)
     if ref.shape[0] <= 0:
@@ -445,15 +464,37 @@ def _nearest_reference_index_bank(
 
     k = min(max(1, int(top_k)), int(ref_scaled.shape[0]))
     out = np.zeros((cur.shape[0], k), dtype=np.int64)
+    out_dist = np.zeros((cur.shape[0], k), dtype=np.float32)
     for i in range(cur.shape[0]):
         cur_scaled = np.concatenate([cur[i, :3] / pos_scale, cur[i, 3:6] / rot_scale], axis=0)
         dist = np.sum((ref_scaled - cur_scaled[None, :]) ** 2, axis=1)
         if k == 1:
-            out[i, 0] = int(np.argmin(dist))
+            nearest_idx = int(np.argmin(dist))
+            out[i, 0] = nearest_idx
+            out_dist[i, 0] = float(dist[nearest_idx])
         else:
             nearest = np.argpartition(dist, k - 1)[:k]
-            out[i] = nearest[np.argsort(dist[nearest])].astype(np.int64)
-    return out
+            nearest = nearest[np.argsort(dist[nearest])].astype(np.int64)
+            out[i] = nearest
+            out_dist[i] = dist[nearest].astype(np.float32)
+    return out, out_dist
+
+
+def _nearest_reference_index_bank(
+    current_position: np.ndarray,
+    reference_position: np.ndarray,
+    pos_scale: float,
+    rot_scale: float,
+    top_k: int,
+) -> np.ndarray:
+    indices, _ = _nearest_reference_index_bank_with_distances(
+        current_position=current_position,
+        reference_position=reference_position,
+        pos_scale=pos_scale,
+        rot_scale=rot_scale,
+        top_k=top_k,
+    )
+    return indices
 
 
 def _nearest_reference_indices(
@@ -469,6 +510,16 @@ def _nearest_reference_indices(
         rot_scale=rot_scale,
         top_k=1,
     )[:, 0]
+
+
+def _bool_consensus(candidates: Sequence[np.ndarray], min_support: float):
+    if not candidates:
+        return True
+    stack = np.stack([np.asarray(c, dtype=bool) for c in candidates], axis=0)
+    support = np.clip(float(min_support), 0.0, 1.0)
+    if stack.shape[0] <= 1 or support <= 0.0:
+        return np.any(stack, axis=0)
+    return np.mean(stack, axis=0) >= support
 
 
 def generate_reference_stain_artifacts(
@@ -499,11 +550,15 @@ def generate_reference_stain_artifacts(
     component_max_width_frac: float,
     component_max_height_frac: float,
     component_max_area_frac: float,
+    component_max_aspect_ratio: float,
     fill_holes_max_area: int,
     pose_pos_scale: float,
     pose_rot_scale: float,
+    reference_max_pose_dist: float,
     reference_top_k: int,
     reference_diff_percentile: float,
+    reference_diff_min_support: float,
+    ref_surface_min_support: float,
     local_dark_thresh: float,
     local_dark_ref_delta: float,
     local_dark_ref_percentile: float,
@@ -515,7 +570,7 @@ def generate_reference_stain_artifacts(
     cur_rgb = _ensure_image4(current_rgb, "cam0")
     ref_rgb = _ensure_image4(reference_rgb, "reference_cam0")
     T, H, W, _ = cur_rgb.shape
-    ref_index_bank = _nearest_reference_index_bank(
+    ref_index_bank, ref_distance_bank = _nearest_reference_index_bank_with_distances(
         current_position=current_position,
         reference_position=reference_position,
         pos_scale=pose_pos_scale,
@@ -524,14 +579,23 @@ def generate_reference_stain_artifacts(
     )
 
     masks = np.zeros((T, H, W, 1), dtype=np.uint8)
+    nearest_pose_distances = np.sqrt(np.maximum(ref_distance_bank[:, 0], 0.0)).astype(np.float32)
+    pose_rejected = np.zeros((T,), dtype=np.uint8)
 
     for i in range(T):
+        max_pose_dist = float(reference_max_pose_dist)
+        nearest_pose_dist = float(nearest_pose_distances[i])
+        if max_pose_dist > 0.0 and nearest_pose_dist > max_pose_dist:
+            pose_rejected[i] = 1
+            continue
+
         cur_frame = _as_uint8_rgb(cur_rgb[i])
         cur_v, cur_s = _rgb_to_value_saturation(cur_frame)
         cur_norm = _lighting_normalized_value(cur_v, blur_kernel)
         local_dark, local_surface = _local_darkness(cur_v, local_dark_blur_kernel)
 
         diff_candidates: List[np.ndarray] = []
+        diff_support_candidates: List[np.ndarray] = []
         ref_surface_candidates: List[np.ndarray] = []
         ref_local_dark_candidates: List[np.ndarray] = []
         for ref_idx in ref_index_bank[i]:
@@ -545,7 +609,9 @@ def generate_reference_stain_artifacts(
             )
             ref_v, _ = _rgb_to_value_saturation(ref_frame)
             ref_norm = _lighting_normalized_value(ref_v, blur_kernel)
-            diff_candidates.append((ref_norm - cur_norm).astype(np.float32))
+            diff_candidate = (ref_norm - cur_norm).astype(np.float32)
+            diff_candidates.append(diff_candidate)
+            diff_support_candidates.append(diff_candidate >= float(diff_thresh))
             ref_local_dark, _ = _local_darkness(ref_v, local_dark_blur_kernel)
             ref_local_dark_candidates.append(ref_local_dark)
             if float(ref_surface_v_min) > 0.0:
@@ -577,7 +643,7 @@ def generate_reference_stain_artifacts(
             ).astype(np.float32)
 
         if ref_surface_candidates:
-            ref_surface = np.any(np.stack(ref_surface_candidates, axis=0), axis=0)
+            ref_surface = _bool_consensus(ref_surface_candidates, ref_surface_min_support)
         else:
             ref_surface = True
 
@@ -588,7 +654,10 @@ def generate_reference_stain_artifacts(
             ratio=adaptive_v_floor_ratio,
             min_floor=adaptive_v_floor_min,
         )
-        dark_change = diff >= float(diff_thresh)
+        dark_change = (diff >= float(diff_thresh)) & _bool_consensus(
+            diff_support_candidates,
+            reference_diff_min_support,
+        )
         absolute_dark = (
             cur_v <= float(dark_thresh)
             if float(dark_thresh) > 0.0
@@ -634,6 +703,7 @@ def generate_reference_stain_artifacts(
             component_max_width_frac=component_max_width_frac,
             component_max_height_frac=component_max_height_frac,
             component_max_area_frac=component_max_area_frac,
+            component_max_aspect_ratio=component_max_aspect_ratio,
             fill_holes_max_area=fill_holes_max_area,
         )
         mask = _constrain_to_near_mask(mask, raw_candidate, output_constraint_kernel)
@@ -641,6 +711,8 @@ def generate_reference_stain_artifacts(
 
     return {
         "stain_mask": masks,
+        "_stain_reference_pose_dist": nearest_pose_distances,
+        "_stain_reference_pose_rejected": pose_rejected,
     }
 
 
@@ -844,25 +916,29 @@ def convert_merged_h5(
     stain_morph_kernel: int = 5,
     stain_hole_close_kernel: int = 7,
     stain_ref_blur_kernel: int = 31,
-    stain_ref_align_mode: str = "euclidean",
+    stain_ref_align_mode: str = "homography",
     stain_ref_align_max_iters: int = 40,
     stain_ref_align_eps: float = 1e-4,
     stain_ref_surface_v_min: float = 120.0,
     stain_context_v_min: float = 120.0,
     stain_context_kernel: int = 31,
-    stain_dark_prior_enable: bool = True,
+    stain_dark_prior_enable: bool = False,
     stain_output_constraint_kernel: int = 11,
-    stain_ignore_border_px: int = 0,
+    stain_ignore_border_px: int = 2,
     stain_component_context_pad: int = 12,
     stain_component_context_min_ratio: float = 0.08,
-    stain_component_max_width_frac: float = 0.0,
-    stain_component_max_height_frac: float = 0.0,
+    stain_component_max_width_frac: float = 0.75,
+    stain_component_max_height_frac: float = 0.75,
     stain_component_max_area_frac: float = 0.12,
+    stain_component_max_aspect_ratio: float = 8.0,
     stain_fill_holes_max_area: int = 400,
     stain_ref_pose_pos_scale: float = 50.0,
     stain_ref_pose_rot_scale: float = 0.35,
+    stain_reference_max_pose_dist: float = 1.0,
     stain_reference_top_k: int = 3,
-    stain_reference_diff_percentile: float = 75.0,
+    stain_reference_diff_percentile: float = 50.0,
+    stain_reference_diff_min_support: float = 0.5,
+    stain_ref_surface_min_support: float = 0.5,
     stain_local_dark_thresh: float = 14.0,
     stain_local_dark_ref_delta: float = 10.0,
     stain_local_dark_ref_percentile: float = 75.0,
@@ -953,11 +1029,15 @@ def convert_merged_h5(
                         component_max_width_frac=stain_component_max_width_frac,
                         component_max_height_frac=stain_component_max_height_frac,
                         component_max_area_frac=stain_component_max_area_frac,
+                        component_max_aspect_ratio=stain_component_max_aspect_ratio,
                         fill_holes_max_area=stain_fill_holes_max_area,
                         pose_pos_scale=stain_ref_pose_pos_scale,
                         pose_rot_scale=stain_ref_pose_rot_scale,
+                        reference_max_pose_dist=stain_reference_max_pose_dist,
                         reference_top_k=stain_reference_top_k,
                         reference_diff_percentile=stain_reference_diff_percentile,
+                        reference_diff_min_support=stain_reference_diff_min_support,
+                        ref_surface_min_support=stain_ref_surface_min_support,
                         local_dark_thresh=stain_local_dark_thresh,
                         local_dark_ref_delta=stain_local_dark_ref_delta,
                         local_dark_ref_percentile=stain_local_dark_ref_percentile,
@@ -966,6 +1046,17 @@ def convert_merged_h5(
                         adaptive_v_floor_ratio=stain_adaptive_v_floor_ratio,
                         adaptive_v_floor_min=stain_adaptive_v_floor_min,
                     )
+                    pose_rejected = artifacts.pop("_stain_reference_pose_rejected", None)
+                    pose_dist = artifacts.pop("_stain_reference_pose_dist", None)
+                    if pose_rejected is not None:
+                        rejected_count = int(np.count_nonzero(np.asarray(pose_rejected)))
+                        if rejected_count > 0:
+                            max_dist = float(np.max(np.asarray(pose_dist))) if pose_dist is not None else 0.0
+                            print(
+                                f"[WARN] {ep_name}: {rejected_count}/{len(pose_rejected)} frames had no close "
+                                f"clean reference (max_scaled_pose_dist={max_dist:.3f}, "
+                                f"limit={float(stain_reference_max_pose_dist):.3f}); wrote empty masks for them."
+                            )
                     data.update(artifacts)
 
                 orig_len = int(data["position"].shape[0])
@@ -1017,12 +1108,19 @@ def convert_merged_h5(
                     "schema_version": "imitation_form_compact_v1",
                     "stain_mask_mode": effective_stain_mode,
                     "stain_reference_episode": reference_ep_name,
+                    "stain_reference_max_pose_dist": float(stain_reference_max_pose_dist),
                     "stain_reference_top_k": int(stain_reference_top_k),
                     "stain_reference_diff_percentile": float(stain_reference_diff_percentile),
+                    "stain_reference_diff_min_support": float(stain_reference_diff_min_support),
+                    "stain_ref_surface_min_support": float(stain_ref_surface_min_support),
                     "stain_local_dark_thresh": float(stain_local_dark_thresh),
                     "stain_local_dark_ref_delta": float(stain_local_dark_ref_delta),
                     "stain_local_dark_ref_percentile": float(stain_local_dark_ref_percentile),
                     "stain_ref_align_mode": str(stain_ref_align_mode),
+                    "stain_dark_prior_enable": bool(stain_dark_prior_enable),
+                    "stain_component_max_width_frac": float(stain_component_max_width_frac),
+                    "stain_component_max_height_frac": float(stain_component_max_height_frac),
+                    "stain_component_max_aspect_ratio": float(stain_component_max_aspect_ratio),
                 },
                 fp,
                 indent=2,
@@ -1096,8 +1194,8 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_ref_align_mode",
         type=str,
-        default="euclidean",
-        choices=["none", "translation", "euclidean", "affine"],
+        default="homography",
+        choices=["none", "translation", "euclidean", "affine", "homography"],
         help="Align the selected clean reference frame to the current frame before differencing.",
     )
     parser.add_argument("--stain_ref_align_max_iters", type=int, default=40)
@@ -1118,14 +1216,14 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_dark_prior_enable",
         action="store_true",
-        default=True,
-        help="Allow dark-on-bright-surface evidence even when reference difference is weak.",
+        default=False,
+        help="Allow local-dark evidence even when reference-difference consensus is weak.",
     )
     parser.add_argument(
         "--no_stain_dark_prior",
         dest="stain_dark_prior_enable",
         action="store_false",
-        help="Require reference difference evidence for every stain pixel.",
+        help="Require reference-difference consensus for every stain pixel.",
     )
     parser.add_argument(
         "--stain_output_constraint_kernel",
@@ -1136,7 +1234,7 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_ignore_border_px",
         type=int,
-        default=0,
+        default=2,
         help="Drop stain components touching the image border within this many pixels. 0 disables.",
     )
     parser.add_argument("--stain_component_context_pad", type=int, default=12)
@@ -1146,13 +1244,19 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
         default=0.08,
         help="Require this ratio of bright surface pixels around each component. 0 disables.",
     )
-    parser.add_argument("--stain_component_max_width_frac", type=float, default=0.0)
-    parser.add_argument("--stain_component_max_height_frac", type=float, default=0.0)
+    parser.add_argument("--stain_component_max_width_frac", type=float, default=0.75)
+    parser.add_argument("--stain_component_max_height_frac", type=float, default=0.75)
     parser.add_argument(
         "--stain_component_max_area_frac",
         type=float,
         default=0.12,
         help="Drop components covering more than this image fraction. 0 disables.",
+    )
+    parser.add_argument(
+        "--stain_component_max_aspect_ratio",
+        type=float,
+        default=8.0,
+        help="Drop very elongated components such as table edges. 0 disables.",
     )
     parser.add_argument(
         "--stain_fill_holes_max_area",
@@ -1163,6 +1267,15 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument("--stain_ref_pose_pos_scale", type=float, default=50.0)
     parser.add_argument("--stain_ref_pose_rot_scale", type=float, default=0.35)
     parser.add_argument(
+        "--stain_reference_max_pose_dist",
+        type=float,
+        default=1.0,
+        help=(
+            "Maximum scaled pose distance to a clean reference frame. Frames farther than this get "
+            "an empty mask. 0 disables."
+        ),
+    )
+    parser.add_argument(
         "--stain_reference_top_k",
         type=int,
         default=3,
@@ -1171,8 +1284,20 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_reference_diff_percentile",
         type=float,
-        default=75.0,
+        default=50.0,
         help="Percentile used to fuse top-k reference difference maps. 50=median, 100=max.",
+    )
+    parser.add_argument(
+        "--stain_reference_diff_min_support",
+        type=float,
+        default=0.5,
+        help="Minimum fraction of top-k references that must agree on dark-change evidence.",
+    )
+    parser.add_argument(
+        "--stain_ref_surface_min_support",
+        type=float,
+        default=0.5,
+        help="Minimum fraction of top-k references that must classify the pixel as clean bright surface.",
     )
     parser.add_argument(
         "--stain_local_dark_thresh",
@@ -1242,11 +1367,15 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         stain_component_max_width_frac=float(args.stain_component_max_width_frac),
         stain_component_max_height_frac=float(args.stain_component_max_height_frac),
         stain_component_max_area_frac=float(args.stain_component_max_area_frac),
+        stain_component_max_aspect_ratio=float(args.stain_component_max_aspect_ratio),
         stain_fill_holes_max_area=int(args.stain_fill_holes_max_area),
         stain_ref_pose_pos_scale=float(args.stain_ref_pose_pos_scale),
         stain_ref_pose_rot_scale=float(args.stain_ref_pose_rot_scale),
+        stain_reference_max_pose_dist=float(args.stain_reference_max_pose_dist),
         stain_reference_top_k=int(args.stain_reference_top_k),
         stain_reference_diff_percentile=float(args.stain_reference_diff_percentile),
+        stain_reference_diff_min_support=float(args.stain_reference_diff_min_support),
+        stain_ref_surface_min_support=float(args.stain_ref_surface_min_support),
         stain_local_dark_thresh=float(args.stain_local_dark_thresh),
         stain_local_dark_ref_delta=float(args.stain_local_dark_ref_delta),
         stain_local_dark_ref_percentile=float(args.stain_local_dark_ref_percentile),

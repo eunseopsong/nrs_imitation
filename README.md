@@ -86,6 +86,14 @@ source install/setup.bash
 ros2 run nrs_imitation hdf5_recorder_single_cam
 ```
 
+To generate `observations/images/stain_mask` during conversion, use the stain-mask recorder:
+
+```bash
+ros2 run nrs_imitation hdf5_recorder_single_cam_stain_mask
+```
+
+Record `ep_0000` as a clean-surface reference before recording stained episodes. If the camera moves during recording, `ep_0000` must cover the same camera/tool motion on a clean surface; a fixed clean view is not enough for moving-view stain masks.
+
 To record `cam0` after specular-highlight filtering:
 
 ```bash
@@ -143,6 +151,8 @@ This auto-selects the latest single-cam merged HDF5:
 cd ~/nrs_imitation
 python3 source/custom/demo_data_imitation_form_single_cam.py --overwrite --write_summary
 ```
+
+For moving-camera stain masks, conversion now uses homography alignment, top-k reference consensus, and a pose-distance guard. If the log says `had no close clean reference`, re-record the clean reference sweep with the same motion, or relax `--stain_reference_max_pose_dist` only after checking the overlay.
 
 Output:
 
