@@ -18,8 +18,8 @@ Output episode layout is intentionally compact:
           └── stain_mask  # optional, copied when present in merged HDF5
 
 When the input file marks episode_0 as a clean reference, this converter can
-generate stain masks for the remaining episodes by comparing each frame to the
-nearest clean reference frame in pose space.
+generate stain masks for the remaining episodes by comparing each frame to
+nearby clean reference frames in pose space.
 """
 
 from __future__ import annotations
@@ -226,6 +226,38 @@ def _lighting_normalized_value(value: np.ndarray, blur_kernel: int) -> np.ndarra
     local = cv2.GaussianBlur(v, (k, k), 0)
     scale = float(np.mean(local)) if local.size else 128.0
     return np.clip(v / np.maximum(local, 1.0) * scale, 0.0, 255.0).astype(np.float32)
+
+
+def _local_darkness(value: np.ndarray, blur_kernel: int) -> Tuple[np.ndarray, np.ndarray]:
+    v = np.asarray(value, dtype=np.float32)
+    k = _odd_kernel_size(blur_kernel)
+    if k <= 1 or cv2 is None:
+        return np.zeros_like(v, dtype=np.float32), v
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    local_surface = cv2.morphologyEx(v, cv2.MORPH_CLOSE, kernel)
+    local_dark = np.clip(local_surface - v, 0.0, 255.0).astype(np.float32)
+    return local_dark, local_surface.astype(np.float32)
+
+
+def _adaptive_v_floor(
+    value: np.ndarray,
+    requested_floor: float,
+    percentile: float,
+    ratio: float,
+    min_floor: float,
+) -> float:
+    requested_floor = float(requested_floor)
+    if requested_floor <= 0.0:
+        return requested_floor
+    if float(percentile) <= 0.0 or float(ratio) <= 0.0:
+        return requested_floor
+    arr = np.asarray(value, dtype=np.float32)
+    finite = arr[np.isfinite(arr)]
+    if finite.size == 0:
+        return requested_floor
+    p = float(np.percentile(finite, np.clip(float(percentile), 1.0, 99.0)))
+    adaptive_floor = max(float(min_floor), p * float(ratio))
+    return min(requested_floor, adaptive_floor)
 
 
 def _align_reference_to_current(
@@ -444,26 +476,49 @@ def _extract_blob_proposals(
     return bboxes, features, is_pad
 
 
-def _nearest_reference_indices(
+def _nearest_reference_index_bank(
     current_position: np.ndarray,
     reference_position: np.ndarray,
     pos_scale: float,
     rot_scale: float,
+    top_k: int,
 ) -> np.ndarray:
     cur = _ensure_2d_min_dim(current_position, 6, "current_position").astype(np.float32)
     ref = _ensure_2d_min_dim(reference_position, 6, "reference_position").astype(np.float32)
+    if ref.shape[0] <= 0:
+        raise ValueError("reference_position must contain at least one frame")
     pos_scale = max(float(pos_scale), 1e-6)
     rot_scale = max(float(rot_scale), 1e-6)
     ref_pos = ref[:, :3] / pos_scale
     ref_rot = ref[:, 3:6] / rot_scale
     ref_scaled = np.concatenate([ref_pos, ref_rot], axis=1)
 
-    out = np.zeros((cur.shape[0],), dtype=np.int64)
+    k = min(max(1, int(top_k)), int(ref_scaled.shape[0]))
+    out = np.zeros((cur.shape[0], k), dtype=np.int64)
     for i in range(cur.shape[0]):
         cur_scaled = np.concatenate([cur[i, :3] / pos_scale, cur[i, 3:6] / rot_scale], axis=0)
         dist = np.sum((ref_scaled - cur_scaled[None, :]) ** 2, axis=1)
-        out[i] = int(np.argmin(dist))
+        if k == 1:
+            out[i, 0] = int(np.argmin(dist))
+        else:
+            nearest = np.argpartition(dist, k - 1)[:k]
+            out[i] = nearest[np.argsort(dist[nearest])].astype(np.int64)
     return out
+
+
+def _nearest_reference_indices(
+    current_position: np.ndarray,
+    reference_position: np.ndarray,
+    pos_scale: float,
+    rot_scale: float,
+) -> np.ndarray:
+    return _nearest_reference_index_bank(
+        current_position=current_position,
+        reference_position=reference_position,
+        pos_scale=pos_scale,
+        rot_scale=rot_scale,
+        top_k=1,
+    )[:, 0]
 
 
 def generate_reference_stain_artifacts(
@@ -498,16 +553,25 @@ def generate_reference_stain_artifacts(
     max_blobs: int,
     pose_pos_scale: float,
     pose_rot_scale: float,
+    reference_top_k: int,
+    reference_diff_percentile: float,
+    local_dark_thresh: float,
+    local_dark_blur_kernel: int,
+    adaptive_v_floor_percentile: float,
+    adaptive_v_floor_ratio: float,
+    adaptive_v_floor_min: float,
 ) -> Dict[str, np.ndarray]:
     cur_rgb = _ensure_image4(current_rgb, "cam0")
     ref_rgb = _ensure_image4(reference_rgb, "reference_cam0")
     T, H, W, _ = cur_rgb.shape
-    ref_indices = _nearest_reference_indices(
+    ref_index_bank = _nearest_reference_index_bank(
         current_position=current_position,
         reference_position=reference_position,
         pos_scale=pose_pos_scale,
         rot_scale=pose_rot_scale,
+        top_k=reference_top_k,
     )
+    ref_indices = ref_index_bank[:, 0]
 
     masks = np.zeros((T, H, W, 1), dtype=np.uint8)
     bboxes = np.zeros((T, max(0, int(max_blobs)), 4), dtype=np.float32)
@@ -516,26 +580,72 @@ def generate_reference_stain_artifacts(
 
     for i in range(T):
         cur_frame = _as_uint8_rgb(cur_rgb[i])
-        ref_frame = _resize_rgb_like(ref_rgb[int(ref_indices[i])], (H, W))
-        ref_frame = _align_reference_to_current(
-            reference_rgb=ref_frame,
-            current_rgb=cur_frame,
-            mode=ref_align_mode,
-            max_iters=ref_align_max_iters,
-            eps=ref_align_eps,
-        )
         cur_v, cur_s = _rgb_to_value_saturation(cur_frame)
-        ref_v, _ = _rgb_to_value_saturation(ref_frame)
         cur_norm = _lighting_normalized_value(cur_v, blur_kernel)
-        ref_norm = _lighting_normalized_value(ref_v, blur_kernel)
-        diff = ref_norm - cur_norm
+        local_dark, local_surface = _local_darkness(cur_v, local_dark_blur_kernel)
 
+        diff_candidates: List[np.ndarray] = []
+        ref_surface_candidates: List[np.ndarray] = []
+        for ref_idx in ref_index_bank[i]:
+            ref_frame = _resize_rgb_like(ref_rgb[int(ref_idx)], (H, W))
+            ref_frame = _align_reference_to_current(
+                reference_rgb=ref_frame,
+                current_rgb=cur_frame,
+                mode=ref_align_mode,
+                max_iters=ref_align_max_iters,
+                eps=ref_align_eps,
+            )
+            ref_v, _ = _rgb_to_value_saturation(ref_frame)
+            ref_norm = _lighting_normalized_value(ref_v, blur_kernel)
+            diff_candidates.append((ref_norm - cur_norm).astype(np.float32))
+            if float(ref_surface_v_min) > 0.0:
+                ref_floor = _adaptive_v_floor(
+                    ref_v,
+                    requested_floor=ref_surface_v_min,
+                    percentile=adaptive_v_floor_percentile,
+                    ratio=adaptive_v_floor_ratio,
+                    min_floor=adaptive_v_floor_min,
+                )
+                ref_surface_candidates.append(ref_v >= ref_floor)
+
+        diff_stack = np.stack(diff_candidates, axis=0)
+        if diff_stack.shape[0] == 1:
+            diff = diff_stack[0]
+        else:
+            diff_pct = np.clip(float(reference_diff_percentile), 0.0, 100.0)
+            diff = np.percentile(diff_stack, diff_pct, axis=0).astype(np.float32)
+
+        if ref_surface_candidates:
+            ref_surface = np.any(np.stack(ref_surface_candidates, axis=0), axis=0)
+        else:
+            ref_surface = True
+
+        context_floor = _adaptive_v_floor(
+            local_surface,
+            requested_floor=context_v_min,
+            percentile=adaptive_v_floor_percentile,
+            ratio=adaptive_v_floor_ratio,
+            min_floor=adaptive_v_floor_min,
+        )
         dark_change = diff >= float(diff_thresh)
-        dark_current = cur_v <= float(dark_thresh)
+        absolute_dark = (
+            cur_v <= float(dark_thresh)
+            if float(dark_thresh) > 0.0
+            else np.zeros_like(cur_v, dtype=bool)
+        )
+        local_dark_current = (
+            local_dark >= float(local_dark_thresh)
+            if float(local_dark_thresh) > 0.0
+            else np.zeros_like(cur_v, dtype=bool)
+        )
+        dark_current = absolute_dark | local_dark_current
         reflection = (cur_v >= float(reflection_v_thresh)) & (cur_s <= float(reflection_s_thresh))
-        ref_surface = ref_v >= float(ref_surface_v_min) if float(ref_surface_v_min) > 0.0 else True
-        bright_context = cur_v >= float(context_v_min) if float(context_v_min) > 0.0 else None
-        if cv2 is not None and float(context_v_min) > 0.0:
+        bright_context = (
+            (cur_v >= context_floor) | (local_surface >= context_floor)
+            if context_floor > 0.0
+            else None
+        )
+        if cv2 is not None and bright_context is not None:
             k = _odd_kernel_size(context_kernel)
             if k > 1:
                 kernel = np.ones((k, k), dtype=np.uint8)
@@ -544,7 +654,8 @@ def generate_reference_stain_artifacts(
                 surface_context = bright_context
         else:
             surface_context = True
-        stain_evidence = dark_change | (bool(dark_prior_enable) & dark_current)
+        dark_prior = bool(dark_prior_enable) & local_dark_current
+        stain_evidence = dark_change | dark_prior
         raw_candidate = stain_evidence & dark_current & ref_surface & surface_context & (~reflection)
         mask = _postprocess_binary_mask(
             raw_candidate,
@@ -565,7 +676,10 @@ def generate_reference_stain_artifacts(
         masks[i, :, :, 0] = mask
         frame_bboxes, frame_features, frame_is_pad = _extract_blob_proposals(
             mask,
-            score_map=np.clip(diff, 0.0, 255.0),
+            score_map=np.maximum(
+                np.clip(diff, 0.0, 255.0),
+                np.clip(local_dark, 0.0, 255.0),
+            ),
             max_blobs=max_blobs,
         )
         if max_blobs > 0:
@@ -773,7 +887,7 @@ def convert_merged_h5(
     stain_morph_kernel: int = 5,
     stain_hole_close_kernel: int = 7,
     stain_ref_blur_kernel: int = 31,
-    stain_ref_align_mode: str = "translation",
+    stain_ref_align_mode: str = "euclidean",
     stain_ref_align_max_iters: int = 40,
     stain_ref_align_eps: float = 1e-4,
     stain_ref_surface_v_min: float = 120.0,
@@ -781,16 +895,23 @@ def convert_merged_h5(
     stain_context_kernel: int = 31,
     stain_dark_prior_enable: bool = True,
     stain_output_constraint_kernel: int = 11,
-    stain_ignore_border_px: int = 3,
+    stain_ignore_border_px: int = 0,
     stain_component_context_pad: int = 12,
-    stain_component_context_min_ratio: float = 0.15,
+    stain_component_context_min_ratio: float = 0.08,
     stain_component_max_width_frac: float = 0.0,
     stain_component_max_height_frac: float = 0.0,
-    stain_component_max_area_frac: float = 0.08,
+    stain_component_max_area_frac: float = 0.12,
     stain_fill_holes_max_area: int = 400,
     stain_max_blobs: int = 8,
     stain_ref_pose_pos_scale: float = 50.0,
     stain_ref_pose_rot_scale: float = 0.35,
+    stain_reference_top_k: int = 3,
+    stain_reference_diff_percentile: float = 75.0,
+    stain_local_dark_thresh: float = 14.0,
+    stain_local_dark_blur_kernel: int = 41,
+    stain_adaptive_v_floor_percentile: float = 75.0,
+    stain_adaptive_v_floor_ratio: float = 0.85,
+    stain_adaptive_v_floor_min: float = 60.0,
 ) -> List[Path]:
     camera_names = [str(c).strip() for c in camera_names if str(c).strip()]
     if not camera_names:
@@ -878,6 +999,13 @@ def convert_merged_h5(
                         max_blobs=stain_max_blobs,
                         pose_pos_scale=stain_ref_pose_pos_scale,
                         pose_rot_scale=stain_ref_pose_rot_scale,
+                        reference_top_k=stain_reference_top_k,
+                        reference_diff_percentile=stain_reference_diff_percentile,
+                        local_dark_thresh=stain_local_dark_thresh,
+                        local_dark_blur_kernel=stain_local_dark_blur_kernel,
+                        adaptive_v_floor_percentile=stain_adaptive_v_floor_percentile,
+                        adaptive_v_floor_ratio=stain_adaptive_v_floor_ratio,
+                        adaptive_v_floor_min=stain_adaptive_v_floor_min,
                     )
                     data.update(artifacts)
 
@@ -932,6 +1060,10 @@ def convert_merged_h5(
                     "schema_version": "imitation_form_compact_v1",
                     "stain_mask_mode": effective_stain_mode,
                     "stain_reference_episode": reference_ep_name,
+                    "stain_reference_top_k": int(stain_reference_top_k),
+                    "stain_reference_diff_percentile": float(stain_reference_diff_percentile),
+                    "stain_local_dark_thresh": float(stain_local_dark_thresh),
+                    "stain_ref_align_mode": str(stain_ref_align_mode),
                 },
                 fp,
                 indent=2,
@@ -1005,7 +1137,7 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_ref_align_mode",
         type=str,
-        default="translation",
+        default="euclidean",
         choices=["none", "translation", "euclidean", "affine"],
         help="Align the selected clean reference frame to the current frame before differencing.",
     )
@@ -1045,14 +1177,14 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_ignore_border_px",
         type=int,
-        default=3,
+        default=0,
         help="Drop stain components touching the image border within this many pixels. 0 disables.",
     )
     parser.add_argument("--stain_component_context_pad", type=int, default=12)
     parser.add_argument(
         "--stain_component_context_min_ratio",
         type=float,
-        default=0.15,
+        default=0.08,
         help="Require this ratio of bright surface pixels around each component. 0 disables.",
     )
     parser.add_argument("--stain_component_max_width_frac", type=float, default=0.0)
@@ -1060,7 +1192,7 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_component_max_area_frac",
         type=float,
-        default=0.08,
+        default=0.12,
         help="Drop components covering more than this image fraction. 0 disables.",
     )
     parser.add_argument(
@@ -1072,6 +1204,28 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument("--stain_max_blobs", type=int, default=8)
     parser.add_argument("--stain_ref_pose_pos_scale", type=float, default=50.0)
     parser.add_argument("--stain_ref_pose_rot_scale", type=float, default=0.35)
+    parser.add_argument(
+        "--stain_reference_top_k",
+        type=int,
+        default=3,
+        help="Use this many nearest clean reference frames and fuse their dark-change evidence.",
+    )
+    parser.add_argument(
+        "--stain_reference_diff_percentile",
+        type=float,
+        default=75.0,
+        help="Percentile used to fuse top-k reference difference maps. 50=median, 100=max.",
+    )
+    parser.add_argument(
+        "--stain_local_dark_thresh",
+        type=float,
+        default=14.0,
+        help="Local contrast threshold for dark stains, independent of absolute image brightness.",
+    )
+    parser.add_argument("--stain_local_dark_blur_kernel", type=int, default=41)
+    parser.add_argument("--stain_adaptive_v_floor_percentile", type=float, default=75.0)
+    parser.add_argument("--stain_adaptive_v_floor_ratio", type=float, default=0.85)
+    parser.add_argument("--stain_adaptive_v_floor_min", type=float, default=60.0)
     parser.set_defaults(camera_names=list(camera_names))
     return parser
 
@@ -1122,4 +1276,11 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         stain_max_blobs=int(args.stain_max_blobs),
         stain_ref_pose_pos_scale=float(args.stain_ref_pose_pos_scale),
         stain_ref_pose_rot_scale=float(args.stain_ref_pose_rot_scale),
+        stain_reference_top_k=int(args.stain_reference_top_k),
+        stain_reference_diff_percentile=float(args.stain_reference_diff_percentile),
+        stain_local_dark_thresh=float(args.stain_local_dark_thresh),
+        stain_local_dark_blur_kernel=int(args.stain_local_dark_blur_kernel),
+        stain_adaptive_v_floor_percentile=float(args.stain_adaptive_v_floor_percentile),
+        stain_adaptive_v_floor_ratio=float(args.stain_adaptive_v_floor_ratio),
+        stain_adaptive_v_floor_min=float(args.stain_adaptive_v_floor_min),
     )
