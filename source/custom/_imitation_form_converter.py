@@ -1595,7 +1595,7 @@ def convert_merged_h5(
     stain_dark_prior_enable: bool = True,
     stain_dark_prior_component_min_diff_ratio: float = 0.35,
     stain_component_dark_v_max: float = 120.0,
-    stain_component_dark_min_ratio: float = 0.45,
+    stain_component_dark_min_ratio: float = 0.30,
     stain_output_constraint_kernel: int = 11,
     stain_ignore_border_px: int = 2,
     stain_component_context_pad: int = 12,
@@ -1623,7 +1623,7 @@ def convert_merged_h5(
     stain_adaptive_v_floor_min: float = 60.0,
     stain_temporal_fill_enable: bool = True,
     stain_temporal_fill_max_gap: int = 24,
-    stain_temporal_fill_min_pixels: int = 0,
+    stain_temporal_fill_min_pixels: int = 800,
     stain_temporal_fill_align_mode: str = "homography",
     stain_temporal_fill_min_align_cc: float = 0.45,
     stain_temporal_fill_identity_fallback_max_gap: int = 3,
@@ -1633,7 +1633,7 @@ def convert_merged_h5(
     stain_temporal_prune_min_align_cc: float = 0.45,
     stain_temporal_prune_identity_fallback_max_gap: int = 3,
     stain_temporal_prune_support_dilate_kernel: int = 15,
-    stain_temporal_prune_min_overlap_ratio: float = 0.12,
+    stain_temporal_prune_min_overlap_ratio: float = 0.0,
 ) -> List[Path]:
     camera_names = [str(c).strip() for c in camera_names if str(c).strip()]
     if not camera_names:
@@ -1993,7 +1993,7 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_component_dark_min_ratio",
         type=float,
-        default=0.45,
+        default=0.30,
         help=(
             "Keep each mask component only if at least this fraction of its pixels have "
             "V <= stain_component_dark_v_max. 0 disables."
@@ -2132,8 +2132,11 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_temporal_fill_min_pixels",
         type=int,
-        default=0,
-        help="Frames below this mask-pixel count are fill candidates. 0 uses max(2*min_area, 30).",
+        default=800,
+        help=(
+            "Frames below this mask-pixel count are fill candidates. "
+            "Use 0 for conservative legacy auto max(2*min_area, 30)."
+        ),
     )
     parser.add_argument(
         "--stain_temporal_fill_align_mode",
@@ -2206,8 +2209,8 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_temporal_prune_min_overlap_ratio",
         type=float,
-        default=0.12,
-        help="Minimum component overlap with aligned temporal support required to keep it.",
+        default=0.0,
+        help="Minimum component overlap with aligned temporal support required to keep it. 0 favors recall.",
     )
     parser.set_defaults(camera_names=list(camera_names))
     return parser
