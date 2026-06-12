@@ -458,6 +458,33 @@ def _filter_components_by_support_ratio(
     return out
 
 
+def _filter_mask_components_by_signal_ratio(
+    mask_u8: np.ndarray,
+    signal_bool: np.ndarray,
+    min_ratio: float,
+) -> np.ndarray:
+    min_ratio = max(0.0, float(min_ratio))
+    mask = (np.asarray(mask_u8) > 0).astype(np.uint8)
+    if min_ratio <= 0.0 or cv2 is None or int(np.count_nonzero(mask)) == 0:
+        return (mask.astype(np.uint8) * 255)
+
+    signal = np.asarray(signal_bool, dtype=bool)
+    if signal.shape != mask.shape:
+        raise ValueError(f"signal_bool shape {signal.shape} does not match mask shape {mask.shape}")
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    out = np.zeros_like(mask, dtype=np.uint8)
+    for label in range(1, num_labels):
+        area = int(stats[label, cv2.CC_STAT_AREA])
+        if area <= 0:
+            continue
+        comp = labels == label
+        ratio = float(np.count_nonzero(comp & signal)) / float(area)
+        if ratio >= min_ratio:
+            out[comp] = 255
+    return out.astype(np.uint8)
+
+
 def _postprocess_binary_mask(
     mask_bool: np.ndarray,
     min_area: int,
@@ -1060,6 +1087,8 @@ def generate_reference_stain_artifacts(
     context_kernel: int,
     dark_prior_enable: bool,
     dark_prior_component_min_diff_ratio: float,
+    component_dark_v_max: float,
+    component_dark_min_ratio: float,
     output_constraint_kernel: int,
     ignore_border_px: int,
     component_context_pad: int,
@@ -1116,6 +1145,8 @@ def generate_reference_stain_artifacts(
     nearest_pose_distances = np.sqrt(np.maximum(ref_distance_bank[:, 0], 0.0)).astype(np.float32)
     pose_rejected = np.zeros((T,), dtype=np.uint8)
     rescue_gates = np.zeros((T, H, W), dtype=bool)
+    component_dark_signals = np.ones((T, H, W), dtype=bool)
+    use_component_dark_filter = float(component_dark_v_max) > 0.0 and float(component_dark_min_ratio) > 0.0
 
     for i in range(T):
         cur_frame = _as_uint8_rgb(cur_rgb[i])
@@ -1140,6 +1171,12 @@ def generate_reference_stain_artifacts(
             else np.zeros_like(cur_v, dtype=bool)
         )
         dark_current = absolute_dark | local_dark_current
+        strict_dark_current = (
+            cur_v <= float(component_dark_v_max)
+            if use_component_dark_filter
+            else np.ones_like(cur_v, dtype=bool)
+        )
+        component_dark_signals[i] = strict_dark_current
         reflection = (cur_v >= float(reflection_v_thresh)) & (cur_s <= float(reflection_s_thresh))
         bright_context = (
             (cur_v >= context_floor) | (local_surface >= context_floor)
@@ -1268,6 +1305,12 @@ def generate_reference_stain_artifacts(
             )
             prior_mask = _constrain_to_near_mask(prior_mask, prior_candidate, output_constraint_kernel)
             mask = np.maximum(mask, prior_mask)
+        if use_component_dark_filter:
+            mask = _filter_mask_components_by_signal_ratio(
+                mask,
+                strict_dark_current,
+                component_dark_min_ratio,
+            )
         masks[i, :, :, 0] = mask
 
     temporal_filled = np.zeros((T,), dtype=np.uint8)
@@ -1323,6 +1366,14 @@ def generate_reference_stain_artifacts(
             component_max_aspect_ratio=component_max_aspect_ratio,
             fill_holes_max_area=fill_holes_max_area,
         )
+
+    if use_component_dark_filter:
+        for i in range(T):
+            masks[i, :, :, 0] = _filter_mask_components_by_signal_ratio(
+                masks[i, :, :, 0],
+                component_dark_signals[i],
+                component_dark_min_ratio,
+            )
 
     return {
         "stain_mask": masks,
@@ -1543,6 +1594,8 @@ def convert_merged_h5(
     stain_context_kernel: int = 31,
     stain_dark_prior_enable: bool = True,
     stain_dark_prior_component_min_diff_ratio: float = 0.35,
+    stain_component_dark_v_max: float = 120.0,
+    stain_component_dark_min_ratio: float = 0.45,
     stain_output_constraint_kernel: int = 11,
     stain_ignore_border_px: int = 2,
     stain_component_context_pad: int = 12,
@@ -1658,6 +1711,8 @@ def convert_merged_h5(
                         context_kernel=stain_context_kernel,
                         dark_prior_enable=stain_dark_prior_enable,
                         dark_prior_component_min_diff_ratio=stain_dark_prior_component_min_diff_ratio,
+                        component_dark_v_max=stain_component_dark_v_max,
+                        component_dark_min_ratio=stain_component_dark_min_ratio,
                         output_constraint_kernel=stain_output_constraint_kernel,
                         ignore_border_px=stain_ignore_border_px,
                         component_context_pad=stain_component_context_pad,
@@ -1791,6 +1846,8 @@ def convert_merged_h5(
                     "stain_ref_align_mode": str(stain_ref_align_mode),
                     "stain_dark_prior_enable": bool(stain_dark_prior_enable),
                     "stain_dark_prior_component_min_diff_ratio": float(stain_dark_prior_component_min_diff_ratio),
+                    "stain_component_dark_v_max": float(stain_component_dark_v_max),
+                    "stain_component_dark_min_ratio": float(stain_component_dark_min_ratio),
                     "stain_component_max_width_frac": float(stain_component_max_width_frac),
                     "stain_component_max_height_frac": float(stain_component_max_height_frac),
                     "stain_component_max_aspect_ratio": float(stain_component_max_aspect_ratio),
@@ -1922,6 +1979,24 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
         help=(
             "When dark-prior rescue is enabled, require each raw component to contain at least this "
             "fraction of reference-diff-supported pixels. 0 restores the old loose behavior."
+        ),
+    )
+    parser.add_argument(
+        "--stain_component_dark_v_max",
+        type=float,
+        default=120.0,
+        help=(
+            "Current-frame V threshold for strict dark evidence at component level. "
+            "0 disables strict-dark component filtering."
+        ),
+    )
+    parser.add_argument(
+        "--stain_component_dark_min_ratio",
+        type=float,
+        default=0.45,
+        help=(
+            "Keep each mask component only if at least this fraction of its pixels have "
+            "V <= stain_component_dark_v_max. 0 disables."
         ),
     )
     parser.add_argument(
@@ -2174,6 +2249,8 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         stain_context_kernel=int(args.stain_context_kernel),
         stain_dark_prior_enable=bool(args.stain_dark_prior_enable),
         stain_dark_prior_component_min_diff_ratio=float(args.stain_dark_prior_component_min_diff_ratio),
+        stain_component_dark_v_max=float(args.stain_component_dark_v_max),
+        stain_component_dark_min_ratio=float(args.stain_component_dark_min_ratio),
         stain_output_constraint_kernel=int(args.stain_output_constraint_kernel),
         stain_ignore_border_px=int(args.stain_ignore_border_px),
         stain_component_context_pad=int(args.stain_component_context_pad),
