@@ -1622,8 +1622,8 @@ def convert_merged_h5(
     stain_adaptive_v_floor_ratio: float = 0.85,
     stain_adaptive_v_floor_min: float = 60.0,
     stain_temporal_fill_enable: bool = True,
-    stain_temporal_fill_max_gap: int = 24,
-    stain_temporal_fill_min_pixels: int = 800,
+    stain_temporal_fill_max_gap: int = 48,
+    stain_temporal_fill_min_pixels: int = 1200,
     stain_temporal_fill_align_mode: str = "homography",
     stain_temporal_fill_min_align_cc: float = 0.45,
     stain_temporal_fill_identity_fallback_max_gap: int = 3,
@@ -2126,13 +2126,13 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument(
         "--stain_temporal_fill_max_gap",
         type=int,
-        default=24,
+        default=48,
         help="Search this many frames forward/backward for confident masks when filling a weak frame.",
     )
     parser.add_argument(
         "--stain_temporal_fill_min_pixels",
         type=int,
-        default=800,
+        default=1200,
         help=(
             "Frames below this mask-pixel count are fill candidates. "
             "Use 0 for conservative legacy auto max(2*min_area, 30)."
