@@ -422,7 +422,7 @@ FT_processing::FT_processing(std::shared_ptr<rclcpp::Node> node,
   // 파라미터 읽기
   if (!node_->get_parameter("AFT80IP", YamlString_IP)) {
     RCLCPP_ERROR(node_->get_logger(), "Can't find AFT80IP!");
-    YamlString_IP = "192.168.0.42";
+    YamlString_IP = "192.168.0.44";
   }
   if (!node_->get_parameter("Data1_path", YamlData1_path)) {
     RCLCPP_ERROR(node_->get_logger(), "Can't find Data1_path!");
