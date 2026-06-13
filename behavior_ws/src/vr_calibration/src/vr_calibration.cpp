@@ -25,6 +25,7 @@
 #include <iomanip>
 #include <cstdlib>
 #include <ctime>   // for timestamp
+#include <limits>
 
 // ================= Constants =================
 static constexpr double kPi = 3.14159265358979323846;
@@ -153,6 +154,19 @@ static Eigen::Matrix4d invT(const Eigen::Matrix4d& T)
   Ti.block<3,3>(0,0) = R.transpose();
   Ti.block<3,1>(0,3) = -R.transpose()*p;
   return Ti;
+}
+
+static Eigen::Matrix3d projectToSO3(const Eigen::Matrix3d& R_in)
+{
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd(R_in, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  Eigen::Matrix3d U = svd.matrixU();
+  const Eigen::Matrix3d V = svd.matrixV();
+  Eigen::Matrix3d R = U * V.transpose();
+  if (R.determinant() < 0.0) {
+    U.col(2) *= -1.0;
+    R = U * V.transpose();
+  }
+  return R;
 }
 
 static double rotAngleBetweenRad(const Eigen::Matrix3d& R1,
@@ -1994,7 +2008,6 @@ private:
 
     Eigen::MatrixXd M(9 * K, 9);
     Eigen::MatrixXd K1(3 * K, 3);
-    Eigen::VectorXd K2(3 * K);
 
     const Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
 
@@ -2037,60 +2050,88 @@ private:
     Eigen::VectorXd vectX = es.eigenvectors().col(0);
     Eigen::Map<const Eigen::Matrix<double,3,3,Eigen::ColMajor>> R_BC_raw(vectX.data());
 
-    Eigen::JacobiSVD<Eigen::Matrix3d> svd(R_BC_raw, Eigen::ComputeFullU | Eigen::ComputeFullV);
-    Eigen::Matrix3d U = svd.matrixU();
-    Eigen::Matrix3d V = svd.matrixV();
-    Eigen::Matrix3d R_BC = U * V.transpose();
-    if (R_BC.determinant() < 0) {
-      U.col(2) *= -1.0;
-      R_BC = U * V.transpose();
-    }
+    struct HandEyeCandidate
+    {
+      int sign = 1;
+      Eigen::Matrix4d T_BC = Eigen::Matrix4d::Identity();
+      Eigen::Matrix4d T_AD_avg = Eigen::Matrix4d::Identity();
+      double fit_rms_m = std::numeric_limits<double>::infinity();
+    };
 
-    for (size_t i=0; i<K; i++) {
-      const Eigen::Vector3d& O_B0B1 = O_B0B1_list_[i];
-      const Eigen::Vector3d& O_C0C1 = O_C0C1_list_[i];
-      Eigen::Vector3d temp = O_B0B1 - R_BC * O_C0C1;
-      K2.segment<3>(3*i) = temp;
-    }
+    auto evaluateCandidate = [&](const Eigen::Matrix3d& R_raw, int sign) {
+      HandEyeCandidate cand;
+      cand.sign = sign;
 
-    Eigen::Vector3d O_BC = K1.colPivHouseholderQr().solve(K2);
-    Eigen::Matrix4d T_BC = makeT(R_BC, O_BC);
-
-    // Compute T_AD_i = T_AB_i * T_BC * inv(T_DC_i) once per sample.
-    std::vector<Eigen::Quaterniond> quats;
-    quats.reserve(N);
-    Eigen::Vector3d t_sum = Eigen::Vector3d::Zero();
-
-    for (size_t s=solve_start_idx; s<N_all; s++) {
-      const Eigen::Matrix4d& T_AB = T_AB_all_[s];
-      const Eigen::Matrix4d& T_DC = T_DC_adj_all[s];
-
-      Eigen::Matrix4d T_AD = T_AB * T_BC * invT(T_DC);
-      Eigen::Matrix3d R = T_AD.block<3,3>(0,0);
-      Eigen::Vector3d t = T_AD.block<3,1>(0,3);
-
-      Eigen::Quaterniond q(R);
-      q.normalize();
-      quats.push_back(q);
-      t_sum += t;
-    }
-
-    Eigen::Quaterniond q_ref = quats.front();
-    Eigen::Vector4d q_sum = Eigen::Vector4d::Zero();
-    for (auto& q : quats) {
-      if (q_ref.coeffs().dot(q.coeffs()) < 0) {
-        q.coeffs() *= -1.0;
+      const Eigen::Matrix3d R_BC = projectToSO3(R_raw);
+      Eigen::VectorXd K2_candidate(3 * K);
+      for (size_t i=0; i<K; i++) {
+        const Eigen::Vector3d& O_B0B1 = O_B0B1_list_[i];
+        const Eigen::Vector3d& O_C0C1 = O_C0C1_list_[i];
+        K2_candidate.segment<3>(3*i) = O_B0B1 - R_BC * O_C0C1;
       }
-      q_sum += q.coeffs();
-    }
-    q_sum /= static_cast<double>(quats.size());
-    Eigen::Quaterniond q_mean;
-    q_mean.coeffs() = q_sum;
-    q_mean.normalize();
 
-    Eigen::Vector3d t_mean = t_sum / static_cast<double>(N);
+      const Eigen::Vector3d O_BC = K1.colPivHouseholderQr().solve(K2_candidate);
+      cand.T_BC = makeT(R_BC, O_BC);
 
-    Eigen::Matrix4d T_AD_avg = makeT(q_mean.toRotationMatrix(), t_mean);
+      std::vector<Eigen::Quaterniond> quats;
+      quats.reserve(N);
+      Eigen::Vector3d t_sum = Eigen::Vector3d::Zero();
+
+      for (size_t s=solve_start_idx; s<N_all; s++) {
+        const Eigen::Matrix4d& T_AB = T_AB_all_[s];
+        const Eigen::Matrix4d& T_DC = T_DC_adj_all[s];
+        const Eigen::Matrix4d T_AD = T_AB * cand.T_BC * invT(T_DC);
+
+        Eigen::Quaterniond q(T_AD.block<3,3>(0,0));
+        q.normalize();
+        quats.push_back(q);
+        t_sum += T_AD.block<3,1>(0,3);
+      }
+
+      Eigen::Quaterniond q_ref = quats.front();
+      Eigen::Vector4d q_sum = Eigen::Vector4d::Zero();
+      for (auto& q : quats) {
+        if (q_ref.coeffs().dot(q.coeffs()) < 0) {
+          q.coeffs() *= -1.0;
+        }
+        q_sum += q.coeffs();
+      }
+      q_sum /= static_cast<double>(quats.size());
+      Eigen::Quaterniond q_mean;
+      q_mean.coeffs() = q_sum;
+      q_mean.normalize();
+
+      const Eigen::Vector3d t_mean = t_sum / static_cast<double>(N);
+      cand.T_AD_avg = makeT(q_mean.toRotationMatrix(), t_mean);
+
+      const Eigen::Matrix4d T_CB = invT(cand.T_BC);
+      double sum2 = 0.0;
+      for (size_t i=0; i<N_all; ++i) {
+        const Eigen::Matrix4d M_cal = cand.T_AD_avg * T_DC_adj_all[i] * T_CB;
+        const Eigen::Vector3d p_cal = M_cal.block<3,1>(0,3);
+        const Eigen::Vector3d p_ref = T_AB_all_[i].block<3,1>(0,3);
+        const double err = (p_ref - p_cal).norm();
+        sum2 += err * err;
+      }
+      cand.fit_rms_m = std::sqrt(sum2 / static_cast<double>(N_all));
+      return cand;
+    };
+
+    const HandEyeCandidate cand_pos = evaluateCandidate(R_BC_raw, 1);
+    const HandEyeCandidate cand_neg = evaluateCandidate(-R_BC_raw, -1);
+    const HandEyeCandidate& best =
+      (cand_pos.fit_rms_m <= cand_neg.fit_rms_m) ? cand_pos : cand_neg;
+    const HandEyeCandidate& alt = (&best == &cand_pos) ? cand_neg : cand_pos;
+
+    RCLCPP_INFO(get_logger(),
+      "[HAND_EYE] sign=%+d fit_rms=%.3fmm alt=%+d %.3fmm",
+      best.sign,
+      best.fit_rms_m * 1000.0,
+      alt.sign,
+      alt.fit_rms_m * 1000.0);
+
+    const Eigen::Matrix4d T_BC = best.T_BC;
+    const Eigen::Matrix4d T_AD_avg = best.T_AD_avg;
     T_FIX_ = computeZPlaneFix(
       T_AD_avg,
       have_radj_ ? R_adj_ : Eigen::Matrix3d::Identity(),
