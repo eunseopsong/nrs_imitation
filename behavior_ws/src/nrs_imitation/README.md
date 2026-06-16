@@ -290,22 +290,16 @@ ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py
 visualization topics:
 
 ```text
-single_cam: /inference_single_cam/gradcam_overlay       # local Grad-CAM + xyz trajectory overlay
-dual_cam  : /inference_dual_cam/gradcam_overlay         # local Grad-CAM + xyz trajectory overlay
+single_cam: /inference_single_cam/gradcam_overlay       # local Grad-CAM overlay
+single_cam: /inference_single_cam/stain_mask_overlay    # generated stain-mask overlay when auto_stain_mask=true
+dual_cam  : /inference_dual_cam/gradcam_overlay         # local Grad-CAM overlay
 dual_cam  : /inference_dual_cam/gradcam_overlay_global  # global Grad-CAM only
 ```
 
-시각화 layer는 각각 끌 수 있습니다.
+Grad-CAM 시각화는 끌 수 있습니다.
 
 ```bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py gradcam_enable:=false
-ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_enable:=false
-```
-
-xyz 궤적이 너무 크거나 작으면 고정 스케일을 조절합니다.
-
-```bash
-ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_pixels_per_mm:=4.0
 ```
 
 ## Stage-1 VR Workflow

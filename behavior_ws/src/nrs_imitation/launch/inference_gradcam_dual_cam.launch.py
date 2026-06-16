@@ -18,6 +18,16 @@ def generate_launch_description():
     force_topic = LaunchConfiguration("force_topic")
     image_topic = LaunchConfiguration("image_topic")
     global_image_topic = LaunchConfiguration("global_image_topic")
+    use_stain_mask = LaunchConfiguration("use_stain_mask")
+    stain_mask_topic = LaunchConfiguration("stain_mask_topic")
+    auto_stain_mask = LaunchConfiguration("auto_stain_mask")
+    stain_mask_overlay_topic = LaunchConfiguration("stain_mask_overlay_topic")
+    publish_stain_mask_overlay = LaunchConfiguration("publish_stain_mask_overlay")
+    stain_dark_thresh = LaunchConfiguration("stain_dark_thresh")
+    reflection_v_thresh = LaunchConfiguration("reflection_v_thresh")
+    reflection_s_thresh = LaunchConfiguration("reflection_s_thresh")
+    stain_min_area = LaunchConfiguration("stain_min_area")
+    stain_morph_kernel = LaunchConfiguration("stain_morph_kernel")
     cmd_topic = LaunchConfiguration("cmd_topic")
 
     gradcam_enable = LaunchConfiguration("gradcam_enable")
@@ -31,21 +41,6 @@ def generate_launch_description():
     gradcam_global_overlay_topic = LaunchConfiguration("gradcam_global_overlay_topic")
     gradcam_save = LaunchConfiguration("gradcam_save")
     gradcam_save_dir = LaunchConfiguration("gradcam_save_dir")
-    trajectory_viz_enable = LaunchConfiguration("trajectory_viz_enable")
-    trajectory_viz_topic = LaunchConfiguration("trajectory_viz_topic")
-    trajectory_viz_frame_id = LaunchConfiguration("trajectory_viz_frame_id")
-    trajectory_viz_xyz_scale = LaunchConfiguration("trajectory_viz_xyz_scale")
-    trajectory_viz_line_width_m = LaunchConfiguration("trajectory_viz_line_width_m")
-    trajectory_viz_max_points = LaunchConfiguration("trajectory_viz_max_points")
-    trajectory_viz_lifetime_sec = LaunchConfiguration("trajectory_viz_lifetime_sec")
-    trajectory_overlay_enable = LaunchConfiguration("trajectory_overlay_enable")
-    trajectory_overlay_max_points = LaunchConfiguration("trajectory_overlay_max_points")
-    trajectory_overlay_origin = LaunchConfiguration("trajectory_overlay_origin")
-    trajectory_overlay_pixels_per_mm = LaunchConfiguration("trajectory_overlay_pixels_per_mm")
-    trajectory_overlay_center_u_ratio = LaunchConfiguration("trajectory_overlay_center_u_ratio")
-    trajectory_overlay_center_v_ratio = LaunchConfiguration("trajectory_overlay_center_v_ratio")
-    trajectory_overlay_line_width_px = LaunchConfiguration("trajectory_overlay_line_width_px")
-    trajectory_overlay_point_radius_px = LaunchConfiguration("trajectory_overlay_point_radius_px")
     visualize = LaunchConfiguration("visualize")
     visualize_global = LaunchConfiguration("visualize_global")
 
@@ -58,6 +53,16 @@ def generate_launch_description():
         DeclareLaunchArgument("force_topic", default_value="/ur10skku/currentF"),
         DeclareLaunchArgument("image_topic", default_value="/realsense/robot/color/image_raw"),
         DeclareLaunchArgument("global_image_topic", default_value="/realsense/global/color/image_raw"),
+        DeclareLaunchArgument("use_stain_mask", default_value="false"),
+        DeclareLaunchArgument("stain_mask_topic", default_value="/inference_dual_cam/stain_mask"),
+        DeclareLaunchArgument("auto_stain_mask", default_value="false"),
+        DeclareLaunchArgument("stain_mask_overlay_topic", default_value="/inference_dual_cam/stain_mask_overlay"),
+        DeclareLaunchArgument("publish_stain_mask_overlay", default_value="true"),
+        DeclareLaunchArgument("stain_dark_thresh", default_value="80"),
+        DeclareLaunchArgument("reflection_v_thresh", default_value="235"),
+        DeclareLaunchArgument("reflection_s_thresh", default_value="60"),
+        DeclareLaunchArgument("stain_min_area", default_value="20"),
+        DeclareLaunchArgument("stain_morph_kernel", default_value="3"),
         DeclareLaunchArgument("cmd_topic", default_value="/ur10skku/cmdMotion"),
 
         DeclareLaunchArgument("gradcam_enable", default_value="true"),
@@ -71,23 +76,27 @@ def generate_launch_description():
         DeclareLaunchArgument("gradcam_global_overlay_topic", default_value="/inference_dual_cam/gradcam_overlay_global"),
         DeclareLaunchArgument("gradcam_save", default_value="false"),
         DeclareLaunchArgument("gradcam_save_dir", default_value="~/nrs_imitation/gradcam"),
-        DeclareLaunchArgument("trajectory_viz_enable", default_value="false"),
-        DeclareLaunchArgument("trajectory_viz_topic", default_value="/inference_dual_cam/predicted_xyz_trajectory"),
-        DeclareLaunchArgument("trajectory_viz_frame_id", default_value="base_link"),
-        DeclareLaunchArgument("trajectory_viz_xyz_scale", default_value="0.001"),
-        DeclareLaunchArgument("trajectory_viz_line_width_m", default_value="0.003"),
-        DeclareLaunchArgument("trajectory_viz_max_points", default_value="200"),
-        DeclareLaunchArgument("trajectory_viz_lifetime_sec", default_value="1.0"),
-        DeclareLaunchArgument("trajectory_overlay_enable", default_value="true"),
-        DeclareLaunchArgument("trajectory_overlay_max_points", default_value="80"),
-        DeclareLaunchArgument("trajectory_overlay_origin", default_value="current"),
-        DeclareLaunchArgument("trajectory_overlay_pixels_per_mm", default_value="8.0"),
-        DeclareLaunchArgument("trajectory_overlay_center_u_ratio", default_value="0.50"),
-        DeclareLaunchArgument("trajectory_overlay_center_v_ratio", default_value="0.55"),
-        DeclareLaunchArgument("trajectory_overlay_line_width_px", default_value="3"),
-        DeclareLaunchArgument("trajectory_overlay_point_radius_px", default_value="4"),
         DeclareLaunchArgument("visualize", default_value="true"),
         DeclareLaunchArgument("visualize_global", default_value="true"),
+
+        Node(
+            package="nrs_imitation",
+            executable="stain_mask_publisher",
+            name="stain_mask_publisher",
+            output="screen",
+            parameters=[{
+                "image_topic": image_topic,
+                "mask_topic": stain_mask_topic,
+                "overlay_topic": stain_mask_overlay_topic,
+                "publish_overlay": ParameterValue(publish_stain_mask_overlay, value_type=bool),
+                "stain_dark_thresh": ParameterValue(stain_dark_thresh, value_type=int),
+                "reflection_v_thresh": ParameterValue(reflection_v_thresh, value_type=int),
+                "reflection_s_thresh": ParameterValue(reflection_s_thresh, value_type=int),
+                "stain_min_area": ParameterValue(stain_min_area, value_type=int),
+                "stain_morph_kernel": ParameterValue(stain_morph_kernel, value_type=int),
+            }],
+            condition=IfCondition(auto_stain_mask),
+        ),
 
         Node(
             package="nrs_imitation",
@@ -103,6 +112,8 @@ def generate_launch_description():
                 "force_topic": force_topic,
                 "image_topic": image_topic,
                 "global_image_topic": global_image_topic,
+                "use_stain_mask": ParameterValue(use_stain_mask, value_type=bool),
+                "stain_mask_topic": stain_mask_topic,
                 "cmd_topic": cmd_topic,
                 "gradcam_enable": ParameterValue(gradcam_enable, value_type=bool),
                 "gradcam_publish": ParameterValue(gradcam_publish, value_type=bool),
@@ -115,21 +126,6 @@ def generate_launch_description():
                 "gradcam_global_overlay_topic": gradcam_global_overlay_topic,
                 "gradcam_save": ParameterValue(gradcam_save, value_type=bool),
                 "gradcam_save_dir": gradcam_save_dir,
-                "trajectory_viz_enable": ParameterValue(trajectory_viz_enable, value_type=bool),
-                "trajectory_viz_topic": trajectory_viz_topic,
-                "trajectory_viz_frame_id": trajectory_viz_frame_id,
-                "trajectory_viz_xyz_scale": ParameterValue(trajectory_viz_xyz_scale, value_type=float),
-                "trajectory_viz_line_width_m": ParameterValue(trajectory_viz_line_width_m, value_type=float),
-                "trajectory_viz_max_points": ParameterValue(trajectory_viz_max_points, value_type=int),
-                "trajectory_viz_lifetime_sec": ParameterValue(trajectory_viz_lifetime_sec, value_type=float),
-                "trajectory_overlay_enable": ParameterValue(trajectory_overlay_enable, value_type=bool),
-                "trajectory_overlay_max_points": ParameterValue(trajectory_overlay_max_points, value_type=int),
-                "trajectory_overlay_origin": trajectory_overlay_origin,
-                "trajectory_overlay_pixels_per_mm": ParameterValue(trajectory_overlay_pixels_per_mm, value_type=float),
-                "trajectory_overlay_center_u_ratio": ParameterValue(trajectory_overlay_center_u_ratio, value_type=float),
-                "trajectory_overlay_center_v_ratio": ParameterValue(trajectory_overlay_center_v_ratio, value_type=float),
-                "trajectory_overlay_line_width_px": ParameterValue(trajectory_overlay_line_width_px, value_type=int),
-                "trajectory_overlay_point_radius_px": ParameterValue(trajectory_overlay_point_radius_px, value_type=int),
             }],
         ),
 

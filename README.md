@@ -210,7 +210,7 @@ Checkpoints trained with the default stain-mask pooling require inference to rec
 ```bash
 ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
   use_stain_mask:=true \
-  stain_mask_topic:=<live_cam0_stain_mask_topic>
+  auto_stain_mask:=true
 ```
 
 If you trained with `--no_stain_mask`, keep inference RGB-only with `use_stain_mask:=false`.
@@ -218,20 +218,14 @@ If you trained with `--no_stain_mask`, keep inference RGB-only with `use_stain_m
 Visualization topics:
 
 ```text
-/inference_single_cam/gradcam_overlay  # local Grad-CAM + xyz trajectory overlay
+/inference_single_cam/gradcam_overlay      # local Grad-CAM overlay
+/inference_single_cam/stain_mask_overlay   # generated stain-mask overlay when auto_stain_mask=true
 ```
 
-Disable either visualization layer when needed:
+Disable Grad-CAM visualization when needed:
 
 ```bash
 ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py gradcam_enable:=false
-ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py trajectory_overlay_enable:=false
-```
-
-Tune xyz overlay scale if the curve is too small or too large:
-
-```bash
-ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py trajectory_overlay_pixels_per_mm:=4.0
 ```
 
 ## Quick Start: Dual Cam
@@ -445,7 +439,7 @@ Checkpoints trained with the default stain-mask pooling require inference to rec
 ```bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
   use_stain_mask:=true \
-  stain_mask_topic:=<live_cam0_stain_mask_topic>
+  auto_stain_mask:=true
 ```
 
 If you trained with `--no_stain_mask`, keep inference RGB-only with `use_stain_mask:=false`.
@@ -453,21 +447,15 @@ If you trained with `--no_stain_mask`, keep inference RGB-only with `use_stain_m
 Visualization topics:
 
 ```text
-/inference_dual_cam/gradcam_overlay         # local Grad-CAM + xyz trajectory overlay
+/inference_dual_cam/gradcam_overlay         # local Grad-CAM overlay
 /inference_dual_cam/gradcam_overlay_global  # global Grad-CAM only
+/inference_dual_cam/stain_mask_overlay      # generated stain-mask overlay when auto_stain_mask=true
 ```
 
-Disable either visualization layer when needed:
+Disable Grad-CAM visualization when needed:
 
 ```bash
 ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py gradcam_enable:=false
-ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_enable:=false
-```
-
-Tune xyz overlay scale if the curve is too small or too large:
-
-```bash
-ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py trajectory_overlay_pixels_per_mm:=4.0
 ```
 
 ## Data Format
