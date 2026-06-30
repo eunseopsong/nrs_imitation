@@ -1,0 +1,25 @@
+umi_gripper:
+  ros__parameters:
+    dxl.port: /dev/ttyUSB0
+    dxl.baud: 57600
+    dxl.gripper_id: 0
+    trigger.min_tick: 590
+    trigger.max_tick: 2500
+    gripper.min_tick: 590
+    gripper.max_tick: 2500
+    gripper.invert: false
+    dxl.cmd_rate_hz: 50.0
+    dxl.pos_deadband: 2
+    dxl.pos_slew_per_sec: 3000.0
+    dxl.profile_accel: 0
+    dxl.profile_velocity: 0
+    dxl.current_limit_mA: 1345
+    dxl.goal_current_mA: 200
+    gripper.current_stop_enabled: true
+    gripper.close_current_stop_mA: 400
+    monitor.enabled: true
+    monitor.print_period_sec: 0.5
+    gripper.present_current_mA_topic: /gripper/present_current_mA
+    gripper.present_position_topic: /gripper/present_position
+    gripper.command_topic: /gripper/command
+    keyboard.step_size: 50
