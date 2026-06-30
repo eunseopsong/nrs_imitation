@@ -1,6 +1,6 @@
 umi_gripper:
   ros__parameters:
-    dxl.port: /dev/ttyUSB0
+    dxl.port: /dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FT6RW7D6-if00-port0
     dxl.baud: 57600
     dxl.gripper_id: 0
     trigger.min_tick: 590
@@ -8,9 +8,9 @@ umi_gripper:
     gripper.min_tick: 590
     gripper.max_tick: 2500
     gripper.invert: false
-    dxl.cmd_rate_hz: 50.0
+    dxl.cmd_rate_hz: 10.0
     dxl.pos_deadband: 2
-    dxl.pos_slew_per_sec: 3000.0
+    dxl.pos_slew_per_sec: 1000.0
     dxl.profile_accel: 0
     dxl.profile_velocity: 0
     dxl.current_limit_mA: 1345
