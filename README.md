@@ -37,6 +37,59 @@ For Python scripts:
 cd ~/nrs_imitation
 ```
 
+## Quick Start: UMI Gripper + F710 Joystick
+
+Use this when controlling the Dynamixel-based UMI gripper with a Logitech F710.
+
+The default `umi_ros2` gripper config uses the stable FTDI by-id port and slower
+serial command timing:
+
+```text
+dxl.port: /dev/serial/by-id/usb-FTDI_USB__-__Serial_Converter_FT6RW7D6-if00-port0
+dxl.cmd_rate_hz: 10.0
+dxl.pos_slew_per_sec: 1000.0
+```
+
+If the USB adapter was reconnected, confirm that the by-id path exists:
+
+```bash
+ls -l /dev/serial/by-id/* /dev/ttyUSB*
+```
+
+Terminal 1, start the UMI gripper node:
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 launch umi_ros2 umi_grp.launch.py
+```
+
+Terminal 2, start the F710 joystick controller:
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 launch dynamixel_joy_controller f710_gripper_joy.launch.py
+```
+
+Default F710 mapping:
+
+```text
+LB           -> open, 590 tick
+RB           -> close, 2500 tick
+A            -> home, 1545 tick
+D-pad left/right -> step by 50 tick
+```
+
+To verify joystick commands without looking at the gripper log:
+
+```bash
+ros2 topic echo /gripper/command
+```
+
+The joystick controller publishes `std_msgs/Int32` targets on
+`/gripper/command`, and `umi_gripper` consumes that topic.
+
 ## Quick Start: Single Cam
 
 Use this when recording only `cam0`.
