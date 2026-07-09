@@ -640,19 +640,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     train_flow_gripper(train_loader, val_loader, config)
 
 
-def main(args):
-    if args.train_all_obs_modes:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M") if args.shared_timestamp else None
-        modes = ["single_cam", "dual_cam", "single_cam_marker"]
-        print(f"[SEQ] train_all_obs_modes=True | modes={modes} | shared_timestamp={timestamp}")
-        for mode in modes:
-            run_one(args, obs_mode=mode, timestamp=timestamp)
-        print("\n[SEQ] All observation-mode training runs finished.\n")
-    else:
-        run_one(args, obs_mode=args.obs_mode, timestamp=None)
-
-
-if __name__ == "__main__":
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--eval", action="store_true")
     parser.add_argument("--train_all_obs_modes", action="store_true")
@@ -715,5 +703,20 @@ if __name__ == "__main__":
     parser.add_argument("--persistent_workers", action="store_true")
     parser.add_argument("--prefetch_factor", type=int, default=2)
     parser.add_argument("--debug_batches", type=int, default=3)
+    return parser
 
-    main(parser.parse_args())
+
+def main(args):
+    if args.train_all_obs_modes:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M") if args.shared_timestamp else None
+        modes = ["single_cam", "dual_cam", "single_cam_marker"]
+        print(f"[SEQ] train_all_obs_modes=True | modes={modes} | shared_timestamp={timestamp}")
+        for mode in modes:
+            run_one(args, obs_mode=mode, timestamp=timestamp)
+        print("\n[SEQ] All observation-mode training runs finished.\n")
+    else:
+        run_one(args, obs_mode=args.obs_mode, timestamp=None)
+
+
+if __name__ == "__main__":
+    main(build_arg_parser().parse_args())

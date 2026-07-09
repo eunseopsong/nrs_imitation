@@ -174,6 +174,17 @@ def _ensure_stain_mask4(arr: np.ndarray) -> np.ndarray:
     return arr
 
 
+def _ensure_vector1(arr: np.ndarray, name: str) -> np.ndarray:
+    arr = np.asarray(arr)
+    if arr.ndim == 0:
+        arr = arr.reshape(1)
+    if arr.ndim == 2 and arr.shape[1] == 1:
+        arr = arr[:, 0]
+    if arr.ndim != 1:
+        raise ValueError(f"{name} must be (T,) or (T,1), got {arr.shape}")
+    return arr
+
+
 def _as_uint8_rgb(arr: np.ndarray) -> np.ndarray:
     arr = np.asarray(arr)
     if arr.ndim != 3 or arr.shape[-1] != 3:
@@ -1394,7 +1405,11 @@ def _trim_to_min_len(items: Dict[str, np.ndarray]) -> Tuple[Dict[str, np.ndarray
     return {k: v[:T] for k, v in items.items()}, T
 
 
-def load_episode(g_ep: h5py.Group, camera_names: Sequence[str]) -> Dict[str, np.ndarray]:
+def load_episode(
+    g_ep: h5py.Group,
+    camera_names: Sequence[str],
+    include_gripper: bool = False,
+) -> Dict[str, np.ndarray]:
     position, _ = _read_optional_array(
         g_ep,
         ["position", "observations/position"],
@@ -1443,6 +1458,40 @@ def load_episode(g_ep: h5py.Group, camera_names: Sequence[str]) -> Dict[str, np.
     if stain_mask is not None:
         data["stain_mask"] = _ensure_stain_mask4(stain_mask)
 
+    if include_gripper:
+        gripper_position, _ = _read_optional_array(
+            g_ep,
+            [
+                "gripper/present_position",
+                "observations/gripper/present_position",
+                "action/gripper_present_position",
+            ],
+            dtype=np.int32,
+        )
+        if gripper_position is None:
+            raise KeyError(f"Missing gripper present_position in {g_ep.name}")
+
+        gripper_current_mA, _ = _read_optional_array(
+            g_ep,
+            [
+                "gripper/present_current_mA",
+                "observations/gripper/present_current_mA",
+                "action/gripper_present_current_mA",
+            ],
+            dtype=np.float32,
+        )
+        if gripper_current_mA is None:
+            raise KeyError(f"Missing gripper present_current_mA in {g_ep.name}")
+
+        data["gripper_present_position"] = _ensure_vector1(
+            gripper_position,
+            "gripper_present_position",
+        ).astype(np.int32)
+        data["gripper_present_current_mA"] = _ensure_vector1(
+            gripper_current_mA,
+            "gripper_present_current_mA",
+        ).astype(np.float32)
+
     data, _ = _trim_to_min_len(data)
     return data
 
@@ -1490,20 +1539,45 @@ def write_episode(
 
     kwargs = _compression_kwargs(compression, gzip_level)
     with h5py.File(str(out_path), "w") as f:
+        has_gripper = "gripper_present_position" in data and "gripper_present_current_mA" in data
         f.attrs["schema_version"] = "imitation_form_compact_v1"
         f.attrs["source_h5"] = str(source_h5)
         f.attrs["source_episode"] = str(source_episode)
         f.attrs["camera_names_json"] = json.dumps(list(camera_names))
         f.attrs["orig_len"] = int(orig_len)
         f.attrs["truncated"] = int(bool(truncated))
+        f.attrs["has_gripper"] = int(bool(has_gripper))
 
         g_action = f.create_group("action")
         g_action.create_dataset("position", data=data["position"].astype(np.float32), **kwargs)
         g_action.create_dataset("force", data=data["force"].astype(np.float32), **kwargs)
+        if has_gripper:
+            g_action.create_dataset(
+                "gripper_present_position",
+                data=data["gripper_present_position"].astype(np.int32),
+                **kwargs,
+            )
+            g_action.create_dataset(
+                "gripper_present_current_mA",
+                data=data["gripper_present_current_mA"].astype(np.float32),
+                **kwargs,
+            )
 
         g_obs = f.create_group("observations", track_order=True)
         g_obs.create_dataset("position", data=data["position"].astype(np.float32), **kwargs)
         g_obs.create_dataset("force", data=data["force"].astype(np.float32), **kwargs)
+        if has_gripper:
+            g_gripper = g_obs.create_group("gripper", track_order=True)
+            g_gripper.create_dataset(
+                "present_current_mA",
+                data=data["gripper_present_current_mA"].astype(np.float32),
+                **kwargs,
+            )
+            g_gripper.create_dataset(
+                "present_position",
+                data=data["gripper_present_position"].astype(np.int32),
+                **kwargs,
+            )
 
         has_stain_mask = "stain_mask" in data
         g_images = g_obs.create_group("images", track_order=True)
@@ -1574,6 +1648,7 @@ def convert_merged_h5(
     gzip_level: int,
     overwrite: bool,
     write_summary: bool,
+    include_gripper: bool = False,
     stain_mask_mode: str = "auto",
     stain_reference_episode: str = "ep_0000",
     stain_exclude_reference_episode: bool = True,
@@ -1662,11 +1737,16 @@ def convert_merged_h5(
         reference_data = None
         if effective_stain_mode == "reference_episode":
             reference_ep_name = _resolve_reference_episode_name(ep_names, stain_reference_episode)
-            reference_data = load_episode(f["episodes"][reference_ep_name], camera_names)
+            reference_data = load_episode(
+                f["episodes"][reference_ep_name],
+                camera_names,
+                include_gripper=include_gripper,
+            )
 
         print(f"[INFO] input_h5       = {input_h5}")
         print(f"[INFO] output_dir     = {output_dir}")
         print(f"[INFO] camera_names   = {camera_names}")
+        print(f"[INFO] include_gripper= {int(bool(include_gripper))}")
         print(f"[INFO] episodes found = {len(ep_names)}")
         print(f"[INFO] stain_mode     = {effective_stain_mode}")
         if reference_ep_name:
@@ -1683,7 +1763,11 @@ def convert_merged_h5(
                     print(f"[SKIP] {ep_name}: clean stain reference episode")
                     continue
 
-                data = load_episode(f["episodes"][ep_name], camera_names)
+                data = load_episode(
+                    f["episodes"][ep_name],
+                    camera_names,
+                    include_gripper=include_gripper,
+                )
                 if effective_stain_mode == "none" and "stain_mask" in data:
                     del data["stain_mask"]
                 elif effective_stain_mode == "reference_episode":
@@ -1805,6 +1889,9 @@ def convert_merged_h5(
                 image_items = [f"{cam}={data[cam].shape}" for cam in camera_names]
                 if "stain_mask" in data:
                     image_items.append(f"stain_mask={data['stain_mask'].shape}")
+                if include_gripper:
+                    image_items.append(f"gripper_position={data['gripper_present_position'].shape}")
+                    image_items.append(f"gripper_current_mA={data['gripper_present_current_mA'].shape}")
                 image_shapes = ", ".join(image_items)
                 print(
                     f"[OK] {ep_name} -> episode_{out_idx}.hdf5 | "
@@ -1831,6 +1918,7 @@ def convert_merged_h5(
                     "num_failed": len(failed),
                     "failed": [{"episode": ep, "error": err} for ep, err in failed],
                     "schema_version": "imitation_form_compact_v1",
+                    "include_gripper": bool(include_gripper),
                     "stain_mask_mode": effective_stain_mode,
                     "stain_reference_episode": reference_ep_name,
                     "stain_reference_max_pose_dist": float(stain_reference_max_pose_dist),
@@ -1881,7 +1969,12 @@ def convert_merged_h5(
     return written
 
 
-def build_parser(description: str, default_root: Path, camera_names: Sequence[str]) -> argparse.ArgumentParser:
+def build_parser(
+    description: str,
+    default_root: Path,
+    camera_names: Sequence[str],
+    include_gripper: bool = False,
+) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "--input_h5",
@@ -1908,6 +2001,19 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     parser.add_argument("--gzip_level", type=int, default=4)
     parser.add_argument("--overwrite", action="store_true", help="Replace output_dir if it contains old episodes.")
     parser.add_argument("--write_summary", action="store_true", help="Write conversion_summary.json into output_dir.")
+    parser.add_argument(
+        "--include_gripper",
+        dest="include_gripper",
+        action="store_true",
+        default=bool(include_gripper),
+        help="Require and write gripper present_position/present_current_mA streams.",
+    )
+    parser.add_argument(
+        "--no_include_gripper",
+        dest="include_gripper",
+        action="store_false",
+        help="Disable gripper stream conversion even for a gripper-specific wrapper.",
+    )
     parser.add_argument(
         "--stain_mask_mode",
         type=str,
@@ -2216,8 +2322,13 @@ def build_parser(description: str, default_root: Path, camera_names: Sequence[st
     return parser
 
 
-def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -> None:
-    parser = build_parser(description, default_root, camera_names)
+def run_cli(
+    description: str,
+    default_root: Path,
+    camera_names: Sequence[str],
+    include_gripper: bool = False,
+) -> None:
+    parser = build_parser(description, default_root, camera_names, include_gripper=include_gripper)
     args = parser.parse_args()
 
     input_h5 = resolve_input_h5(args.input_h5, Path(args.dataset_root))
@@ -2232,6 +2343,7 @@ def run_cli(description: str, default_root: Path, camera_names: Sequence[str]) -
         gzip_level=int(args.gzip_level),
         overwrite=bool(args.overwrite),
         write_summary=bool(args.write_summary),
+        include_gripper=bool(args.include_gripper),
         stain_mask_mode=str(args.stain_mask_mode),
         stain_reference_episode=str(args.stain_reference_episode),
         stain_exclude_reference_episode=not bool(args.keep_stain_reference_episode),
