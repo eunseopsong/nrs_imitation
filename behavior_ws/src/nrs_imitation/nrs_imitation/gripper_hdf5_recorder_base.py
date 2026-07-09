@@ -14,7 +14,7 @@ Default topics:
   cam1 global       : /realsense/global/color/image_raw
 
 Saved merged HDF5 layout:
-  <repo>/datasets/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/
+  ~/nrs_imitation/datasets/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/
     vr_demo_merged_YYYYMMDD_HHMM.hdf5
 
   episodes/
@@ -27,6 +27,7 @@ Saved merged HDF5 layout:
       gripper/
         present_position   (T,) int32
         present_current_mA (T,) float32
+
 This file intentionally does NOT use cv_bridge. sensor_msgs/Image is converted
 manually to numpy RGB to avoid cv_bridge / NumPy ABI issues.
 """
@@ -40,8 +41,27 @@ import threading
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Set
 
+import numpy as np
+import h5py
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+
+from std_msgs.msg import Float64MultiArray, String, Int32, Float32
+from geometry_msgs.msg import Wrench
+from sensor_msgs.msg import Image
+
+from nrs_imitation.pretty_print import block, status
+
+
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
-DATASET_ROOT_DEFAULT = os.path.join(REPO_ROOT, "datasets")
+DEFAULT_DATASET_ROOT_DIR = os.path.join(REPO_ROOT, "datasets")
 VALID_OBS_MODES = ("single_cam", "multi_cam")
 
 
@@ -58,19 +78,6 @@ def normalize_obs_mode(obs_mode: str, enable_global_cam: bool) -> str:
     if mode not in VALID_OBS_MODES:
         raise RuntimeError(f"obs_mode must be one of {VALID_OBS_MODES} or auto, got: {obs_mode}")
     return mode
-
-import numpy as np
-import h5py
-
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-
-from std_msgs.msg import Float64MultiArray, String, Int32, Float32
-from geometry_msgs.msg import Wrench
-from sensor_msgs.msg import Image
-
-from nrs_imitation.pretty_print import block, status
 
 
 # ============================================================
@@ -193,6 +200,75 @@ def stack_scalar_repeat_last(values: List[Optional[float]], dtype, logger=None, 
     return out
 
 
+def preprocess_rgb_image(
+    image: Optional[np.ndarray],
+    mode: str,
+    specular_mask_mode: str,
+    specular_v_thresh: int,
+    specular_s_thresh: int,
+    specular_dilate_px: int,
+    specular_inpaint_radius: float,
+    specular_attenuate_gain: float,
+) -> Optional[np.ndarray]:
+    if image is None:
+        return None
+
+    mode = str(mode or "raw").strip().lower()
+    if mode in ("", "raw", "none", "off"):
+        return image
+
+    if mode not in ("specular_inpaint", "deglare", "highlight_inpaint", "highlight_attenuate", "specular_attenuate"):
+        return image
+
+    rgb = np.asarray(image)
+    if rgb.ndim != 3 or rgb.shape[2] != 3:
+        return image
+    if rgb.dtype != np.uint8:
+        rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+
+    if cv2 is None:
+        return rgb.copy()
+
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    sat = hsv[:, :, 1]
+    val = hsv[:, :, 2]
+    mask_mode = str(specular_mask_mode or "white").strip().lower()
+    bright = val >= int(specular_v_thresh)
+    if mask_mode in ("bright", "value", "v"):
+        mask_bool = bright
+    elif mask_mode in ("mixed", "white_or_bright"):
+        mask_bool = bright | ((val >= int(specular_v_thresh)) & (sat <= int(specular_s_thresh)))
+    else:
+        mask_bool = bright & (sat <= int(specular_s_thresh))
+    mask = mask_bool.astype(np.uint8) * 255
+
+    dilate_px = max(0, int(specular_dilate_px))
+    if dilate_px > 0:
+        k = 2 * dilate_px + 1
+        kernel = np.ones((k, k), dtype=np.uint8)
+        mask = cv2.dilate(mask, kernel, iterations=1)
+
+    if int(np.count_nonzero(mask)) == 0:
+        return rgb.copy()
+
+    if mode in ("highlight_attenuate", "specular_attenuate"):
+        soft = mask.astype(np.float32) / 255.0
+        if dilate_px > 0:
+            sigma = max(0.1, float(dilate_px))
+            soft = cv2.GaussianBlur(soft, (0, 0), sigmaX=sigma, sigmaY=sigma)
+            soft = np.clip(soft, 0.0, 1.0)
+
+        gain = float(np.clip(float(specular_attenuate_gain), 0.0, 1.0))
+        v = val.astype(np.float32)
+        target_v = np.minimum(v, float(specular_v_thresh) + np.maximum(v - float(specular_v_thresh), 0.0) * gain)
+        hsv_out = hsv.copy()
+        hsv_out[:, :, 2] = np.clip((1.0 - soft) * v + soft * target_v, 0, 255).astype(np.uint8)
+        return cv2.cvtColor(hsv_out, cv2.COLOR_HSV2RGB)
+
+    radius = max(0.1, float(specular_inpaint_radius))
+    return cv2.inpaint(rgb, mask, radius, cv2.INPAINT_TELEA)
+
+
 # ============================================================
 # Signal processing
 # ============================================================
@@ -276,7 +352,7 @@ class GripperHDF5Recorder(Node):
             self.declare_parameter(name, value, ignore_override=locked)
 
         # Save parameters
-        declare("act_root_dir", DATASET_ROOT_DEFAULT)
+        declare("act_root_dir", DEFAULT_DATASET_ROOT_DIR)
         declare("merged_subdir", "merged_hdf5")
         declare("file_prefix", node_name)
         declare("obs_mode", "auto")
@@ -304,12 +380,11 @@ class GripperHDF5Recorder(Node):
         declare("enable_global_cam", True)
         declare("global_image_topic", "/realsense/global/color/image_raw")
         declare("global_image_dataset_name", "cam1")
-        declare("enable_gripper_state", True)
         declare("gripper_position_topic", "/gripper/present_position")
         declare("gripper_current_topic", "/gripper/present_current_mA")
 
         # Sampling / freshness
-        declare("sample_hz", 20.0)
+        declare("sample_hz", 30.0)
         declare("require_pose_fresh_sec", 0.20)
         declare("require_force_fresh_sec", 0.20)
         declare("require_image_fresh_sec", 0.50)
@@ -317,7 +392,6 @@ class GripperHDF5Recorder(Node):
         declare("require_global_image", False)
         declare("recording_status_period_sec", 1.0)
         declare("idle_status_period_sec", 0.0)
-        declare("command_dedupe_sec", 0.30)
 
         # Unit convention
         declare("pose_xyz_scale", 1000.0)  # m -> mm
@@ -335,6 +409,13 @@ class GripperHDF5Recorder(Node):
         declare("image_dataset_name", "cam0")
         declare("image_compression", "gzip")  # gzip, lzf, none
         declare("image_gzip_level", 4)
+        declare("image_preprocess_mode", "raw")  # raw | highlight_attenuate | specular_inpaint
+        declare("image_specular_mask_mode", "white")  # white | bright
+        declare("image_specular_v_thresh", 230)
+        declare("image_specular_s_thresh", 80)
+        declare("image_specular_dilate_px", 2)
+        declare("image_specular_inpaint_radius", 3.0)
+        declare("image_specular_attenuate_gain", 0.35)
 
         # Load parameters
         self.act_root_dir = os.path.expanduser(str(self.get_parameter("act_root_dir").value))
@@ -363,7 +444,6 @@ class GripperHDF5Recorder(Node):
         self.enable_global_cam = bool(self.get_parameter("enable_global_cam").value)
         self.global_image_topic = str(self.get_parameter("global_image_topic").value)
         self.global_image_dataset_name = str(self.get_parameter("global_image_dataset_name").value)
-        self.enable_gripper_state = bool(self.get_parameter("enable_gripper_state").value)
         self.gripper_position_topic = str(self.get_parameter("gripper_position_topic").value)
         self.gripper_current_topic = str(self.get_parameter("gripper_current_topic").value)
         self.obs_mode = normalize_obs_mode(
@@ -396,7 +476,6 @@ class GripperHDF5Recorder(Node):
         self.require_global_image = bool(self.get_parameter("require_global_image").value)
         self.recording_status_period_sec = float(self.get_parameter("recording_status_period_sec").value)
         self.idle_status_period_sec = float(self.get_parameter("idle_status_period_sec").value)
-        self.command_dedupe_sec = float(self.get_parameter("command_dedupe_sec").value)
         self.pose_xyz_scale = float(self.get_parameter("pose_xyz_scale").value)
         if self.recording_mode == "robot" and abs(self.pose_xyz_scale - 1000.0) < 1e-9:
             self.pose_xyz_scale = 1.0
@@ -412,6 +491,21 @@ class GripperHDF5Recorder(Node):
         self.image_dataset_name = str(self.get_parameter("image_dataset_name").value)
         self.image_compression = str(self.get_parameter("image_compression").value).lower()
         self.image_gzip_level = int(self.get_parameter("image_gzip_level").value)
+        self.image_preprocess_mode = str(self.get_parameter("image_preprocess_mode").value).strip().lower()
+        self.image_specular_mask_mode = str(self.get_parameter("image_specular_mask_mode").value).strip().lower()
+        if self.image_specular_mask_mode not in ("white", "bright", "value", "v", "mixed", "white_or_bright"):
+            self.get_logger().warn(f"[IMAGE] unknown image_specular_mask_mode={self.image_specular_mask_mode}; using white")
+            self.image_specular_mask_mode = "white"
+        self.image_specular_v_thresh = int(self.get_parameter("image_specular_v_thresh").value)
+        self.image_specular_s_thresh = int(self.get_parameter("image_specular_s_thresh").value)
+        self.image_specular_dilate_px = int(self.get_parameter("image_specular_dilate_px").value)
+        self.image_specular_inpaint_radius = float(self.get_parameter("image_specular_inpaint_radius").value)
+        self.image_specular_attenuate_gain = float(self.get_parameter("image_specular_attenuate_gain").value)
+        if self.image_preprocess_mode not in ("", "raw", "none", "off", "specular_inpaint", "deglare", "highlight_inpaint", "highlight_attenuate", "specular_attenuate"):
+            self.get_logger().warn(f"[IMAGE] unknown image_preprocess_mode={self.image_preprocess_mode}; using raw")
+            self.image_preprocess_mode = "raw"
+        if self.image_preprocess_mode not in ("", "raw", "none", "off") and cv2 is None:
+            self.get_logger().warn("[IMAGE] cv2 is not available; image preprocessing will fall back to raw RGB")
 
         # HDF5 setup
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -427,7 +521,7 @@ class GripperHDF5Recorder(Node):
         self.h5.attrs["created_unix"] = float(time.time())
         self.h5.attrs["created_time"] = str(datetime.now().isoformat())
         self.h5.attrs["recorder"] = str(self.recorder_name)
-        self.h5.attrs["schema_version"] = "multimodal_v2"
+        self.h5.attrs["schema_version"] = "multimodal_v1"
         self.h5.attrs["obs_mode"] = str(self.obs_mode)
         self.h5.attrs["recording_mode"] = str(self.recording_mode)
         self.h5.attrs["pose_topic"] = str(self.pose_topic)
@@ -435,6 +529,13 @@ class GripperHDF5Recorder(Node):
         self.h5.attrs["force_msg_type"] = str(self.force_msg_type)
         self.h5.attrs["image_topic"] = str(self.image_topic)
         self.h5.attrs["global_image_topic"] = str(self.global_image_topic)
+        self.h5.attrs["image_preprocess_mode"] = str(self.image_preprocess_mode)
+        self.h5.attrs["image_specular_mask_mode"] = str(self.image_specular_mask_mode)
+        self.h5.attrs["image_specular_v_thresh"] = int(self.image_specular_v_thresh)
+        self.h5.attrs["image_specular_s_thresh"] = int(self.image_specular_s_thresh)
+        self.h5.attrs["image_specular_dilate_px"] = int(self.image_specular_dilate_px)
+        self.h5.attrs["image_specular_inpaint_radius"] = float(self.image_specular_inpaint_radius)
+        self.h5.attrs["image_specular_attenuate_gain"] = float(self.image_specular_attenuate_gain)
         self.h5.attrs["gripper_position_topic"] = str(self.gripper_position_topic)
         self.h5.attrs["gripper_current_topic"] = str(self.gripper_current_topic)
         self.grp_eps = self.h5.create_group("episodes")
@@ -469,8 +570,6 @@ class GripperHDF5Recorder(Node):
         self.sample_time_buf: List[float] = []
         self.last_status_t = 0.0
         self.last_idle_status_t = 0.0
-        self.last_command: str = ""
-        self.last_command_t: float = 0.0
 
         # ROS I/O
         image_qos = make_qos(depth=1, best_effort=True)
@@ -483,9 +582,8 @@ class GripperHDF5Recorder(Node):
         self.create_subscription(Image, self.image_topic, self._on_image, image_qos)
         if self.enable_global_cam:
             self.create_subscription(Image, self.global_image_topic, self._on_global_image, image_qos)
-        if self.enable_gripper_state:
-            self.create_subscription(Int32, self.gripper_position_topic, self._on_gripper_position, reliable_qos)
-            self.create_subscription(Float32, self.gripper_current_topic, self._on_gripper_current, reliable_qos)
+        self.create_subscription(Int32, self.gripper_position_topic, self._on_gripper_position, reliable_qos)
+        self.create_subscription(Float32, self.gripper_current_topic, self._on_gripper_current, reliable_qos)
         self.create_subscription(String, self.command_topic, self._on_command, reliable_qos)
         self.timer = self.create_timer(self.dt, self._on_sample_timer)
 
@@ -499,9 +597,9 @@ class GripperHDF5Recorder(Node):
             ("force_topic", f"{self.force_topic} ({self.force_msg_type})"),
             ("cam0", f"{self.image_topic} -> images/{self.image_dataset_name}"),
             ("cam1", f"{int(self.enable_global_cam)} {self.global_image_topic} -> images/{self.global_image_dataset_name}"),
-            ("gripper", f"{int(self.enable_gripper_state)} pos={self.gripper_position_topic}, cur={self.gripper_current_topic}"),
+            ("image_preprocess", f"{self.image_preprocess_mode}/{self.image_specular_mask_mode}"),
+            ("gripper", f"pos={self.gripper_position_topic}, cur={self.gripper_current_topic}"),
             ("sample_hz", self.sample_hz),
-            ("cmd_dedupe", self.command_dedupe_sec),
             ("command", self.command_topic),
         ]))
         self._print_status("READY")
@@ -561,27 +659,11 @@ class GripperHDF5Recorder(Node):
         cmd = str(msg.data).strip().lower()
         if not cmd:
             return
-        now = time.time()
-        if (
-            cmd == self.last_command
-            and (now - self.last_command_t) < max(0.0, self.command_dedupe_sec)
-        ):
-            self.get_logger().warn(
-                f"[COMMAND] duplicate ignored: {cmd} "
-                f"(dt={now - self.last_command_t:.3f}s)"
-            )
-            return
-        self.last_command = cmd
-        self.last_command_t = now
         self.get_logger().warn(f"[COMMAND] {cmd}")
         if cmd == "start_recording":
             self.start_episode(reason="joystick_start")
         elif cmd == "end_recording":
             self.end_episode(reason="joystick_end")
-        elif cmd == "prev_episode":
-            self.prev_episode()
-        elif cmd == "next_episode":
-            self.next_episode()
         else:
             self.get_logger().warn(f"[COMMAND] unknown command ignored: {cmd}")
 
@@ -596,14 +678,9 @@ class GripperHDF5Recorder(Node):
         if self.episode_active:
             self.get_logger().warn("Episode already active.")
             return
-        if not self.allow_overwrite_episode:
-            prev_idx = int(self.current_ep_idx)
-            self.current_ep_idx = self._next_available_ep_idx(start_idx=self.current_ep_idx)
-            if self.current_ep_idx != prev_idx:
-                self.get_logger().warn(
-                    f"Episode index {prev_idx} already exists. "
-                    f"Auto-advanced to {self._ep_name(self.current_ep_idx)}."
-                )
+        if (not self.allow_overwrite_episode) and (self.current_ep_idx in self.saved_indices):
+            self.get_logger().warn(f"Episode index {self.current_ep_idx} already exists. Set allow_overwrite_episode:=true to overwrite.")
+            return
 
         for buf in [self.P_buf, self.F_buf, self.I0_buf, self.I1_buf, self.GP_buf, self.GC_buf, self.sample_time_buf]:
             buf.clear()
@@ -629,20 +706,6 @@ class GripperHDF5Recorder(Node):
         )
         self.get_logger().warn(f"[EP {self._ep_name(ep_idx)}] END requested. raw_samples={len(self.P_buf)}, reason={reason}")
         threading.Thread(target=self._finish_episode_worker, args=args, daemon=True).start()
-
-    def prev_episode(self):
-        if self.episode_active or self.finishing:
-            self.get_logger().warn("Cannot change episode index while recording/saving.")
-            return
-        self.current_ep_idx = max(0, self.current_ep_idx - 1)
-        self._print_status("PREV")
-
-    def next_episode(self):
-        if self.episode_active or self.finishing:
-            self.get_logger().warn("Cannot change episode index while recording/saving.")
-            return
-        self.current_ep_idx += 1
-        self._print_status("NEXT")
 
     def request_stop(self, reason: str = "stop"):
         self.stop_requested = True
@@ -691,12 +754,34 @@ class GripperHDF5Recorder(Node):
                 self.get_logger().warn("[WAIT] " + ", ".join(missing))
             return
 
+        image = preprocess_rgb_image(
+            image,
+            mode=self.image_preprocess_mode,
+            specular_mask_mode=self.image_specular_mask_mode,
+            specular_v_thresh=self.image_specular_v_thresh,
+            specular_s_thresh=self.image_specular_s_thresh,
+            specular_dilate_px=self.image_specular_dilate_px,
+            specular_inpaint_radius=self.image_specular_inpaint_radius,
+            specular_attenuate_gain=self.image_specular_attenuate_gain,
+        )
+        if self.enable_global_cam and global_image is not None:
+            global_image = preprocess_rgb_image(
+                global_image,
+                mode=self.image_preprocess_mode,
+                specular_mask_mode=self.image_specular_mask_mode,
+                specular_v_thresh=self.image_specular_v_thresh,
+                specular_s_thresh=self.image_specular_s_thresh,
+                specular_dilate_px=self.image_specular_dilate_px,
+                specular_inpaint_radius=self.image_specular_inpaint_radius,
+                specular_attenuate_gain=self.image_specular_attenuate_gain,
+            )
+
         self.P_buf.append(pose.astype(np.float32))
         self.F_buf.append(force[:3].astype(np.float32))
         self.I0_buf.append(image)
         self.I1_buf.append(global_image if self.enable_global_cam else None)
-        self.GP_buf.append(gripper_position if self.enable_gripper_state else None)
-        self.GC_buf.append(gripper_current_mA if self.enable_gripper_state else None)
+        self.GP_buf.append(gripper_position)
+        self.GC_buf.append(gripper_current_mA)
         self.sample_time_buf.append(float(now))
 
         if now - self.last_status_t >= self.recording_status_period_sec:
@@ -737,7 +822,7 @@ class GripperHDF5Recorder(Node):
             )
             self.saved_indices.add(ep_idx)
             if ep_idx == self.current_ep_idx:
-                self.current_ep_idx = self._next_available_ep_idx(start_idx=self.current_ep_idx + 1)
+                self.current_ep_idx += 1
 
             self.get_logger().info(block("EPISODE SAVED", [
                 ("episode", self._ep_name(ep_idx)),
@@ -795,7 +880,7 @@ class GripperHDF5Recorder(Node):
                 g.attrs["cam1_topic"] = str(self.global_image_topic)
                 g.attrs["gripper_position_topic"] = str(self.gripper_position_topic)
                 g.attrs["gripper_current_topic"] = str(self.gripper_current_topic)
-                g.attrs["schema_version"] = "multimodal_v2"
+                g.attrs["schema_version"] = "multimodal_v1"
 
                 g.create_dataset("position", data=position.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
                 g.create_dataset("ft", data=ft.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
@@ -826,17 +911,6 @@ class GripperHDF5Recorder(Node):
 
     def _tmp_ep_name(self, idx: int) -> str:
         return f"{self._ep_name(idx)}__writing"
-
-    def _episode_exists(self, idx: int) -> bool:
-        ep_name = self._ep_name(idx)
-        with self.h5_lock:
-            return ep_name in self.grp_eps
-
-    def _next_available_ep_idx(self, start_idx: int) -> int:
-        idx = max(0, int(start_idx))
-        while (idx in self.saved_indices) or self._episode_exists(idx):
-            idx += 1
-        return idx
 
     def _print_status(self, tag: str):
         with self.state_lock:

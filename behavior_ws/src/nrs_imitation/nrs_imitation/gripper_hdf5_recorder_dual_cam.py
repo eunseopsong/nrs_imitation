@@ -12,7 +12,6 @@ FIXED_DEFAULTS = {
     "image_topic": "/realsense/robot/color/image_raw",
     "enable_global_cam": True,
     "global_image_topic": "/realsense/global/color/image_raw",
-    "enable_gripper_state": True,
     "gripper_position_topic": "/gripper/present_position",
     "gripper_current_topic": "/gripper/present_current_mA",
     "pose_xyz_scale": 1.0,
