@@ -8,9 +8,8 @@ consumed by `umi_ros2` gripper nodes.
 
 Default Logitech F710 mapping in XInput mode:
 
-- LB, `buttons[4]`: open, publish `min_tick`
-- RB, `buttons[5]`: close, publish `max_tick`
-- A, `buttons[0]`: home, publish midpoint
+- A, `buttons[0]`: close, publish `max_tick`
+- B, `buttons[1]`: open, publish `min_tick`
 - D-pad horizontal, `axes[6]`: step target by `step_tick`
 
 The optional RT proportional axis mode is disabled by default.

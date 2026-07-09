@@ -13,9 +13,8 @@ Publishes:
   std_msgs/Int32 on command_topic, using motor tick targets.
 
 Default F710 / Xbox-like mapping:
-  LB button[4]     -> open, min_tick
-  RB button[5]     -> close, max_tick
-  A  button[0]     -> home, midpoint
+  A  button[0]     -> close, max_tick
+  B  button[1]     -> open, min_tick
   D-pad horizontal -> step target by step_tick
 
 The optional trigger axis mode is disabled by default so startup joystick
@@ -64,9 +63,9 @@ class F710GripperJoyController(Node):
         self.declare_parameter("initial_tick", -1)
         self.declare_parameter("step_tick", 50)
 
-        self.declare_parameter("button_open", 4)
-        self.declare_parameter("button_close", 5)
-        self.declare_parameter("button_home", 0)
+        self.declare_parameter("button_open", 1)
+        self.declare_parameter("button_close", 0)
+        self.declare_parameter("button_home", -1)
         self.declare_parameter("button_enable", -1)
         self.declare_parameter("button_debounce_sec", 0.20)
 
@@ -181,9 +180,11 @@ class F710GripperJoyController(Node):
                     f"  joy_topic: {self.joy_topic}",
                     f"  command_topic: {self.command_topic}",
                     f"  range: [{self.min_tick}, {self.max_tick}]",
-                    f"  LB button[{self.button_open}] -> open",
-                    f"  RB button[{self.button_close}] -> close",
-                    f"  A button[{self.button_home}] -> home={self.home_tick}",
+                    f"  B button[{self.button_open}] -> open",
+                    f"  A button[{self.button_close}] -> close",
+                    "  home: disabled"
+                    if self.button_home < 0
+                    else f"  home button[{self.button_home}] -> home={self.home_tick}",
                     f"  D-pad axis[{self.dpad_axis}] step={self.step_tick}",
                     f"  axis_control.enabled: {self.axis_enabled}",
                 ]

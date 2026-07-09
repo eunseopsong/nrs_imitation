@@ -46,9 +46,9 @@ def generate_launch_description():
             DeclareLaunchArgument("min_tick", default_value="590"),
             DeclareLaunchArgument("max_tick", default_value="2500"),
             DeclareLaunchArgument("step_tick", default_value="50"),
-            DeclareLaunchArgument("button_open", default_value="4"),
-            DeclareLaunchArgument("button_close", default_value="5"),
-            DeclareLaunchArgument("button_home", default_value="0"),
+            DeclareLaunchArgument("button_open", default_value="1"),
+            DeclareLaunchArgument("button_close", default_value="0"),
+            DeclareLaunchArgument("button_home", default_value="-1"),
             DeclareLaunchArgument("axis_control_enabled", default_value="false"),
             Node(
                 package="joy",

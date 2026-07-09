@@ -11,9 +11,9 @@ f710_gripper_joy_controller:
     initial_tick: -1
     step_tick: 50
 
-    button_open: 4
-    button_close: 5
-    button_home: 0
+    button_open: 1
+    button_close: 0
+    button_home: -1
     button_enable: -1
     button_debounce_sec: 0.20
 
