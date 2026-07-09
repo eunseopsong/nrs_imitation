@@ -118,6 +118,15 @@ ros2 topic pub --once /vr_demo_recorder/command std_msgs/msg/String "{data: end_
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ```
 
+기본 F710/XInput 매핑:
+
+```text
+RB: recorder start_recording
+LB: recorder end_recording
+A : gripper close (/gripper/command = 2500)
+B : gripper open  (/gripper/command = 590)
+```
+
 ## 2. Imitation Form 변환
 
 변환 결과는 기본적으로 같은 run directory 아래 `imitation_form/`에 저장됩니다.
