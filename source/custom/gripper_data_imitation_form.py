@@ -85,7 +85,7 @@ import numpy as np
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-ACT_ROOT_DEFAULT = str(PROJECT_ROOT / "datasets" / "ACT")
+ACT_ROOT_DEFAULT = str(PROJECT_ROOT / "datasets" / "gripper")
 
 
 # ============================================================
@@ -110,7 +110,7 @@ def find_latest_merged_h5(act_root: str) -> str:
 
 def infer_output_dir_from_input(input_h5: str, output_name: str) -> str:
     p = Path(input_h5).resolve()
-    # .../datasets/ACT/YYYYMMDD_HHMM/merged_hdf5/file.hdf5
+    # .../datasets/gripper/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/file.hdf5
     if p.parent.name == "merged_hdf5":
         return str(p.parent.parent / output_name)
     return str(p.parent / output_name)

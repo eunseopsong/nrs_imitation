@@ -9,6 +9,8 @@ from typing import Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATASETS_ACT_ROOT = PROJECT_ROOT / "datasets" / "ACT"
+DATASETS_POLISHING_ROOT = PROJECT_ROOT / "datasets" / "polishing"
+DATASETS_GRIPPER_ROOT = PROJECT_ROOT / "datasets" / "gripper"
 CHECKPOINTS_ROOT = PROJECT_ROOT / "checkpoints"
 ANALYSIS_LOGS_ROOT = PROJECT_ROOT / "analysis_logs"
 

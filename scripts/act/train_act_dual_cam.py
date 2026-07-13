@@ -10,7 +10,7 @@ from train_act import build_arg_parser, main as run_training
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATASET_ROOT = PROJECT_ROOT / "datasets" / "multi_cam"
+DATASET_ROOT = PROJECT_ROOT / "datasets" / "polishing" / "dual_cam"
 CKPT_ROOT = PROJECT_ROOT / "checkpoints" / "act" / "polishing"
 
 

@@ -302,7 +302,7 @@ def _to_tensor_stain_mask(mask: np.ndarray, device: torch.device, resize_hw: int
 
 def _parse_camera_names(value, obs_mode: str) -> List[str]:
     obs = str(obs_mode or "single_cam").strip().lower()
-    default = ["cam0", "cam1"] if obs in ("dual_cam", "multi_cam") else ["cam0"]
+    default = ["cam0", "cam1"] if obs == "dual_cam" else ["cam0"]
     if value is None:
         return default
     raw = []
@@ -1100,7 +1100,7 @@ class NodeCmdMotionInfer(Node):
         self.policy_class = str(self.get_parameter("policy_class").value).strip().upper()
         self.ckpt_auto_subdir = str(self.get_parameter("ckpt_auto_subdir").value).strip()
         self.obs_mode = str(self.get_parameter("obs_mode").value).strip().lower()
-        if self.obs_mode in ("multi_cam", "dual"):
+        if self.obs_mode == "dual":
             self.obs_mode = "dual_cam"
         if self.obs_mode in ("", "auto"):
             self.obs_mode = "single_cam"

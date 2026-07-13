@@ -13,8 +13,8 @@ from train_flow_gripper import build_arg_parser, run_one
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATASET_ROOT = PROJECT_ROOT / "datasets" / "single_cam"
-CKPT_ROOT = PROJECT_ROOT / "checkpoints" / "flow" / "polishing" / "gripper"
+DATASET_ROOT = PROJECT_ROOT / "datasets" / "gripper" / "single_cam"
+CKPT_ROOT = PROJECT_ROOT / "checkpoints" / "flow" / "gripper"
 
 
 def _timestamp_like(name: str) -> bool:

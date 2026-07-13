@@ -19,7 +19,7 @@ from _imitation_form_converter import DATASETS_ROOT, run_cli
 def main() -> None:
     run_cli(
         description="Convert single-camera gripper merged HDF5 into compact imitation-form episodes.",
-        default_root=DATASETS_ROOT / "single_cam",
+        default_root=DATASETS_ROOT / "gripper" / "single_cam",
         camera_names=("cam0",),
         include_gripper=True,
     )

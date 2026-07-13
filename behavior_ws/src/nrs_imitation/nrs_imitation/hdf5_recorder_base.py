@@ -14,7 +14,7 @@ Default topics:
   cam1 global       : /realsense/global/color/image_raw
 
 Saved merged HDF5 layout:
-  ~/nrs_imitation/datasets/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/
+  ~/nrs_imitation/datasets/polishing/<obs_mode>/YYYYMMDD_HHMM/merged_hdf5/
     vr_demo_merged_YYYYMMDD_HHMM.hdf5
 
   episodes/
@@ -58,13 +58,13 @@ from nrs_imitation.pretty_print import block, status
 
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
-DEFAULT_DATASET_ROOT_DIR = os.path.join(REPO_ROOT, "datasets")
-VALID_OBS_MODES = ("single_cam", "multi_cam")
+DEFAULT_DATASET_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "polishing")
+VALID_OBS_MODES = ("single_cam", "dual_cam")
 
 
 def infer_obs_mode(enable_global_cam: bool) -> str:
     if enable_global_cam:
-        return "multi_cam"
+        return "dual_cam"
     return "single_cam"
 
 

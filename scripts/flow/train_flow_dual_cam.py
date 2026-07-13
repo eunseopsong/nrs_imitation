@@ -11,7 +11,7 @@ from flow_train_core import build_arg_parser, run_one
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DATASET_ROOT = PROJECT_ROOT / "datasets" / "multi_cam"
+DATASET_ROOT = PROJECT_ROOT / "datasets" / "polishing" / "dual_cam"
 CKPT_ROOT = PROJECT_ROOT / "checkpoints" / "flow" / "polishing"
 
 

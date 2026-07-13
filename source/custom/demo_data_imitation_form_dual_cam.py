@@ -24,7 +24,7 @@ from _imitation_form_converter import DATASETS_ROOT, run_cli
 def main() -> None:
     run_cli(
         description="Convert dual-camera merged HDF5 into compact imitation-form episodes.",
-        default_root=DATASETS_ROOT / "multi_cam",
+        default_root=DATASETS_ROOT / "polishing" / "dual_cam",
         camera_names=("cam0", "cam1"),
     )
 

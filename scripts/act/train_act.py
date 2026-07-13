@@ -45,8 +45,8 @@ from data.loader import load_data
 
 
 DATASET_ROOT_BY_MODE = {
-    "single_cam": Path(_PROJECT_ROOT) / "datasets" / "single_cam",
-    "dual_cam": Path(_PROJECT_ROOT) / "datasets" / "multi_cam",
+    "single_cam": Path(_PROJECT_ROOT) / "datasets" / "polishing" / "single_cam",
+    "dual_cam": Path(_PROJECT_ROOT) / "datasets" / "polishing" / "dual_cam",
 }
 
 
@@ -150,8 +150,6 @@ def main(args):
         raise NotImplementedError(policy_class)
 
     obs_mode = str(args.obs_mode).strip().lower()
-    if obs_mode == "multi_cam":
-        obs_mode = "dual_cam"
     if obs_mode not in ("single_cam", "dual_cam"):
         raise RuntimeError(f"obs_mode must be single_cam or dual_cam, got: {args.obs_mode}")
 

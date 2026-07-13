@@ -6,8 +6,7 @@
 HDF5 recording -> imitation_form 변환 -> Flow/ACT train -> ROS2 inference
 ```
 
-현재 일반 데이터 파이프라인은 `single_cam`과 `dual_cam`으로 분기되어 있습니다.  
-주의: dual-camera 데이터 폴더명은 recorder 내부 obs mode 기준으로 `multi_cam`입니다.
+현재 일반 데이터 파이프라인은 `single_cam`과 `dual_cam`으로 분기되어 있습니다.
 
 ## 0. 공통 준비
 
@@ -29,9 +28,9 @@ cd ~/nrs_imitation
 recording 결과는 merged HDF5로 저장됩니다.
 
 ```text
-single_cam        : ~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
-gripper single_cam: ~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/gripper_hdf5_recorder_single_cam_*.hdf5
-dual_cam          : ~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
+single_cam        : ~/nrs_imitation/datasets/polishing/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
+gripper single_cam: ~/nrs_imitation/datasets/gripper/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/gripper_hdf5_recorder_single_cam_*.hdf5
+dual_cam          : ~/nrs_imitation/datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
 ```
 
 ### Single Cam
@@ -132,9 +131,9 @@ B : gripper open  (/gripper/command = 590)
 변환 결과는 기본적으로 같은 run directory 아래 `imitation_form/`에 저장됩니다.
 
 ```text
-single_cam        : ~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
-gripper single_cam: ~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
-dual_cam          : ~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
+single_cam        : ~/nrs_imitation/datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
+gripper single_cam: ~/nrs_imitation/datasets/gripper/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
+dual_cam          : ~/nrs_imitation/datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
 ```
 
 변환 후 HDF5 구조는 학습에 필요한 항목만 남깁니다.
@@ -173,8 +172,8 @@ moving-camera stain mask 변환은 current episode를 clean reference episode에
 
 ```bash
 python3 source/custom/demo_data_imitation_form_single_cam.py \
-  --input_h5 datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_single_cam_<YYYYMMDD_HHMM>.hdf5 \
-  --output_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form \
+  --input_h5 datasets/polishing/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_single_cam_<YYYYMMDD_HHMM>.hdf5 \
+  --output_dir datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form \
   --overwrite \
   --write_summary
 ```
@@ -189,8 +188,8 @@ python3 source/custom/gripper_data_imitation_form_single_cam.py --write_summary
 
 ```bash
 python3 source/custom/gripper_data_imitation_form_single_cam.py \
-  --input_h5 datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/gripper_hdf5_recorder_single_cam_<YYYYMMDD_HHMM>.hdf5 \
-  --output_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form \
+  --input_h5 datasets/gripper/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/gripper_hdf5_recorder_single_cam_<YYYYMMDD_HHMM>.hdf5 \
+  --output_dir datasets/gripper/single_cam/<YYYYMMDD_HHMM>/imitation_form \
   --overwrite \
   --write_summary
 ```
@@ -207,8 +206,8 @@ python3 source/custom/demo_data_imitation_form_dual_cam.py --write_summary
 
 ```bash
 python3 source/custom/demo_data_imitation_form_dual_cam.py \
-  --input_h5 datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_dual_cam_<YYYYMMDD_HHMM>.hdf5 \
-  --output_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form \
+  --input_h5 datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_dual_cam_<YYYYMMDD_HHMM>.hdf5 \
+  --output_dir datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form \
   --overwrite \
   --write_summary
 ```
@@ -223,7 +222,7 @@ checkpoint 기본 저장 위치:
 
 ```text
 Flow single_cam        : ~/nrs_imitation/checkpoints/flow/polishing/single_cam/<YYYYMMDD_HHMM>/
-Flow gripper single_cam: ~/nrs_imitation/checkpoints/flow/polishing/gripper/single_cam/<YYYYMMDD_HHMM>/
+Flow gripper single_cam: ~/nrs_imitation/checkpoints/flow/gripper/single_cam/<YYYYMMDD_HHMM>/
 Flow dual_cam          : ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/<YYYYMMDD_HHMM>/
 ACT single_cam         : ~/nrs_imitation/checkpoints/act/polishing/single_cam/<YYYYMMDD_HHMM>/
 ACT dual_cam           : ~/nrs_imitation/checkpoints/act/polishing/dual_cam/<YYYYMMDD_HHMM>/
@@ -240,10 +239,10 @@ python3 scripts/act/train_act_single_cam.py
 
 ```bash
 python3 scripts/flow/train_flow_single_cam.py \
-  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form
 
 python3 scripts/act/train_act_single_cam.py \
-  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
 ### Gripper Single Cam
@@ -258,7 +257,7 @@ python3 scripts/flow/train_flow_gripper_single_cam.py
 
 ```bash
 python3 scripts/flow/train_flow_gripper_single_cam.py \
-  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/gripper/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
 이 policy는 `cam0 + qpos(position, force) + gripper state(position, current)`를 observation으로 사용합니다. gripper state encoder는 MLP이고, action target은 `position(6) + force(3) + gripper_present_position(1)`의 10D입니다. `action/gripper_present_current_mA`는 imitation_form에 보존되지만 command target으로는 사용하지 않습니다.
@@ -274,10 +273,10 @@ python3 scripts/act/train_act_dual_cam.py
 
 ```bash
 python3 scripts/flow/train_flow_dual_cam.py \
-  --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form
 
 python3 scripts/act/train_act_dual_cam.py \
-  --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
 ## 4. Inference

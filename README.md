@@ -16,8 +16,9 @@ The current polishing pipeline is split into:
 
 Folder naming note:
 
-- `single_cam` data is saved under `datasets/single_cam`
-- `dual_cam` recorder data is saved under `datasets/multi_cam`
+- `single_cam` polishing data is saved under `datasets/polishing/single_cam`
+- `dual_cam` polishing recorder data is saved under `datasets/polishing/dual_cam`
+- gripper data is saved under `datasets/gripper/<single_cam|dual_cam>`
 
 ## Quick Start
 
@@ -193,7 +194,7 @@ Repeat start/end for more episodes. When finished, stop the recorder terminal wi
 Output:
 
 ```text
-~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
+~/nrs_imitation/datasets/polishing/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
 ```
 
 ### 3. Convert to imitation_form
@@ -210,7 +211,7 @@ For moving-camera stain masks, conversion first matches the current episode to t
 Output:
 
 ```text
-~/nrs_imitation/datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
+~/nrs_imitation/datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
 ```
 
 ### 4. Train policy
@@ -424,7 +425,7 @@ Repeat this for each stage1 episode that you replay. When finished, stop the dua
 Output:
 
 ```text
-~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
+~/nrs_imitation/datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/merged_hdf5/*.hdf5
 ```
 
 ### 5. Convert to imitation_form
@@ -439,7 +440,7 @@ python3 source/custom/demo_data_imitation_form_dual_cam.py --overwrite --write_s
 Output:
 
 ```text
-~/nrs_imitation/datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
+~/nrs_imitation/datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form/episode_*.hdf5
 ```
 
 ### 6. Train policy
@@ -555,8 +556,8 @@ Single-cam conversion:
 ```bash
 cd ~/nrs_imitation
 python3 source/custom/demo_data_imitation_form_single_cam.py \
-  --input_h5 datasets/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_single_cam_<YYYYMMDD_HHMM>.hdf5 \
-  --output_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form \
+  --input_h5 datasets/polishing/single_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_single_cam_<YYYYMMDD_HHMM>.hdf5 \
+  --output_dir datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form \
   --overwrite \
   --write_summary
 ```
@@ -566,8 +567,8 @@ Dual-cam conversion:
 ```bash
 cd ~/nrs_imitation
 python3 source/custom/demo_data_imitation_form_dual_cam.py \
-  --input_h5 datasets/multi_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_dual_cam_<YYYYMMDD_HHMM>.hdf5 \
-  --output_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form \
+  --input_h5 datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/merged_hdf5/hdf5_recorder_dual_cam_<YYYYMMDD_HHMM>.hdf5 \
+  --output_dir datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form \
   --overwrite \
   --write_summary
 ```
@@ -577,10 +578,10 @@ Single-cam training with explicit dataset:
 ```bash
 cd ~/nrs_imitation
 python3 scripts/flow/train_flow_single_cam.py \
-  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form
 
 python3 scripts/act/train_act_single_cam.py \
-  --dataset_dir datasets/single_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
 Both commands use `observations/images/stain_mask` by default. Add `--no_stain_mask` to either command to train the RGB-only baseline.
@@ -590,10 +591,10 @@ Dual-cam training with explicit dataset:
 ```bash
 cd ~/nrs_imitation
 python3 scripts/flow/train_flow_dual_cam.py \
-  --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form
 
 python3 scripts/act/train_act_dual_cam.py \
-  --dataset_dir datasets/multi_cam/<YYYYMMDD_HHMM>/imitation_form
+  --dataset_dir datasets/polishing/dual_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
 Dual-cam stain pooling is cam0-only: policy observation order is `cam0`, `stain_mask`, `cam1`, and `cam1` is not masked.

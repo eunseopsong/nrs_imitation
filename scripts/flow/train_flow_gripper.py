@@ -12,9 +12,9 @@ Sequential 3-model training:
   python3 scripts/flow/train_flow_gripper.py --train_all_obs_modes
 
 Checkpoint layout:
-  <repo>/checkpoints/flow/single_cam/YYYYMMDD_HHMM/
-  <repo>/checkpoints/flow/dual_cam/YYYYMMDD_HHMM/
-  <repo>/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM/
+  <repo>/checkpoints/flow/gripper/single_cam/YYYYMMDD_HHMM/
+  <repo>/checkpoints/flow/gripper/dual_cam/YYYYMMDD_HHMM/
+  <repo>/checkpoints/flow/gripper/single_cam_marker/YYYYMMDD_HHMM/
 
 Single-model examples:
   python3 scripts/flow/train_flow_gripper.py --obs_mode single_cam
@@ -23,7 +23,7 @@ Single-model examples:
 
 Eval-load check:
   python3 scripts/flow/train_flow_gripper.py --eval --obs_mode single_cam_marker \
-    --ckpt_dir <repo>/checkpoints/flow/single_cam_marker/YYYYMMDD_HHMM
+    --ckpt_dir <repo>/checkpoints/flow/gripper/single_cam_marker/YYYYMMDD_HHMM
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ import torch
 from tqdm import tqdm
 
 from data.loader import load_data
-from common.fs import CHECKPOINTS_ROOT, DATASETS_ACT_ROOT
+from common.fs import CHECKPOINTS_ROOT, DATASETS_GRIPPER_ROOT
 from models.gri_flow_core import build_flow_rgb_policy_and_optimizer
 
 
@@ -107,8 +107,8 @@ def _count_episodes(dataset_dir: str | Path) -> int:
 
 
 def find_latest_episode_dir(
-    root_dir: str = str(DATASETS_ACT_ROOT),
-    subdir_preference: Sequence[str] = ("episodes_multimodal", "episodes_ft_camproc", "episodes_ft"),
+    root_dir: str = str(DATASETS_GRIPPER_ROOT),
+    subdir_preference: Sequence[str] = ("imitation_form", "episodes_multimodal", "episodes_ft_camproc", "episodes_ft"),
 ) -> str:
     root = Path(root_dir).expanduser()
     if not root.exists():
@@ -651,7 +651,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num_episodes", type=int, default=0)
     parser.add_argument("--camera_names", nargs="+", default=None)
 
-    parser.add_argument("--ckpt_root", type=str, default=str(CHECKPOINTS_ROOT / "flow"))
+    parser.add_argument("--ckpt_root", type=str, default=str(CHECKPOINTS_ROOT / "flow" / "gripper"))
     parser.add_argument("--ckpt_dir", type=str, default=None)
 
     parser.add_argument("--norm_mode", type=str, default="minmax_m11", choices=["minmax_01", "minmax_m11"])
