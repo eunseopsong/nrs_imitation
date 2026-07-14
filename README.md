@@ -91,6 +91,63 @@ ros2 topic echo /gripper/command
 The joystick controller publishes `std_msgs/Int32` targets on
 `/gripper/command`, and `umi_gripper` consumes that topic.
 
+## Quick Start: Gripper Single-Cam Inference
+
+This uses the latest Flow checkpoint under `checkpoints/flow/gripper/single_cam`
+and runs the same robot motion inference/control path as polishing inference.
+It publishes action `[0:9]` to `/ur10skku/cmdMotion` through the polishing safety
+loop, and additionally publishes action `[9]` as the learned gripper target tick
+to `/gripper/command`. Grad-CAM heatmap visualization is on by default, and
+stain-mask inference is not used.
+
+```bash
+cd ~/nrs_imitation/behavior_ws
+source install/setup.bash
+ros2 launch nrs_imitation inference_gradcam_gripper_single_cam.launch.py
+```
+
+Default topics:
+
+```text
+position         = /ur10skku/currentP
+force            = /ur10skku/currentF
+cam0             = /realsense/vr/color/image_raw
+gripper position = /gripper/present_position
+gripper current  = /gripper/present_current_mA
+robot command    = /ur10skku/cmdMotion
+gripper command  = /gripper/command
+heatmap overlay  = /inference_gripper_single_cam/gradcam_overlay
+```
+
+If you are running with tracker pose/force topics:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_gripper_single_cam.launch.py \
+  pose_topic:=/calibrated_pose \
+  force_topic:=/ftsensor/measured_Cvalue \
+  force_msg_type:=wrench
+```
+
+Explicit checkpoint:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_gripper_single_cam.launch.py \
+  ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/gripper/single_cam/<YYYYMMDD_HHMM>
+```
+
+Safety defaults:
+
+```text
+tau_sec:=0.8
+startup_ramp_sec:=3.0
+step_cap_pos_mm:=0.05
+step_cap_ang_rad:=0.0001
+step_cap_fz:=0.05
+gripper_command_step_cap_tick:=200.0
+gripper_command_slew_per_sec:=1000.0
+gripper_cmd_safety_max_tick_from_present:=700.0
+```
+
 ## Quick Start: Single Cam
 
 Use this when recording only `cam0`.
@@ -109,7 +166,7 @@ Expected inference topics:
 ```text
 position = /ur10skku/currentP
 force    = /ur10skku/currentF
-cam0     = /realsense/robot/color/image_raw
+cam0     = /realsense/vr/color/image_raw
 ```
 
 ### 1. Start sensor / command inputs

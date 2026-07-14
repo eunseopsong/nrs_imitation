@@ -93,7 +93,7 @@ ros2 run nrs_imitation hdf5_recorder_dual_cam
 ```text
 position = /ur10skku/currentP
 force    = /ur10skku/currentF
-cam0     = /realsense/robot/color/image_raw
+cam0     = /realsense/vr/color/image_raw
 cam1     = /realsense/global/color/image_raw
 ```
 
@@ -287,6 +287,7 @@ inference도 `single_cam`과 `dual_cam`으로 분리되어 있습니다.
 ```text
 Flow single_cam: ~/nrs_imitation/checkpoints/flow/polishing/single_cam/*/policy_best.ckpt
 Flow dual_cam  : ~/nrs_imitation/checkpoints/flow/polishing/dual_cam/*/policy_best.ckpt
+Flow gripper   : ~/nrs_imitation/checkpoints/flow/gripper/single_cam/*/policy_best.ckpt
 ACT single_cam : ~/nrs_imitation/checkpoints/act/polishing/single_cam/*/policy_best.ckpt
 ACT dual_cam   : ~/nrs_imitation/checkpoints/act/polishing/dual_cam/*/policy_best.ckpt
 ```
@@ -308,7 +309,7 @@ ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py policy_class:=A
 ```text
 position = /ur10skku/currentP
 force    = /ur10skku/currentF
-cam0     = /realsense/robot/color/image_raw
+cam0     = /realsense/vr/color/image_raw
 ```
 
 특정 checkpoint 지정:
@@ -319,6 +320,45 @@ ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
 ```
 
 ACT checkpoint를 직접 지정할 때는 `policy_class:=ACT`와 ACT checkpoint 경로를 같이 지정합니다.
+
+### Gripper Single Cam
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_gripper_single_cam.launch.py
+```
+
+기본 입력/출력:
+
+```text
+position         = /ur10skku/currentP
+force            = /ur10skku/currentF
+cam0             = /realsense/vr/color/image_raw
+gripper position = /gripper/present_position
+gripper current  = /gripper/present_current_mA
+robot command    = /ur10skku/cmdMotion
+gripper command  = /gripper/command
+heatmap overlay  = /inference_gripper_single_cam/gradcam_overlay
+```
+
+`ckpt_dir`를 생략하면 `checkpoints/flow/gripper/single_cam` 아래 최신 checkpoint를 자동 선택합니다. 이 node는 polishing inference와 같은 shared control loop를 사용해서 policy action `[0:9]`를 `/ur10skku/cmdMotion`으로 publish하고, 추가로 action `[9]`의 `gripper_present_position`을 `std_msgs/Int32`로 `/gripper/command`에 publish합니다. stain-mask node/option은 사용하지 않습니다.
+
+10D action은 checkpoint의 `dataset_stats.pkl` 범위로 denormalize합니다. robot motion `[0:9]`는 polishing inference의 temporal aggregation, anchor, stage, startup ramp, `step_cap_pos_mm`, `step_cap_ang_rad`, `step_cap_fz`, `cmd_safety_max_xyz_from_current_mm` 경로를 그대로 통과합니다. gripper action `[9]`는 같은 `tau_sec:=0.8`, `startup_ramp_sec:=3.0`을 사용하고, 기본 `gripper_command_step_cap_tick:=200.0`, `gripper_command_slew_per_sec:=1000.0`, `gripper_cmd_safety_max_tick_from_present:=700.0` guard를 추가로 통과합니다.
+
+tracker pose/force topic 기준으로 실행할 때:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_gripper_single_cam.launch.py \
+  pose_topic:=/calibrated_pose \
+  force_topic:=/ftsensor/measured_Cvalue \
+  force_msg_type:=wrench
+```
+
+특정 checkpoint 지정:
+
+```bash
+ros2 launch nrs_imitation inference_gradcam_gripper_single_cam.launch.py \
+  ckpt_dir:=/home/eunseop/nrs_imitation/checkpoints/flow/gripper/single_cam/<YYYYMMDD_HHMM>
+```
 
 ### Dual Cam
 

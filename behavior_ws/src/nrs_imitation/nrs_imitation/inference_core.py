@@ -62,7 +62,8 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
-from std_msgs.msg import Float64MultiArray
+from geometry_msgs.msg import Wrench
+from std_msgs.msg import Float32, Float64MultiArray, Int32
 from sensor_msgs.msg import Image
 
 
@@ -72,6 +73,22 @@ DEFAULT_ACT_ROOT = os.path.expanduser("~/nrs_imitation")
 # ============================================================
 # Helpers (QoS / time / math)
 # ============================================================
+
+class _NumpyCompatUnpickler(pickle.Unpickler):
+    """Load NumPy-2 pickles on NumPy-1 ROS environments."""
+
+    def find_class(self, module, name):
+        if module == "numpy._core":
+            module = "numpy.core"
+        elif str(module).startswith("numpy._core."):
+            module = "numpy.core." + str(module)[len("numpy._core."):]
+        return super().find_class(module, name)
+
+
+def _pickle_load_compat(path: str):
+    with open(path, "rb") as f:
+        return _NumpyCompatUnpickler(f).load()
+
 
 def _monotonic() -> float:
     return time.monotonic()
@@ -479,6 +496,8 @@ class StatsPack:
     act_a: np.ndarray    # min or mean
     act_b: np.ndarray    # max or std
     xyz_scale: float = 1.0
+    gripper_current_a: Optional[np.ndarray] = None
+    gripper_current_b: Optional[np.ndarray] = None
 
 
 XYZ_STATS_ABS_MAX_MM = 10000.0
@@ -534,11 +553,13 @@ def _sanitize_std(x: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     return np.maximum(x, eps)
 
 
-def _sanitize_range_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6):
+def _sanitize_range_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6, expected_size: Optional[int] = 9):
     vmin = np.asarray(vmin, dtype=np.float32).reshape(-1)
     vmax = np.asarray(vmax, dtype=np.float32).reshape(-1)
-    if vmin.size != 9 or vmax.size != 9:
-        raise ValueError(f"min/max size must be 9. got {vmin.size}, {vmax.size}")
+    if expected_size is not None and (vmin.size != expected_size or vmax.size != expected_size):
+        raise ValueError(f"min/max size must be {expected_size}. got {vmin.size}, {vmax.size}")
+    if vmin.size != vmax.size:
+        raise ValueError(f"min/max size mismatch. got {vmin.size}, {vmax.size}")
     rng = np.maximum(vmax - vmin, eps)
     vmax_fix = vmin + rng
     return vmin.astype(np.float32), vmax_fix.astype(np.float32)
@@ -563,8 +584,7 @@ def _load_demo_start_pose_from_stats(ckpt_dir: str, xyz_scale: float = 1.0) -> O
         return None
 
     try:
-        with open(p, "rb") as f:
-            st = pickle.load(f)
+        st = _pickle_load_compat(p)
     except Exception:
         return None
 
@@ -597,14 +617,15 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
     if not os.path.exists(p):
         return None
 
-    with open(p, "rb") as f:
-        st = pickle.load(f)
+    st = _pickle_load_compat(p)
 
     if all(k in st for k in ["qpos_min", "qpos_max", "action_min", "action_max"]):
         qmin = np.asarray(st["qpos_min"], dtype=np.float32).reshape(9)
         qmax = np.asarray(st["qpos_max"], dtype=np.float32).reshape(9)
-        amin = np.asarray(st["action_min"], dtype=np.float32).reshape(9)
-        amax = np.asarray(st["action_max"], dtype=np.float32).reshape(9)
+        amin = np.asarray(st["action_min"], dtype=np.float32).reshape(-1)
+        amax = np.asarray(st["action_max"], dtype=np.float32).reshape(-1)
+        if amin.size not in (9, 10) or amax.size != amin.size:
+            raise ValueError(f"action min/max size must be 9 or 10. got {amin.size}, {amax.size}")
 
         xyz_scale = _infer_xyz_stats_scale(qmin, qmax, amin, amax)
         if abs(xyz_scale - 1.0) > 1e-12:
@@ -613,8 +634,8 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
             amin = _scale_xyz_prefix(amin, xyz_scale)
             amax = _scale_xyz_prefix(amax, xyz_scale)
 
-        qmin, qmax = _sanitize_range_minmax(qmin, qmax)
-        amin, amax = _sanitize_range_minmax(amin, amax)
+        qmin, qmax = _sanitize_range_minmax(qmin, qmax, expected_size=9)
+        amin, amax = _sanitize_range_minmax(amin, amax, expected_size=amin.size)
 
         qmode = _canonical_norm_mode(
             st.get("qpos_norm_mode", st.get("qpos_mode", "minmax_01"))
@@ -629,6 +650,15 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         if amode == "minmax":
             amode = "minmax_01"
 
+        gcmin = None
+        gcmax = None
+        if "gripper_current_min" in st and "gripper_current_max" in st:
+            gcmin, gcmax = _sanitize_range_minmax(
+                np.asarray(st["gripper_current_min"], dtype=np.float32).reshape(1),
+                np.asarray(st["gripper_current_max"], dtype=np.float32).reshape(1),
+                expected_size=1,
+            )
+
         return StatsPack(
             qpos_mode=qmode,
             act_mode=amode,
@@ -637,13 +667,17 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
             act_a=amin,
             act_b=amax,
             xyz_scale=xyz_scale,
+            gripper_current_a=gcmin,
+            gripper_current_b=gcmax,
         )
 
     if all(k in st for k in ["qpos_mean", "qpos_std", "action_mean", "action_std"]):
         qm = np.asarray(st["qpos_mean"], dtype=np.float32).reshape(9)
         qs = _sanitize_std(np.asarray(st["qpos_std"], dtype=np.float32).reshape(9))
-        am = np.asarray(st["action_mean"], dtype=np.float32).reshape(9)
-        astd = _sanitize_std(np.asarray(st["action_std"], dtype=np.float32).reshape(9))
+        am = np.asarray(st["action_mean"], dtype=np.float32).reshape(-1)
+        astd = _sanitize_std(np.asarray(st["action_std"], dtype=np.float32).reshape(-1))
+        if am.size not in (9, 10) or astd.size != am.size:
+            raise ValueError(f"action mean/std size must be 9 or 10. got {am.size}, {astd.size}")
 
         xyz_scale = _infer_xyz_stats_scale(qm, am)
         if abs(xyz_scale - 1.0) > 1e-12:
@@ -702,13 +736,30 @@ def _normalize_force_history(force_hist: torch.Tensor, stats: StatsPack) -> torc
     return (force_hist - fmean) / torch.clamp(fstd, min=1e-6)
 
 
+def _normalize_gripper_current(current: torch.Tensor, stats: StatsPack) -> torch.Tensor:
+    if stats.gripper_current_a is None or stats.gripper_current_b is None:
+        raise RuntimeError("dataset_stats.pkl missing gripper_current_min/gripper_current_max")
+    ca = torch.tensor(stats.gripper_current_a, dtype=torch.float32, device=current.device).view(1, 1)
+    cb = torch.tensor(stats.gripper_current_b, dtype=torch.float32, device=current.device).view(1, 1)
+    den = torch.clamp(cb - ca, min=1e-6)
+    c01 = (current - ca) / den
+    if stats.qpos_mode == "minmax_m11":
+        return torch.clamp(2.0 * c01 - 1.0, -1.0, 1.0)
+    if stats.qpos_mode == "zscore":
+        return (current - ca) / den
+    return torch.clamp(c01, 0.0, 1.0)
+
+
 def _denorm_action_seq(seq: torch.Tensor, stats: StatsPack) -> torch.Tensor:
+    action_dim = int(stats.act_a.size)
+    if seq.shape[-1] != action_dim:
+        raise RuntimeError(f"policy output action dim={seq.shape[-1]} does not match stats action_dim={action_dim}")
     if seq.dim() == 2:
-        aa = torch.tensor(stats.act_a, dtype=torch.float32, device=seq.device).view(1, 9)
-        ab = torch.tensor(stats.act_b, dtype=torch.float32, device=seq.device).view(1, 9)
+        aa = torch.tensor(stats.act_a, dtype=torch.float32, device=seq.device).view(1, action_dim)
+        ab = torch.tensor(stats.act_b, dtype=torch.float32, device=seq.device).view(1, action_dim)
     elif seq.dim() == 3:
-        aa = torch.tensor(stats.act_a, dtype=torch.float32, device=seq.device).view(1, 1, 9)
-        ab = torch.tensor(stats.act_b, dtype=torch.float32, device=seq.device).view(1, 1, 9)
+        aa = torch.tensor(stats.act_a, dtype=torch.float32, device=seq.device).view(1, 1, action_dim)
+        ab = torch.tensor(stats.act_b, dtype=torch.float32, device=seq.device).view(1, 1, action_dim)
     else:
         raise RuntimeError(f"unexpected seq dim: {seq.shape}")
 
@@ -725,22 +776,24 @@ def _denorm_action_seq(seq: torch.Tensor, stats: StatsPack) -> torch.Tensor:
 # Helpers (Policy output shape)
 # ============================================================
 
-def _fix_a_hat_shape(a_hat: torch.Tensor, chunk_size: int) -> torch.Tensor:
+def _fix_a_hat_shape(a_hat: torch.Tensor, chunk_size: int, action_dim: int = 9) -> torch.Tensor:
     """
-    Standardize output to (T,9)
+    Standardize output to (T,D)
     Handles:
-      - (1,T,9)
-      - (T,1,9)
-      - (T,9)
+      - (1,T,D)
+      - (T,1,D)
+      - (T,D)
     """
     if a_hat.dim() == 2:
+        if a_hat.shape[-1] != action_dim:
+            raise RuntimeError(f"Unexpected 2D a_hat last dim (need {action_dim}): {a_hat.shape}")
         return a_hat
     if a_hat.dim() != 3:
         raise RuntimeError(f"Unexpected a_hat dim: {a_hat.shape}")
 
     B0, B1, B2 = a_hat.shape
-    if B2 != 9:
-        raise RuntimeError(f"Unexpected last dim (need 9): {a_hat.shape}")
+    if B2 != action_dim:
+        raise RuntimeError(f"Unexpected last dim (need {action_dim}): {a_hat.shape}")
 
     if B0 == 1 and B1 == chunk_size:
         return a_hat[0]
@@ -751,23 +804,23 @@ def _fix_a_hat_shape(a_hat: torch.Tensor, chunk_size: int) -> torch.Tensor:
     raise RuntimeError(f"Cannot interpret a_hat shape={a_hat.shape} with chunk_size={chunk_size}")
 
 
-def _fix_policy_output_seq(seq: torch.Tensor, chunk_size: int, policy_class: str) -> torch.Tensor:
+def _fix_policy_output_seq(seq: torch.Tensor, chunk_size: int, policy_class: str, action_dim: int = 9) -> torch.Tensor:
     """
-    Standardize ACT / DIFFUSION policy output to (T,9).
+    Standardize ACT / DIFFUSION / FLOW policy output to (T,D).
     ACT:
-      usually (1,T,9) or (T,9)
+      usually (1,T,D) or (T,D)
     DIFFUSION:
-      usually (B,T,9) or (T,9)
+      usually (B,T,D) or (T,D)
     """
     if seq.dim() == 2:
-        if seq.shape[-1] != 9:
+        if seq.shape[-1] != action_dim:
             raise RuntimeError(f"Unexpected 2D seq shape: {tuple(seq.shape)}")
         return seq
 
     if seq.dim() != 3:
         raise RuntimeError(f"Unexpected policy output dim: {tuple(seq.shape)}")
 
-    if seq.shape[-1] != 9:
+    if seq.shape[-1] != action_dim:
         raise RuntimeError(f"Unexpected last dim in policy output: {tuple(seq.shape)}")
 
     policy_class = str(policy_class).upper()
@@ -778,7 +831,7 @@ def _fix_policy_output_seq(seq: torch.Tensor, chunk_size: int, policy_class: str
             return seq[0]
         raise RuntimeError(f"Cannot interpret diffusion output shape={tuple(seq.shape)} with chunk_size={chunk_size}")
 
-    return _fix_a_hat_shape(seq, chunk_size)
+    return _fix_a_hat_shape(seq, chunk_size, action_dim=action_dim)
 
 
 # ============================================================
@@ -788,7 +841,7 @@ def _fix_policy_output_seq(seq: torch.Tensor, chunk_size: int, policy_class: str
 @dataclass
 class Plan:
     t0: float
-    seq_den: np.ndarray  # (T,9) denorm
+    seq_den: np.ndarray  # (T,9) polishing or (T,10) gripper, denorm
 
 
 # ============================================================
@@ -874,7 +927,8 @@ class NodeCmdMotionInfer(Node):
 
         self.declare_parameter("pose_topic", "/ur10skku/currentP")
         self.declare_parameter("force_topic", "/ur10skku/currentF")
-        self.declare_parameter("image_topic", "/realsense/robot/color/image_raw")
+        self.declare_parameter("force_msg_type", "array")  # array | wrench
+        self.declare_parameter("image_topic", "/realsense/vr/color/image_raw")
         self.declare_parameter("global_image_topic", "/realsense/global/color/image_raw")
         self.declare_parameter("stain_mask_topic", "")
         self.declare_parameter("cmd_topic", "/ur10skku/cmdMotion")
@@ -1046,6 +1100,21 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("stain_mask_threshold", 0.5)
         self.declare_parameter("debug_stain_pooling", False)
 
+        # Optional gripper extension. When enabled, the policy uses gripper state
+        # observations and action[9] is published to /gripper/command. The robot
+        # motion command path still uses action[0:9] and the same polishing safety loop.
+        self.declare_parameter("use_gripper", False)
+        self.declare_parameter("gripper_position_topic", "/gripper/present_position")
+        self.declare_parameter("gripper_current_topic", "/gripper/present_current_mA")
+        self.declare_parameter("gripper_command_topic", "/gripper/command")
+        self.declare_parameter("gripper_command_min_tick", 590)
+        self.declare_parameter("gripper_command_max_tick", 2500)
+        self.declare_parameter("gripper_command_deadband_tick", 2)
+        self.declare_parameter("gripper_command_slew_per_sec", 1000.0)
+        self.declare_parameter("gripper_command_step_cap_tick", 200.0)
+        self.declare_parameter("gripper_cmd_safety_enable", True)
+        self.declare_parameter("gripper_cmd_safety_max_tick_from_present", 700.0)
+
         # stall + recover
         self.declare_parameter("stall_sec", 1.2)
         self.declare_parameter("stall_min_after_start_sec", 1.0)
@@ -1113,6 +1182,7 @@ class NodeCmdMotionInfer(Node):
 
         self.pose_topic = str(self.get_parameter("pose_topic").value)
         self.force_topic = str(self.get_parameter("force_topic").value)
+        self.force_msg_type = str(self.get_parameter("force_msg_type").value).strip().lower()
         self.image_topic = str(self.get_parameter("image_topic").value)
         self.global_image_topic = str(self.get_parameter("global_image_topic").value)
         self.stain_mask_topic = str(self.get_parameter("stain_mask_topic").value).strip()
@@ -1309,6 +1379,25 @@ class NodeCmdMotionInfer(Node):
         if self.use_stain_mask and not self.stain_mask_topic:
             raise RuntimeError("use_stain_mask=True requires a non-empty stain_mask_topic")
 
+        self.use_gripper = bool(self.get_parameter("use_gripper").value)
+        self.gripper_position_topic = str(self.get_parameter("gripper_position_topic").value)
+        self.gripper_current_topic = str(self.get_parameter("gripper_current_topic").value)
+        self.gripper_command_topic = str(self.get_parameter("gripper_command_topic").value)
+        self.gripper_command_min_tick = int(self.get_parameter("gripper_command_min_tick").value)
+        self.gripper_command_max_tick = int(self.get_parameter("gripper_command_max_tick").value)
+        self.gripper_command_deadband_tick = max(0, int(self.get_parameter("gripper_command_deadband_tick").value))
+        self.gripper_command_slew_per_sec = max(0.0, float(self.get_parameter("gripper_command_slew_per_sec").value))
+        self.gripper_command_step_cap_tick = max(0.0, float(self.get_parameter("gripper_command_step_cap_tick").value))
+        self.gripper_cmd_safety_enable = bool(self.get_parameter("gripper_cmd_safety_enable").value)
+        self.gripper_cmd_safety_max_tick_from_present = max(
+            0.0,
+            float(self.get_parameter("gripper_cmd_safety_max_tick_from_present").value),
+        )
+        if self.use_gripper and self.policy_class != "FLOW":
+            raise RuntimeError("use_gripper=True currently requires policy_class=FLOW")
+        if self.force_msg_type not in ("array", "wrench"):
+            raise RuntimeError(f"force_msg_type must be array or wrench, got: {self.force_msg_type}")
+
         # device
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.get_logger().info(f"[INFO] Using device: {self.device}")
@@ -1375,6 +1464,21 @@ class NodeCmdMotionInfer(Node):
                     f"action_fz_range=[{float(self.stats.act_a[8]):.3f},{float(self.stats.act_b[8]):.3f}]"
                 )
 
+        self.action_dim = 10 if self.use_gripper else 9
+        if self.use_gripper and self.stats is None:
+            raise RuntimeError("use_gripper=True requires dataset_stats.pkl")
+        if self.stats is not None:
+            stats_action_dim = int(self.stats.act_a.size)
+            if stats_action_dim != self.action_dim:
+                raise RuntimeError(
+                    f"checkpoint action_dim={stats_action_dim} does not match "
+                    f"use_gripper={int(self.use_gripper)} expected action_dim={self.action_dim}"
+                )
+            if self.use_gripper and (
+                self.stats.gripper_current_a is None or self.stats.gripper_current_b is None
+            ):
+                raise RuntimeError("use_gripper=True requires gripper_current_min/max in dataset_stats.pkl")
+
         # demo-start pose for optional initial alignment
         self.demo_start_pose6: Optional[np.ndarray] = None
         if self.auto_move_to_demo_start:
@@ -1409,6 +1513,8 @@ class NodeCmdMotionInfer(Node):
         self._lock = threading.Lock()
         self._pose6: Optional[np.ndarray] = None
         self._force: Optional[np.ndarray] = None
+        self._gripper_position: Optional[int] = None
+        self._gripper_current_mA: Optional[float] = None
         self._img_cam0: Optional[np.ndarray] = None
         self._img_cam1: Optional[np.ndarray] = None
         self._stain_mask: Optional[np.ndarray] = None
@@ -1430,6 +1536,10 @@ class NodeCmdMotionInfer(Node):
         self._ctrl_no_plan_last_log = 0.0
         self._cmd_safety_last_log = 0.0
         self._demo_start_safety_last_log = 0.0
+        self._last_gripper_cmd: Optional[int] = None
+        self._last_gripper_cmd_t: Optional[float] = None
+        self._gripper_startup_position: Optional[float] = None
+        self._gripper_cmd_safety_last_log = 0.0
 
         # baseline state
         self._sent_first_cmd = False
@@ -1508,14 +1618,23 @@ class NodeCmdMotionInfer(Node):
         vec_qos = _qos(depth=10, reliability=ReliabilityPolicy.RELIABLE)
 
         self.create_subscription(Float64MultiArray, self.pose_topic, self._on_pose, vec_qos)
-        self.create_subscription(Float64MultiArray, self.force_topic, self._on_force, vec_qos)
+        if self.force_msg_type == "wrench":
+            self.create_subscription(Wrench, self.force_topic, self._on_force_wrench, vec_qos)
+        else:
+            self.create_subscription(Float64MultiArray, self.force_topic, self._on_force, vec_qos)
         self.create_subscription(Image, self.image_topic, self._on_img, img_qos)
         if self.use_global_image:
             self.create_subscription(Image, self.global_image_topic, self._on_global_img, img_qos)
         if self.use_stain_mask:
             self.create_subscription(Image, self.stain_mask_topic, self._on_stain_mask, img_qos)
+        if self.use_gripper:
+            self.create_subscription(Int32, self.gripper_position_topic, self._on_gripper_position, vec_qos)
+            self.create_subscription(Float32, self.gripper_current_topic, self._on_gripper_current, vec_qos)
 
         self.pub_cmd = self.create_publisher(Float64MultiArray, self.cmd_topic, 10)
+        self.pub_gripper_cmd = None
+        if self.use_gripper:
+            self.pub_gripper_cmd = self.create_publisher(Int32, self.gripper_command_topic, 10)
         self.pub_gradcam_overlay = None
         self.pub_gradcam_global_overlay = None
         if self.gradcam_enable and self.gradcam_publish:
@@ -1532,11 +1651,12 @@ class NodeCmdMotionInfer(Node):
             "[INFO] ✅ Ready.\n"
             f"  stage_start={self.stage.name}\n"
             f"  pose_topic={self.pose_topic}\n"
-            f"  force_topic={self.force_topic}\n"
+            f"  force_topic={self.force_topic} ({self.force_msg_type})\n"
             f"  obs_mode={self.obs_mode} camera_names={self.camera_names}\n"
             f"  image_topic={self.image_topic}\n"
             f"  global_image_topic={self.global_image_topic if self.use_global_image else '(disabled)'}\n"
             f"  cmd_topic={self.cmd_topic}\n"
+            f"  gripper(enable={int(self.use_gripper)}, state=({self.gripper_position_topic}, {self.gripper_current_topic}), command={self.gripper_command_topic if self.use_gripper else '(disabled)'})\n"
             f"  image_qos={self.image_qos_str}\n"
             f"  policy_class={self.policy_class} phase_mode={self.phase_mode}\n"
             f"  control_hz={self.control_hz} infer_hz={self.infer_hz}\n"
@@ -1642,8 +1762,8 @@ class NodeCmdMotionInfer(Node):
         )
 
     def _select_gradcam_scalar(self, seq_phys: torch.Tensor) -> torch.Tensor:
-        if seq_phys.dim() != 2 or seq_phys.shape[-1] != 9:
-            raise RuntimeError(f"Grad-CAM seq must be (T,9), got {tuple(seq_phys.shape)}")
+        if seq_phys.dim() != 2 or seq_phys.shape[-1] not in (9, 10):
+            raise RuntimeError(f"Grad-CAM seq must be (T,9) or (T,10), got {tuple(seq_phys.shape)}")
 
         T = int(seq_phys.shape[0])
         s = min(max(0, int(self.gradcam_target_step)), max(0, T - 1))
@@ -1669,6 +1789,10 @@ class NodeCmdMotionInfer(Node):
             return block[:, 7].mean()
         if target in ("fz", "cmd_fz"):
             return block[:, 8].mean()
+        if target in ("gripper", "grip", "tick", "gripper_position"):
+            if block.shape[-1] < 10:
+                raise RuntimeError("gradcam_target=gripper requires a 10D gripper policy output")
+            return block[:, 9].mean()
         if target in ("abs_z", "z_abs"):
             return block[:, 2].abs().mean()
         if target in ("abs_fz", "fz_abs"):
@@ -1689,8 +1813,41 @@ class NodeCmdMotionInfer(Node):
         img_gc: torch.Tensor,
         fh_gc: Optional[torch.Tensor],
         stain_mask_gc: Optional[torch.Tensor],
+        gripper_position_gc: Optional[torch.Tensor],
+        gripper_current_gc: Optional[torch.Tensor],
     ) -> torch.Tensor:
         if self.policy_class == "FLOW":
+            if self.use_gripper:
+                if hasattr(self.policy, "sample_action_with_grad"):
+                    return self.policy.sample_action_with_grad(
+                        qpos=q_gc,
+                        image=img_gc,
+                        force_history=fh_gc,
+                        gripper_position=gripper_position_gc,
+                        gripper_current=gripper_current_gc,
+                    )
+
+                if hasattr(self.policy, "predict_velocity"):
+                    steps = max(1, int(getattr(self.policy, "flow_infer_steps", self.flow_infer_steps)))
+                    B = int(q_gc.shape[0])
+                    T = int(getattr(self.policy, "num_queries", self.chunk_size))
+                    Da = int(getattr(self.policy, "action_dim", self.action_dim))
+                    z = torch.randn(B, T, Da, device=q_gc.device, dtype=q_gc.dtype)
+                    dt = 1.0 / float(steps)
+                    for k in range(steps):
+                        t = torch.full((B,), (k + 0.5) / float(steps), device=q_gc.device, dtype=q_gc.dtype)
+                        v = self.policy.predict_velocity(
+                            z_t=z,
+                            t=t,
+                            qpos=q_gc,
+                            image=img_gc,
+                            force_history=fh_gc,
+                            gripper_position=gripper_position_gc,
+                            gripper_current=gripper_current_gc,
+                        )
+                        z = z + dt * v
+                    return z
+
             if hasattr(self.policy, "sample_action_with_grad"):
                 if self.use_force_history:
                     return self.policy.sample_action_with_grad(
@@ -1741,6 +1898,8 @@ class NodeCmdMotionInfer(Node):
         img_t: torch.Tensor,
         force_hist_t: Optional[torch.Tensor],
         stain_mask_t: Optional[torch.Tensor],
+        gripper_position_t: Optional[torch.Tensor] = None,
+        gripper_current_t: Optional[torch.Tensor] = None,
     ) -> bool:
         if not self.gradcam_enable:
             return False
@@ -1769,6 +1928,8 @@ class NodeCmdMotionInfer(Node):
             img_gc.requires_grad_(True)
             fh_gc = None if force_hist_t is None else force_hist_t.detach().clone()
             stain_mask_gc = None if stain_mask_t is None else stain_mask_t.detach().clone()
+            gp_gc = None if gripper_position_t is None else gripper_position_t.detach().clone()
+            gc_gc = None if gripper_current_t is None else gripper_current_t.detach().clone()
 
             with torch.enable_grad():
                 out = self._gradcam_policy_forward(
@@ -1776,8 +1937,10 @@ class NodeCmdMotionInfer(Node):
                     img_gc=img_gc,
                     fh_gc=fh_gc,
                     stain_mask_gc=stain_mask_gc,
+                    gripper_position_gc=gp_gc,
+                    gripper_current_gc=gc_gc,
                 )
-                seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class)
+                seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class, action_dim=self.action_dim)
                 if self.denorm_action_enabled and self.stats is not None:
                     seq_phys = _denorm_action_seq(seq, self.stats)
                 else:
@@ -1885,13 +2048,17 @@ class NodeCmdMotionInfer(Node):
                 f"Failed to import ACT/Diffusion policy classes from {act_source}/models/policy.py : {e}"
             )
 
+        flow_module = "models.gri_flow_core" if self.use_gripper else "models.flow_core"
         try:
-            from models.flow_core import FlowRGBPolicy
+            if self.use_gripper:
+                from models.gri_flow_core import FlowRGBPolicy
+            else:
+                from models.flow_core import FlowRGBPolicy
         except Exception as e:
             FlowRGBPolicy = None
             if str(self.policy_class).upper() == "FLOW":
                 raise RuntimeError(
-                    f"Failed to import FlowRGBPolicy from {act_source}/models/flow_core.py : {e}"
+                    f"Failed to import FlowRGBPolicy from {act_source}/{flow_module.replace('.', '/')}.py : {e}"
                 )
 
         args_override = {
@@ -1910,7 +2077,7 @@ class NodeCmdMotionInfer(Node):
             "camera_names": list(self.camera_names),
             "obs_mode": self.obs_mode,
             "state_dim": 9,
-            "action_dim": 9,
+            "action_dim": self.action_dim,
 
             "image_resize_hw": int(self.get_parameter("image_resize_hw").value),
             "image_pool_hw": int(self.get_parameter("image_pool_hw").value),
@@ -1954,6 +2121,30 @@ class NodeCmdMotionInfer(Node):
             "debug_stain_pooling": self.debug_stain_pooling,
         }
 
+        if self.use_gripper:
+            try:
+                stats_obj = _pickle_load_compat(os.path.join(self.ckpt_dir, "dataset_stats.pkl"))
+                ckpt_policy_cfg = dict(stats_obj.get("policy_config", {}))
+            except Exception:
+                ckpt_policy_cfg = {}
+            for key in (
+                "gripper_encoder_hidden_dim",
+                "gripper_feature_dim",
+                "flow_marker_feature_dim",
+                "flow_obs_hidden_dim",
+                "flow_image_feature_dim",
+                "flow_global_cond_dim",
+                "flow_time_embed_dim",
+                "flow_down_dims",
+                "flow_kernel_size",
+                "flow_n_groups",
+                "flow_cond_predict_scale",
+            ):
+                if key in ckpt_policy_cfg:
+                    args_override[key] = ckpt_policy_cfg[key]
+            args_override["action_dim"] = 10
+            args_override["pretrained_backbone"] = False
+
         policy_class = str(self.policy_class).upper()
         if policy_class == "ACT":
             self.get_logger().info("[INFO] Loading ACTPolicy from nrs_imitation/source/models/policy.py ...")
@@ -1962,7 +2153,7 @@ class NodeCmdMotionInfer(Node):
             self.get_logger().info("[INFO] Loading DiffusionPolicy from nrs_imitation/source/models/policy.py ...")
             policy = DiffusionPolicy(args_override).to(self.device)
         elif policy_class == "FLOW":
-            self.get_logger().info("[INFO] Loading FlowRGBPolicy from nrs_imitation/source/models/flow_core.py ...")
+            self.get_logger().info(f"[INFO] Loading FlowRGBPolicy from nrs_imitation/source/{flow_module.replace('.', '/')}.py ...")
             if FlowRGBPolicy is None:
                 raise RuntimeError("FlowRGBPolicy import failed.")
             policy = FlowRGBPolicy(args_override).to(self.device)
@@ -2030,6 +2221,20 @@ class NodeCmdMotionInfer(Node):
             self._force = arr.copy()
             if arr.size >= 3:
                 self._force_hist.append(self._extract_force3(arr))
+
+    def _on_force_wrench(self, msg: Wrench):
+        arr = np.asarray([msg.force.x, msg.force.y, msg.force.z], dtype=np.float32)
+        with self._lock:
+            self._force = arr.copy()
+            self._force_hist.append(arr.copy())
+
+    def _on_gripper_position(self, msg: Int32):
+        with self._lock:
+            self._gripper_position = int(msg.data)
+
+    def _on_gripper_current(self, msg: Float32):
+        with self._lock:
+            self._gripper_current_mA = float(msg.data)
 
     def _preprocess_live_image(self, rgb: np.ndarray) -> np.ndarray:
         """
@@ -2234,6 +2439,8 @@ class NodeCmdMotionInfer(Node):
         with self._lock:
             pose6 = None if self._pose6 is None else self._pose6.copy()
             force = None if self._force is None else self._force.copy()
+            gripper_position = self._gripper_position
+            gripper_current_mA = self._gripper_current_mA
             cam0 = None if self._img_cam0 is None else self._img_cam0.copy()
             cam1 = None if self._img_cam1 is None else self._img_cam1.copy()
             stain_mask_np = None if self._stain_mask is None else self._stain_mask.copy()
@@ -2241,7 +2448,10 @@ class NodeCmdMotionInfer(Node):
 
         cam1_missing = self.use_global_image and cam1 is None
         stain_missing = self.use_stain_mask and stain_mask_np is None
-        if pose6 is None or force is None or cam0 is None or cam1_missing or stain_missing:
+        gripper_position_ok = gripper_position is not None
+        gripper_current_ok = gripper_current_mA is not None
+        gripper_missing = self.use_gripper and (not gripper_position_ok or not gripper_current_ok)
+        if pose6 is None or force is None or cam0 is None or cam1_missing or stain_missing or gripper_missing:
             now_dbg = _monotonic()
             if now_dbg - self._infer_wait_last_log >= 1.0:
                 self._infer_wait_last_log = now_dbg
@@ -2249,7 +2459,9 @@ class NodeCmdMotionInfer(Node):
                     "[INFER-WAIT] missing live input -> "
                     f"pose={pose6 is not None}, force={force is not None}, "
                     f"cam0={cam0 is not None}, cam1={cam1 is not None if self.use_global_image else 'disabled'}, "
-                    f"stain_mask={stain_mask_np is not None if self.use_stain_mask else 'disabled'}. "
+                    f"stain_mask={stain_mask_np is not None if self.use_stain_mask else 'disabled'}, "
+                    f"gripper={not gripper_missing if self.use_gripper else 'disabled'}"
+                    f"(pos={gripper_position_ok}, current={gripper_current_ok}). "
                     "No policy plan will be generated until all are available."
                 )
             return
@@ -2292,18 +2504,42 @@ class NodeCmdMotionInfer(Node):
                     device=self.device,
                     resize_hw=self.resize_hw,
                 )
+            gripper_position_t = None
+            gripper_current_t = None
+            if self.use_gripper:
+                gripper_position_t = torch.tensor(
+                    [[float(gripper_position)]],
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+                gripper_current_t = torch.tensor(
+                    [[float(gripper_current_mA)]],
+                    dtype=torch.float32,
+                    device=self.device,
+                )
+                if self.stats is None:
+                    raise RuntimeError("use_gripper=True requires dataset_stats.pkl")
+                gripper_current_t = _normalize_gripper_current(gripper_current_t, self.stats)
         except Exception as e:
             self.get_logger().error(f"[INFER] image stack failed: {e}")
             return
 
         try:
             with torch.inference_mode():
-                if self.use_force_history:
+                if self.use_gripper:
+                    out = self.policy(
+                        q_t,
+                        img_t,
+                        force_history=force_hist_t,
+                        gripper_position=gripper_position_t,
+                        gripper_current=gripper_current_t,
+                    )
+                elif self.use_force_history:
                     out = self.policy(q_t, img_t, force_history=force_hist_t, stain_mask=stain_mask_t)
                 else:
                     out = self.policy(q_t, img_t, stain_mask=stain_mask_t)
 
-            seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class)
+            seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class, action_dim=self.action_dim)
 
             if self.denorm_action_enabled and self.stats is not None:
                 seq = _denorm_action_seq(seq, self.stats)
@@ -2335,14 +2571,19 @@ class NodeCmdMotionInfer(Node):
             img_t=img_t,
             force_hist_t=force_hist_t,
             stain_mask_t=stain_mask_t,
+            gripper_position_t=gripper_position_t,
+            gripper_current_t=gripper_current_t,
         )
 
         if self._infer_plan_count <= 3 or (self._infer_plan_count % 20 == 0):
+            gripper_dbg = ""
+            if self.use_gripper and seq_den.shape[-1] >= 10:
+                gripper_dbg = f" gripper_target={seq_den[0,9]:.1f}"
             self.get_logger().info(
                 f"[INFER] plan appended #{self._infer_plan_count} | "
                 f"seq_shape={tuple(seq_den.shape)} first_xyz=[{seq_den[0,0]:.3f},{seq_den[0,1]:.3f},{seq_den[0,2]:.3f}] "
                 f"first_fxy=[{seq_den[0,6]:.3f},{seq_den[0,7]:.3f}] first_fz={seq_den[0,8]:.3f} "
-                f"z_offset={self.policy_z_offset_mm:.3f} plans={len(self.plans)} stage={self.stage.name}"
+                f"z_offset={self.policy_z_offset_mm:.3f}{gripper_dbg} plans={len(self.plans)} stage={self.stage.name}"
             )
 
     # ------------------------------------------------------------
@@ -2377,7 +2618,8 @@ class NodeCmdMotionInfer(Node):
         if W <= 1e-9:
             return vals[-1].astype(np.float32)
 
-        acc = np.zeros(9, dtype=np.float32)
+        dim = int(vals[-1].shape[0])
+        acc = np.zeros(dim, dtype=np.float32)
         for v, w in zip(vals, wts):
             acc += (w / W) * v
         return acc.astype(np.float32)
@@ -2388,6 +2630,10 @@ class NodeCmdMotionInfer(Node):
     def _current_pose6_snapshot(self) -> Optional[np.ndarray]:
         with self._lock:
             return None if self._pose6 is None else self._pose6.copy()
+
+    def _current_gripper_position_snapshot(self) -> Optional[float]:
+        with self._lock:
+            return None if self._gripper_position is None else float(self._gripper_position)
 
     def _hold_cmd_from_pose(self, pose6: np.ndarray) -> np.ndarray:
         hold = np.zeros(9, dtype=np.float32)
@@ -2446,6 +2692,91 @@ class NodeCmdMotionInfer(Node):
         m.data = [float(x) for x in published.reshape(-1).tolist()]
         self.pub_cmd.publish(m)
         return published
+
+    def _publish_gripper_command(self, target_tick: float, now_t: float) -> bool:
+        if not self.use_gripper or self.pub_gripper_cmd is None:
+            return False
+
+        now = float(now_t)
+        present = self._current_gripper_position_snapshot()
+        target = float(target_tick)
+        if not np.isfinite(target):
+            if now - self._gripper_cmd_safety_last_log >= 1.0:
+                self._gripper_cmd_safety_last_log = now
+                self.get_logger().error("[GRIPPER-CMD-SAFETY] blocked non-finite gripper command")
+            return False
+
+        target = float(np.clip(target, self.gripper_command_min_tick, self.gripper_command_max_tick))
+
+        if self._gripper_startup_position is None:
+            if present is not None and np.isfinite(present):
+                self._gripper_startup_position = float(
+                    np.clip(present, self.gripper_command_min_tick, self.gripper_command_max_tick)
+                )
+            elif self._last_gripper_cmd is not None:
+                self._gripper_startup_position = float(self._last_gripper_cmd)
+            else:
+                self._gripper_startup_position = target
+
+        ramp = self._startup_ramp()
+        target = float(self._gripper_startup_position + ramp * (target - self._gripper_startup_position))
+
+        dt = self.dt_control
+        base = None
+        if self._last_gripper_cmd is not None:
+            base = float(self._last_gripper_cmd)
+        elif present is not None and np.isfinite(present):
+            base = float(np.clip(present, self.gripper_command_min_tick, self.gripper_command_max_tick))
+
+        if base is not None:
+            beta = _beta_from_tau(dt, self.tau_sec)
+            target = float(base + beta * (target - base))
+
+        if self._last_gripper_cmd is not None:
+            caps: List[float] = []
+            if self.gripper_command_step_cap_tick > 0.0:
+                caps.append(max(1.0, float(self.gripper_command_step_cap_tick) * ramp))
+            if self.gripper_command_slew_per_sec > 0.0 and self._last_gripper_cmd_t is not None:
+                caps.append(max(1.0, self.gripper_command_slew_per_sec * max(0.0, now - self._last_gripper_cmd_t)))
+            if caps:
+                max_delta = float(min(caps))
+                target = float(np.clip(target, self._last_gripper_cmd - max_delta, self._last_gripper_cmd + max_delta))
+
+        target = float(np.clip(target, self.gripper_command_min_tick, self.gripper_command_max_tick))
+
+        if (
+            self.gripper_cmd_safety_enable
+            and present is not None
+            and np.isfinite(present)
+            and self.gripper_cmd_safety_max_tick_from_present > 0.0
+        ):
+            dist = abs(target - present)
+            if dist > self.gripper_cmd_safety_max_tick_from_present:
+                target = float(np.clip(present, self.gripper_command_min_tick, self.gripper_command_max_tick))
+                self.plans.clear()
+                self._anchor_ready = False
+                if now - self._gripper_cmd_safety_last_log >= 1.0:
+                    self._gripper_cmd_safety_last_log = now
+                    self.get_logger().error(
+                        "[GRIPPER-CMD-SAFETY] blocked unsafe gripper command: "
+                        f"target {dist:.1f} tick from present gripper position "
+                        f"(limit={self.gripper_cmd_safety_max_tick_from_present:.1f}). "
+                        "Publishing present-position hold."
+                    )
+
+        target_i = int(round(float(np.clip(target, self.gripper_command_min_tick, self.gripper_command_max_tick))))
+        if (
+            self._last_gripper_cmd is not None
+            and abs(target_i - self._last_gripper_cmd) < self.gripper_command_deadband_tick
+        ):
+            return False
+
+        msg = Int32()
+        msg.data = target_i
+        self.pub_gripper_cmd.publish(msg)
+        self._last_gripper_cmd = target_i
+        self._last_gripper_cmd_t = now
+        return True
 
     def _ramp_from(self, t0: float, ramp_sec: float) -> float:
         if ramp_sec <= 1e-6:
@@ -2860,6 +3191,7 @@ class NodeCmdMotionInfer(Node):
         # Stage-dependent cmd_target
         # -----------------------------
         cmd_target = None
+        gripper_target_tick = None
 
         if self.stage == Stage.PRELOAD:
             cmd_target = self._preload_control_step(pose6.astype(np.float32), meas_fz)
@@ -2878,9 +3210,9 @@ class NodeCmdMotionInfer(Node):
                     self._enter_track()
 
         else:
-            cmd_pred = self._temporal_agg_cmd(now_t)
+            cmd_pred_full = self._temporal_agg_cmd(now_t)
 
-            if cmd_pred is None:
+            if cmd_pred_full is None:
                 now_dbg = _monotonic()
                 if now_dbg - self._ctrl_no_plan_last_log >= 1.0:
                     self._ctrl_no_plan_last_log = now_dbg
@@ -2897,7 +3229,9 @@ class NodeCmdMotionInfer(Node):
                 self.prev_cmd = published.copy()
                 return
 
-            cmd_target = cmd_pred.astype(np.float32).copy()
+            if self.use_gripper and cmd_pred_full.size >= 10:
+                gripper_target_tick = float(cmd_pred_full[9])
+            cmd_target = cmd_pred_full[:9].astype(np.float32).copy()
 
             if self.action_type == "delta":
                 cmd_target = (self.prev_cmd + cmd_target).astype(np.float32)
@@ -3074,6 +3408,14 @@ class NodeCmdMotionInfer(Node):
 
         published = self._publish_cmd(cmd_next)
         self.prev_cmd = published.copy()
+        if self.use_gripper:
+            motion_safe = bool(np.allclose(published, cmd_next, atol=1e-6, rtol=0.0))
+            if motion_safe and gripper_target_tick is not None:
+                self._publish_gripper_command(float(gripper_target_tick), now_t)
+            else:
+                present_grip = self._current_gripper_position_snapshot()
+                if present_grip is not None:
+                    self._publish_gripper_command(float(present_grip), now_t)
 
         if (int(now_t * self.control_hz) % self.debug_every_n) == 0:
             base = self._fz_base if self._fz_base_init else 0.0
@@ -3084,7 +3426,8 @@ class NodeCmdMotionInfer(Node):
                 f"stall_win={stall_win_age:.2f}s dither={dither_age:.2f}s kickN={int(self._fz_kick_active)} kickCnt={self._kick_count} | "
                 f"beta={beta:.4f} ramp={ramp:.3f} cap(pos={cap_pos:.4f}, ang={cap_ang:.6f}, fz={cap_fz:.4f}) | "
                 f"cmd_xyz=[{cmd_next[0]:.3f},{cmd_next[1]:.3f},{cmd_next[2]:.3f}] "
-                f"cmd_fxy=[{cmd_next[6]:.3f},{cmd_next[7]:.3f}] cmd_fz={cmd_next[8]:.3f}"
+                f"cmd_fxy=[{cmd_next[6]:.3f},{cmd_next[7]:.3f}] cmd_fz={cmd_next[8]:.3f} "
+                f"gripper_cmd={self._last_gripper_cmd if self.use_gripper else 'disabled'}"
             )
 
 

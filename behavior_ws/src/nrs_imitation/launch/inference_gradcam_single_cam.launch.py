@@ -48,7 +48,7 @@ def generate_launch_description():
         DeclareLaunchArgument("ckpt_auto_subdir", default_value="polishing/single_cam"),
         DeclareLaunchArgument("pose_topic", default_value="/ur10skku/currentP"),
         DeclareLaunchArgument("force_topic", default_value="/ur10skku/currentF"),
-        DeclareLaunchArgument("image_topic", default_value="/realsense/robot/color/image_raw"),
+        DeclareLaunchArgument("image_topic", default_value="/realsense/vr/color/image_raw"),
         DeclareLaunchArgument("use_stain_mask", default_value="false"),
         DeclareLaunchArgument("stain_mask_topic", default_value="/inference_single_cam/stain_mask"),
         DeclareLaunchArgument("auto_stain_mask", default_value="false"),
