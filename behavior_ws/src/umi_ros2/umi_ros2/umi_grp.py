@@ -45,6 +45,9 @@ ADDR_PROFILE_VELOCITY     = 112
 ADDR_GOAL_POSITION        = 116
 ADDR_PRESENT_CURRENT      = 126  # signed 2B, 1 LSB ≈ 2.69 mA
 ADDR_PRESENT_POSITION     = 132
+LEN_PRESENT_STATE         = (ADDR_PRESENT_POSITION + 4) - ADDR_PRESENT_CURRENT
+OFFSET_PRESENT_CURRENT    = 0
+OFFSET_PRESENT_POSITION   = ADDR_PRESENT_POSITION - ADDR_PRESENT_CURRENT
 
 # Operating Mode
 # 3: Position Control Mode
@@ -80,6 +83,19 @@ def lsb_signed(u16):
 
 def i32_signed(u32):
     return u32 - 0x100000000 if u32 is not None and u32 > 0x7FFFFFFF else u32
+
+
+def le_u16(data, offset):
+    return int(data[offset]) | (int(data[offset + 1]) << 8)
+
+
+def le_u32(data, offset):
+    return (
+        int(data[offset])
+        | (int(data[offset + 1]) << 8)
+        | (int(data[offset + 2]) << 16)
+        | (int(data[offset + 3]) << 24)
+    )
 
 
 # ================= Node Body =================
@@ -229,6 +245,7 @@ class GripperNode(Node):
 
         self._last_warn_time = {}
         self._shutdown_requested = threading.Event()
+        self._destroyed = False
 
         # ================= ROS Publishers =================
         self.curr_pub = self.create_publisher(Float32, CURR_TOPIC, 20)
@@ -270,11 +287,12 @@ class GripperNode(Node):
         self._w4u(ADDR_PROFILE_VELOCITY, PROFILE_VELOCITY)
 
         # 현재 위치를 goal register에 먼저 넣어서 torque on 시 이전 goal로 움직이지 않게 함.
+        startup_cur_u = None
         startup_pos_u = None
         startup_pos = None
 
         for _ in range(3):
-            startup_pos_u = self._r4u(ADDR_PRESENT_POSITION)
+            startup_cur_u, startup_pos_u = self._read_present_state(warn=False)
 
             if startup_pos_u is not None:
                 startup_pos = int(i32_signed(startup_pos_u))
@@ -282,7 +300,6 @@ class GripperNode(Node):
 
             time.sleep(0.05)
 
-        startup_cur_u = self._r2u(ADDR_PRESENT_CURRENT)
         startup_cur_s = lsb_signed(startup_cur_u)
         startup_current_mA = (
             float(startup_cur_s * 2.69)
@@ -313,13 +330,12 @@ class GripperNode(Node):
 
         time.sleep(0.1)
 
-        enabled_pos_u = self._r4u(ADDR_PRESENT_POSITION)
+        enabled_cur_u, enabled_pos_u = self._read_present_state(warn=False)
         enabled_pos = (
             int(i32_signed(enabled_pos_u))
             if enabled_pos_u is not None
             else None
         )
-        enabled_cur_u = self._r2u(ADDR_PRESENT_CURRENT)
         enabled_cur_s = lsb_signed(enabled_cur_u)
         enabled_current_mA = (
             float(enabled_cur_s * 2.69)
@@ -487,12 +503,22 @@ class GripperNode(Node):
 
     # ================= Dynamixel I/O =================
     def _w1(self, addr, v):
-        res, err = self.ph.write1ByteTxRx(
-            self.port,
-            self.GRIPPER_ID,
-            addr,
-            int(v) & 0xFF
-        )
+        res = None
+        err = None
+
+        for attempt in range(2):
+            res, err = self.ph.write1ByteTxRx(
+                self.port,
+                self.GRIPPER_ID,
+                addr,
+                int(v) & 0xFF
+            )
+
+            if res == COMM_SUCCESS and err == 0:
+                return True
+
+            if attempt == 0:
+                time.sleep(0.003)
 
         if res != COMM_SUCCESS or err != 0:
             self._log_warn_throttle(
@@ -506,12 +532,22 @@ class GripperNode(Node):
     def _w2u(self, addr, v):
         v = int(v) & 0xFFFF
 
-        res, err = self.ph.write2ByteTxRx(
-            self.port,
-            self.GRIPPER_ID,
-            addr,
-            v
-        )
+        res = None
+        err = None
+
+        for attempt in range(2):
+            res, err = self.ph.write2ByteTxRx(
+                self.port,
+                self.GRIPPER_ID,
+                addr,
+                v
+            )
+
+            if res == COMM_SUCCESS and err == 0:
+                return True
+
+            if attempt == 0:
+                time.sleep(0.003)
 
         if res != COMM_SUCCESS or err != 0:
             err_str = self._get_error_string(err) if err != 0 else "COMM_ERROR"
@@ -526,12 +562,22 @@ class GripperNode(Node):
     def _w4u(self, addr, v):
         v = int(v) & 0xFFFFFFFF
 
-        res, err = self.ph.write4ByteTxRx(
-            self.port,
-            self.GRIPPER_ID,
-            addr,
-            v
-        )
+        res = None
+        err = None
+
+        for attempt in range(2):
+            res, err = self.ph.write4ByteTxRx(
+                self.port,
+                self.GRIPPER_ID,
+                addr,
+                v
+            )
+
+            if res == COMM_SUCCESS and err == 0:
+                return True
+
+            if attempt == 0:
+                time.sleep(0.003)
 
         if res != COMM_SUCCESS or err != 0:
             err_str = self._get_error_string(err) if err != 0 else "COMM_ERROR"
@@ -542,6 +588,41 @@ class GripperNode(Node):
             return False
 
         return True
+
+    def _read_present_state(self, warn=True):
+        data = []
+        res = None
+        err = None
+
+        for attempt in range(2):
+            data, res, err = self.ph.readTxRx(
+                self.port,
+                self.GRIPPER_ID,
+                ADDR_PRESENT_CURRENT,
+                LEN_PRESENT_STATE,
+            )
+
+            if (
+                res == COMM_SUCCESS
+                and err == 0
+                and len(data) >= LEN_PRESENT_STATE
+            ):
+                cur_u = le_u16(data, OFFSET_PRESENT_CURRENT)
+                pos_u = le_u32(data, OFFSET_PRESENT_POSITION)
+                return cur_u, pos_u
+
+            if attempt == 0:
+                time.sleep(0.003)
+
+        if warn:
+            self._log_warn_throttle(
+                1.0,
+                f"read_state fail addr={ADDR_PRESENT_CURRENT} "
+                f"len={LEN_PRESENT_STATE} res={res} err={err} "
+                f"data_len={len(data)}"
+            )
+
+        return None, None
 
     def _r2u(self, addr):
         v, res, err = self.ph.read2ByteTxRx(
@@ -714,13 +795,11 @@ class GripperNode(Node):
                 tr = self._tr_tick
                 direct_goal = self._direct_goal_position
 
-            # Present Current
-            cur_u = self._r2u(ADDR_PRESENT_CURRENT)
+            # Present Current / Position in one read transaction.
+            cur_u, pos_u = self._read_present_state()
             cur_s = lsb_signed(cur_u)
             present_current_mA = float(cur_s * 2.69) if cur_s is not None else None
 
-            # Present Position
-            pos_u = self._r4u(ADDR_PRESENT_POSITION)
             present_position = (
                 int(i32_signed(pos_u))
                 if pos_u is not None
@@ -831,6 +910,12 @@ class GripperNode(Node):
 
     # ================= Cleanup =================
     def destroy_node(self):
+        if self._destroyed:
+            return
+
+        self._destroyed = True
+        self._shutdown_requested.set()
+
         try:
             self._w1(ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
         except Exception:
@@ -843,7 +928,10 @@ class GripperNode(Node):
 
         self.get_logger().info("umi gripper node: torque OFF, port closed.")
 
-        super().destroy_node()
+        try:
+            super().destroy_node()
+        except KeyboardInterrupt:
+            pass
 
 
 # ================= main =================
@@ -851,6 +939,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     node = None
+    executor = None
 
     try:
         node = GripperNode()
@@ -869,11 +958,22 @@ def main(args=None):
         print(f"Error: {e}")
 
     finally:
+        try:
+            executor.shutdown()
+        except Exception:
+            pass
+
         if node is not None:
-            node.destroy_node()
+            try:
+                node.destroy_node()
+            except KeyboardInterrupt:
+                pass
 
         if rclpy.ok():
-            rclpy.shutdown()
+            try:
+                rclpy.shutdown()
+            except KeyboardInterrupt:
+                pass
 
 
 if __name__ == "__main__":
