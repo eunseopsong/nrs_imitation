@@ -78,6 +78,10 @@ def lsb_signed(u16):
     return u16 - 0x10000 if u16 is not None and u16 > 0x7FFF else u16
 
 
+def i32_signed(u32):
+    return u32 - 0x100000000 if u32 is not None and u32 > 0x7FFFFFFF else u32
+
+
 # ================= Node Body =================
 class GripperNode(Node):
     def __init__(self):
@@ -132,6 +136,7 @@ class GripperNode(Node):
 
         # 너무 빨리 멈추면 250~300으로 올리면 됨
         self.declare_parameter('gripper.close_current_stop_mA', 400)
+        self.declare_parameter('gripper.current_stop_debounce_sec', 0.12)
 
         # Monitoring
         self.declare_parameter('monitor.enabled', True)
@@ -170,6 +175,7 @@ class GripperNode(Node):
 
         CURRENT_STOP_ENABLED = self.get_parameter('gripper.current_stop_enabled').get_parameter_value().bool_value
         CLOSE_CURRENT_STOP_mA = self.get_parameter('gripper.close_current_stop_mA').get_parameter_value().integer_value
+        CURRENT_STOP_DEBOUNCE_SEC = self.get_parameter('gripper.current_stop_debounce_sec').get_parameter_value().double_value
 
         MONITOR_ENABLED = self.get_parameter('monitor.enabled').get_parameter_value().bool_value
         MONITOR_PRINT_PERIOD_SEC = self.get_parameter('monitor.print_period_sec').get_parameter_value().double_value
@@ -208,6 +214,7 @@ class GripperNode(Node):
 
         self.CURRENT_STOP_ENABLED = CURRENT_STOP_ENABLED
         self.CLOSE_CURRENT_STOP_mA = CLOSE_CURRENT_STOP_mA
+        self.CURRENT_STOP_DEBOUNCE_SEC = max(0.0, CURRENT_STOP_DEBOUNCE_SEC)
 
         self.MONITOR_ENABLED = MONITOR_ENABLED
         self.MONITOR_PRINT_PERIOD_SEC = MONITOR_PRINT_PERIOD_SEC
@@ -218,6 +225,7 @@ class GripperNode(Node):
 
         self._close_stop_latched = False
         self._close_stop_position = None
+        self._close_overcurrent_start_time = None
 
         self._last_warn_time = {}
         self._shutdown_requested = threading.Event()
@@ -227,8 +235,9 @@ class GripperNode(Node):
         self.pos_pub = self.create_publisher(Int32, POS_TOPIC, 20)
         self.cmd_sub = self.create_subscription(Int32, CMD_TOPIC, self._cmd_callback, 10)
 
-        # 초기 상태는 open으로 설정
-        self._tr_tick = TR_MIN
+        # Do not command open/close on startup. The first goal should come from
+        # keyboard input or /gripper/command after the operator checks the state.
+        self._tr_tick = None
 
         # ================= Dynamixel Init =================
         self.port = PortHandler(PORT)
@@ -242,14 +251,9 @@ class GripperNode(Node):
         self.ph = PacketHandler(PROTO)
 
         # Safety sequence:
-        # Torque OFF -> Position Limit / Mode / Current / Profile / Goal Current 설정 -> Torque ON
+        # Torque OFF -> Mode / Current / Profile / Goal Current 설정
+        # -> 현재 위치를 Goal Position에 seed -> Torque ON
         self._w1(ADDR_TORQUE_ENABLE, TORQUE_DISABLE)
-
-        # Motor internal position limits
-        # 이 부분이 중요함.
-        # 코드 내부 clamp뿐 아니라, 모터 내부 EEPROM limit도 590~2500으로 맞춤.
-        self._w4u(ADDR_MAX_POSITION_LIMIT, GR_MAX)
-        self._w4u(ADDR_MIN_POSITION_LIMIT, GR_MIN)
 
         self._w1(ADDR_OPERATING_MODE, OPMODE_CURRENT_BASED_POSITION)
 
@@ -265,19 +269,92 @@ class GripperNode(Node):
         self._w4u(ADDR_PROFILE_ACCEL, PROFILE_ACCEL)
         self._w4u(ADDR_PROFILE_VELOCITY, PROFILE_VELOCITY)
 
+        # 현재 위치를 goal register에 먼저 넣어서 torque on 시 이전 goal로 움직이지 않게 함.
+        startup_pos_u = None
+        startup_pos = None
+
+        for _ in range(3):
+            startup_pos_u = self._r4u(ADDR_PRESENT_POSITION)
+
+            if startup_pos_u is not None:
+                startup_pos = int(i32_signed(startup_pos_u))
+                break
+
+            time.sleep(0.05)
+
+        startup_cur_u = self._r2u(ADDR_PRESENT_CURRENT)
+        startup_cur_s = lsb_signed(startup_cur_u)
+        startup_current_mA = (
+            float(startup_cur_s * 2.69)
+            if startup_cur_s is not None
+            else None
+        )
+
+        startup_goal_seeded = False
+
+        if startup_pos is not None and self.GR_MIN <= startup_pos <= self.GR_MAX:
+            startup_goal_seeded = self._w4u(ADDR_GOAL_POSITION, startup_pos)
+            self._last_cmd = startup_pos if startup_goal_seeded else None
+        elif startup_pos is not None:
+            self._last_cmd = None
+            self.get_logger().warn(
+                f"Startup position {startup_pos} tick "
+                f"(raw={startup_pos_u}) is outside configured range "
+                f"[{self.GR_MIN}, {self.GR_MAX}]; not seeding Goal Position."
+            )
+        else:
+            self._last_cmd = None
+            self.get_logger().warn(
+                "Could not read startup position; torque on may reuse the "
+                "previous motor goal."
+            )
+
         self._w1(ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
 
         time.sleep(0.1)
 
-        # 현재 위치를 읽어서 마지막 명령 위치 초기화
-        current_pos = self._r4u(ADDR_PRESENT_POSITION)
+        enabled_pos_u = self._r4u(ADDR_PRESENT_POSITION)
+        enabled_pos = (
+            int(i32_signed(enabled_pos_u))
+            if enabled_pos_u is not None
+            else None
+        )
+        enabled_cur_u = self._r2u(ADDR_PRESENT_CURRENT)
+        enabled_cur_s = lsb_signed(enabled_cur_u)
+        enabled_current_mA = (
+            float(enabled_cur_s * 2.69)
+            if enabled_cur_s is not None
+            else None
+        )
 
-        if current_pos is not None:
-            self._last_cmd = int(current_pos)
-            self.get_logger().info(f"Initial gripper position: {self._last_cmd}")
-        else:
-            self._last_cmd = None
-            self.get_logger().warn("Could not read initial position, will use goal position")
+        startup_pos_str = "None" if startup_pos is None else str(startup_pos)
+        startup_pos_raw_str = "None" if startup_pos_u is None else str(startup_pos_u)
+        startup_cur_str = (
+            "None"
+            if startup_current_mA is None
+            else f"{startup_current_mA:.2f}"
+        )
+        enabled_pos_str = "None" if enabled_pos is None else str(enabled_pos)
+        enabled_pos_raw_str = "None" if enabled_pos_u is None else str(enabled_pos_u)
+        enabled_cur_str = (
+            "None"
+            if enabled_current_mA is None
+            else f"{enabled_current_mA:.2f}"
+        )
+        hold_goal_str = "None" if self._last_cmd is None else str(self._last_cmd)
+
+        self.get_logger().info(
+            "Startup gripper state | "
+            f"startup_pos={startup_pos_str} tick | "
+            f"startup_pos_raw={startup_pos_raw_str} | "
+            f"startup_current={startup_cur_str} mA | "
+            f"hold_goal={hold_goal_str} | "
+            f"goal_seeded={startup_goal_seeded} | "
+            f"after_torque_pos={enabled_pos_str} tick | "
+            f"after_torque_pos_raw={enabled_pos_raw_str} | "
+            f"after_torque_current={enabled_cur_str} mA | "
+            "initial_motion_command=disabled"
+        )
 
         self.get_logger().info(
             f"umi gripper node ON | "
@@ -286,11 +363,12 @@ class GripperNode(Node):
             f"mode=Current-based Position Control(5) | "
             f"map [{TR_MIN}..{TR_MAX}] -> [{GR_MIN}..{GR_MAX}] "
             f"invert={INVERT} | "
-            f"internal_limit=[{GR_MIN}..{GR_MAX}] | "
+            f"software_range=[{GR_MIN}..{GR_MAX}] | "
             f"current_limit={CURRENT_LIMIT_mA}mA "
             f"goal_current={GOAL_CURRENT_mA}mA | "
             f"current_stop={CURRENT_STOP_ENABLED} "
-            f"threshold={CLOSE_CURRENT_STOP_mA}mA"
+            f"threshold={CLOSE_CURRENT_STOP_mA}mA "
+            f"debounce={self.CURRENT_STOP_DEBOUNCE_SEC:.2f}s"
         )
 
         # Keyboard input
@@ -530,28 +608,49 @@ class GripperNode(Node):
 
         return target < reference - self.POS_DEADBAND
 
+    def _is_opening_motion(self, target, reference):
+        if target is None or reference is None:
+            return False
+
+        if self.CLOSE_INCREASES_TICK:
+            return target < reference - self.POS_DEADBAND
+
+        return target > reference + self.POS_DEADBAND
+
     def _apply_current_stop(self, cmd, present_position, present_current_mA):
         if not self.CURRENT_STOP_ENABLED:
+            self._close_overcurrent_start_time = None
             return cmd
 
         hold_position = present_position if present_position is not None else self._last_cmd
 
         if self._close_stop_latched:
-            if self._is_closing_motion(cmd, self._close_stop_position):
-                return self._close_stop_position
+            if self._is_opening_motion(cmd, self._close_stop_position):
+                self._close_stop_latched = False
+                self._close_stop_position = None
+                self._close_overcurrent_start_time = None
+                self.get_logger().info("Gripper current stop released by opening command.")
+                return cmd
 
-            self._close_stop_latched = False
-            self._close_stop_position = None
-            self.get_logger().info("Gripper current stop released by opening command.")
-            return cmd
+            return self._close_stop_position
 
         if (
             present_current_mA is not None
             and abs(present_current_mA) >= self.CLOSE_CURRENT_STOP_mA
             and self._is_closing_motion(cmd, self._last_cmd)
         ):
+            now = time.time()
+
+            if self._close_overcurrent_start_time is None:
+                self._close_overcurrent_start_time = now
+                return cmd
+
+            if now - self._close_overcurrent_start_time < self.CURRENT_STOP_DEBOUNCE_SEC:
+                return cmd
+
             self._close_stop_latched = True
             self._close_stop_position = int(hold_position) if hold_position is not None else int(cmd)
+            self._close_overcurrent_start_time = None
 
             self._tr_tick = map_range(
                 self._close_stop_position,
@@ -570,6 +669,7 @@ class GripperNode(Node):
 
             return self._close_stop_position
 
+        self._close_overcurrent_start_time = None
         return cmd
 
     # ================= Monitoring =================
@@ -621,7 +721,11 @@ class GripperNode(Node):
 
             # Present Position
             pos_u = self._r4u(ADDR_PRESENT_POSITION)
-            present_position = int(pos_u) if pos_u is not None else None
+            present_position = (
+                int(i32_signed(pos_u))
+                if pos_u is not None
+                else None
+            )
 
             if direct_goal is not None:
                 goal = clamp(direct_goal, self.GR_MIN, self.GR_MAX)

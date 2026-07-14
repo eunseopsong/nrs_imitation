@@ -49,8 +49,8 @@ class VRDemoJoyController(Node):
         self.declare_parameter("button_gripper_close", 0)
         self.declare_parameter("button_gripper_open", 1)
 
-        self.declare_parameter("gripper_close_tick", 2500)
-        self.declare_parameter("gripper_open_tick", 590)
+        self.declare_parameter("gripper_close_tick", -653)
+        self.declare_parameter("gripper_open_tick", 733)
 
         self.declare_parameter("button_debounce_sec", 0.20)
 
