@@ -4,12 +4,11 @@
 """
 vr_demo_txt_recorder.py
 
-수정 사항:
-- fx, fy 는 0으로 설정
-- fz 는 raw 값을 사용하되 EMA만 적용
-- recording 맨 처음 3초 / 마지막 3초의 모든 힘값은 0
-- fz clamp / pre-zero / post-zero / contact scaling 제거
-- approach slow-down의 contact 검출은 EMA된 abs(fz) 기반
+Filtering policy:
+- Match hdf5_recorder_* before writing position/force output.
+- position: raw pose, with optional EMA only.
+- force: fx/fy zeroed, fz EMA, first/last edge window zeroed.
+- image handling is intentionally absent in this txt recorder.
 """
 
 import os
@@ -424,6 +423,9 @@ def process_force_keep_fz_with_ema_and_edge_zero(
     - fz -> raw 사용 + EMA만 적용
     - 처음 edge_zero_sec, 마지막 edge_zero_sec 구간은 모든 force = 0
     """
+    if Fraw.size == 0:
+        return Fraw.astype(np.float64).copy()
+
     Fp = Fraw.astype(np.float64).copy()
     N = Fp.shape[0]
 
@@ -443,13 +445,15 @@ def process_force_keep_fz_with_ema_and_edge_zero(
         Fp[max(0, N - edge_n):, :] = 0.0
 
     if logger is not None:
+        raw_fz_abs_max = float(np.max(np.abs(Fraw[:, 2]))) if N > 0 else 0.0
+        proc_fz_abs_max = float(np.max(np.abs(Fp[:, 2]))) if N > 0 else 0.0
         logger.info(
             f"[FORCE] zero_xy={zero_xy}, fz_ema_alpha={fz_ema_alpha}, "
             f"edge_zero_sec={edge_zero_sec}, edge_zero_samples={edge_n}, N={N}"
         )
         logger.info(
-            f"[FORCE] raw_fz_max={np.max(np.abs(Fraw[:, 2])):.3f}, "
-            f"proc_fz_max={np.max(np.abs(Fp[:, 2])):.3f}"
+            f"[FORCE] raw |fz|max={raw_fz_abs_max:.3f} N, "
+            f"processed |fz|max={proc_fz_abs_max:.3f} N"
         )
 
     return Fp
@@ -632,15 +636,15 @@ class VrDemoTxtRecorder(Node):
         self.declare_parameter("approach_use_fz_ramp", True)
         self.declare_parameter("approach_fz_full", 20.0)
 
-        # pose smoothing (pre)
+        # Legacy txt-only smoothing parameters are retained for ROS argument
+        # compatibility. The active save path below now matches hdf5_recorder_*.
         self.declare_parameter("hampel_enable", True)
         self.declare_parameter("hampel_win", 16)
         self.declare_parameter("hampel_sig", 2.0)
 
-        # D2 smoothing (pre)
         self.declare_parameter("lam_pos_d2", 250000.0)
         self.declare_parameter("lam_ang_d2", 6000.0)
-        self.declare_parameter("pose_ema_enable", True)
+        self.declare_parameter("pose_ema_enable", False)
         self.declare_parameter("pose_ema_alpha", 0.10)
 
         # retime fixed x2
@@ -751,18 +755,15 @@ class VrDemoTxtRecorder(Node):
         self.sub_force = self.create_subscription(Wrench, self.force_topic, self.cb_force, 10)
         self.timer = self.create_timer(self.dt, self.cb_timer)
 
-        self.get_logger().info(f"[RETIME] fixed x2 enabled. dt={self.dt:.6f}s, save={self.save_path}")
+        self.get_logger().info(f"[FILTER] HDF5-compatible txt output. dt={self.dt:.6f}s, save={self.save_path}")
         self.get_logger().info(
             f"[FORCE] zero_xy={self.zero_xy_forces}, fz_ema_alpha={self.fz_ema_alpha}, "
             f"edge_zero_sec={self.force_edge_zero_sec}"
         )
         self.get_logger().info(
-            f"[CONTACT] fz_gate_N={self.fz_gate_N}, consec_on={self.consec_on}"
+            f"[POSE] pose_ema_enable={self.pose_ema_enable}, pose_ema_alpha={self.pose_ema_alpha}"
         )
-        self.get_logger().info(
-            f"[APPROACH] enable={self.approach_slowdown_enable}, pre={self.approach_pre_sec}s, "
-            f"post={self.approach_post_sec}s, scale_max={self.approach_scale_max}"
-        )
+        self.get_logger().info("[LEGACY] txt retime/approach/QP smoothing parameters are accepted but not applied.")
 
     def cb_pose(self, msg: Float64MultiArray):
         if len(msg.data) < 6:
@@ -969,27 +970,21 @@ class VrDemoTxtRecorder(Node):
             logger=self.get_logger(),
         )
 
-        Ps = self._pose_pre_smooth(rawP)
+        Pf = ema_nd(rawP, alpha=self.pose_ema_alpha) if self.pose_ema_enable else rawP.copy()
+        Fr = Fp
 
-        Pr, Fr = self._retime_x2(Ps, Fp)
-        self.get_logger().info(f"[RETIME] x2 applied: rows {Ps.shape[0]} -> {Pr.shape[0]}")
-
-        Pr_slow, Fr_slow = self._apply_contact_approach_slowdown(Pr, Fr)
-
-        Pf = self._qp_guard(Pr_slow)
-
-        st2, _ = eval_qp_proxy(Pf, self.dt, self.lim, safety=self.qp_guard_safety)
-        print_eval(self.get_logger(), "FINAL pose (retime x2 + approach slow-down + D3)", st2, self.lim, self.qp_guard_safety)
+        st2, _ = eval_qp_proxy(Pf, self.dt, self.lim, safety=1.0)
+        print_eval(self.get_logger(), "FINAL pose (HDF5-compatible)", st2, self.lim, 1.0)
 
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
-        out9 = np.hstack([Pf, Fr_slow])
+        out9 = np.hstack([Pf, Fr])
         with open(self.save_path, "w") as f:
             for row in out9:
                 f.write("\t".join([f"{v:.6f}" for v in row.tolist()]) + "\n")
         self.get_logger().info(f"Saved: {self.save_path}  (rows={out9.shape[0]})")
 
         viz_dir = self._make_viz_dir()
-        self._save_viz(viz_dir, rawP, rawF, Pf, Fr_slow)
+        self._save_viz(viz_dir, rawP, rawF, Pf, Fr)
 
         if self.transfer_enable:
             self._transfer_file()
