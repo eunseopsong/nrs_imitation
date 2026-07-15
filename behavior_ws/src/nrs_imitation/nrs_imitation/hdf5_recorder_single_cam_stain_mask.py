@@ -292,7 +292,7 @@ class StainMaskHDF5Recorder(HDF5Recorder):
 
         self.get_logger().info(f"[STAIN_MASK] saved debug samples -> {out_dir}")
 
-    def _save_episode_to_hdf5(self, ep_idx, position, ft, images0, images1, sample_times, reason):
+    def _save_episode_to_hdf5(self, ep_idx, position, ft, images0, images1, sample_times, reason, **kwargs):
         is_reference_episode = (
             self.use_stain_mask
             and self.stain_reference_first_episode
@@ -312,7 +312,7 @@ class StainMaskHDF5Recorder(HDF5Recorder):
                 f"mean={float(mask_float.mean()):.4f}"
             )
 
-        super()._save_episode_to_hdf5(ep_idx, position, ft, images0, images1, sample_times, reason)
+        super()._save_episode_to_hdf5(ep_idx, position, ft, images0, images1, sample_times, reason, **kwargs)
 
         ep_name = self._ep_name(ep_idx)
         if is_reference_episode:

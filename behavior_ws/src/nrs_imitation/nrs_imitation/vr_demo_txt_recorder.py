@@ -5,9 +5,9 @@
 vr_demo_txt_recorder.py
 
 Filtering policy:
-- Match hdf5_recorder_* before writing position/force output.
-- position: raw pose, with optional EMA only.
-- force: fx/fy zeroed, fz EMA, first/last edge window zeroed.
+- Match stage1 VR filtering before writing position/force output.
+- position: Hampel + D2 + EMA + retime x2 + approach slowdown + D3/QP guard by default.
+- force: clamp + EMA + contact cleanup by default.
 - recording control: same joy command topic as hdf5_recorder_*.
 - image handling is intentionally absent in this txt recorder.
 """
@@ -26,6 +26,7 @@ from std_msgs.msg import Float64MultiArray, String
 from geometry_msgs.msg import Wrench
 
 from nrs_imitation.pretty_print import block
+from nrs_imitation.stage1_filtering import apply_stage1_filter, stage1_config_from_recorder
 
 import matplotlib
 matplotlib.use("Agg")
@@ -620,17 +621,25 @@ class VrDemoTxtRecorder(Node):
         self.declare_parameter("remote_ip", "192.168.0.151")
         self.declare_parameter("remote_dir", "dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/")
 
-        # force
+        # Stage-1-compatible force / pose trajectory filtering
         self.declare_parameter("zero_xy_forces", True)
+        self.declare_parameter("force_clamp_abs", 200.0)
+        self.declare_parameter("force_ema_alpha", 0.2)
+        self.declare_parameter("contact_thr_N", 5.0)
+        self.declare_parameter("consec_on", 10)
+        self.declare_parameter("consec_off", 10)
+        self.declare_parameter("fz_contact_smooth_enable", True)
+        self.declare_parameter("fz_contact_lam_d2", 4000.0)
+
+        # Legacy txt force parameters are kept for ROS argument compatibility.
         self.declare_parameter("fz_ema_alpha", 0.2)
         self.declare_parameter("force_edge_zero_sec", 3.0)
 
-        # contact detect for approach slow-down
+        # Legacy contact alias kept for ROS argument compatibility.
         self.declare_parameter("fz_gate_N", 10.0)
-        self.declare_parameter("consec_on", 10)
 
         # approach slow-down
-        self.declare_parameter("approach_slowdown_enable", False)
+        self.declare_parameter("approach_slowdown_enable", True)
         self.declare_parameter("approach_pre_sec", 5.0)
         self.declare_parameter("approach_post_sec", 0.3)
         self.declare_parameter("approach_scale_max", 30.0)
@@ -646,7 +655,7 @@ class VrDemoTxtRecorder(Node):
 
         self.declare_parameter("lam_pos_d2", 250000.0)
         self.declare_parameter("lam_ang_d2", 6000.0)
-        self.declare_parameter("pose_ema_enable", False)
+        self.declare_parameter("pose_ema_enable", True)
         self.declare_parameter("pose_ema_alpha", 0.10)
 
         # retime fixed x2
@@ -697,11 +706,17 @@ class VrDemoTxtRecorder(Node):
         self.remote_dir = str(self.get_parameter("remote_dir").value)
 
         self.zero_xy_forces = bool(self.get_parameter("zero_xy_forces").value)
+        self.force_clamp_abs = float(self.get_parameter("force_clamp_abs").value)
+        self.force_ema_alpha = float(self.get_parameter("force_ema_alpha").value)
+        self.contact_thr_N = float(self.get_parameter("contact_thr_N").value)
+        self.consec_on = int(self.get_parameter("consec_on").value)
+        self.consec_off = int(self.get_parameter("consec_off").value)
+        self.fz_contact_smooth_enable = bool(self.get_parameter("fz_contact_smooth_enable").value)
+        self.fz_contact_lam_d2 = float(self.get_parameter("fz_contact_lam_d2").value)
         self.fz_ema_alpha = float(self.get_parameter("fz_ema_alpha").value)
         self.force_edge_zero_sec = float(self.get_parameter("force_edge_zero_sec").value)
 
         self.fz_gate_N = float(self.get_parameter("fz_gate_N").value)
-        self.consec_on = int(self.get_parameter("consec_on").value)
 
         self.approach_slowdown_enable = bool(self.get_parameter("approach_slowdown_enable").value)
         self.approach_pre_sec = float(self.get_parameter("approach_pre_sec").value)
@@ -735,13 +750,19 @@ class VrDemoTxtRecorder(Node):
         self.cg_iters = int(self.get_parameter("cg_iters").value)
         self.cg_tol = float(self.get_parameter("cg_tol").value)
 
+        self.pos_vmax = float(self.get_parameter("pos_vmax").value)
+        self.pos_amax = float(self.get_parameter("pos_amax").value)
+        self.ang_vmax = float(self.get_parameter("ang_vmax").value)
+        self.ang_amax = float(self.get_parameter("ang_amax").value)
+        self.pos_jmax = float(self.get_parameter("pos_jmax").value)
+        self.ang_jmax = float(self.get_parameter("ang_jmax").value)
         self.lim = Limits(
-            pos_vmax=float(self.get_parameter("pos_vmax").value),
-            pos_amax=float(self.get_parameter("pos_amax").value),
-            ang_vmax=float(self.get_parameter("ang_vmax").value),
-            ang_amax=float(self.get_parameter("ang_amax").value),
-            pos_jmax=float(self.get_parameter("pos_jmax").value),
-            ang_jmax=float(self.get_parameter("ang_jmax").value),
+            pos_vmax=self.pos_vmax,
+            pos_amax=self.pos_amax,
+            ang_vmax=self.ang_vmax,
+            ang_amax=self.ang_amax,
+            pos_jmax=self.pos_jmax,
+            ang_jmax=self.ang_jmax,
         )
 
         self.latest_pose6_mm_rad: Optional[np.ndarray] = None
@@ -759,17 +780,19 @@ class VrDemoTxtRecorder(Node):
         self.sub_command = self.create_subscription(String, self.command_topic, self.cb_command, 10)
         self.timer = self.create_timer(self.dt, self.cb_timer)
 
-        self.get_logger().info(f"[FILTER] HDF5-compatible txt output. dt={self.dt:.6f}s, save={self.save_path}")
+        self.get_logger().info(f"[FILTER] Stage1-compatible txt output. dt={self.dt:.6f}s, save={self.save_path}")
         self.get_logger().info(
-            f"[FORCE] zero_xy={self.zero_xy_forces}, fz_ema_alpha={self.fz_ema_alpha}, "
-            f"edge_zero_sec={self.force_edge_zero_sec}"
+            f"[FORCE] clamp={self.force_clamp_abs}, EMA={self.force_ema_alpha}, "
+            f"zero_xy={self.zero_xy_forces}, contact_thr={self.contact_thr_N}"
         )
         self.get_logger().info(
-            f"[POSE] pose_ema_enable={self.pose_ema_enable}, pose_ema_alpha={self.pose_ema_alpha}"
+            f"[POSE] Hampel={self.hampel_enable}, D2=({self.lam_pos_d2}, {self.lam_ang_d2}), "
+            f"EMA={self.pose_ema_enable}, retime=x{self.retime_k}, approach={self.approach_slowdown_enable}, "
+            f"D3=({self.lam_pos_d3}, {self.lam_ang_d3}), QP={self.qp_guard_enable}"
         )
         self.get_logger().info(f"[COMMAND] command_topic={self.command_topic} (start_recording/end_recording)")
         self.get_logger().info("[LEGACY] force threshold start/stop parameters are accepted but not applied.")
-        self.get_logger().info("[LEGACY] txt retime/approach/QP smoothing parameters are accepted but not applied.")
+        self.get_logger().info("[LEGACY] fz_ema_alpha/force_edge_zero_sec/fz_gate_N parameters are accepted but not applied.")
 
     def cb_pose(self, msg: Float64MultiArray):
         if len(msg.data) < 6:
@@ -982,24 +1005,17 @@ class VrDemoTxtRecorder(Node):
         st0, _ = eval_qp_proxy(rawP, self.dt, self.lim, safety=1.0)
         print_eval(self.get_logger(), "RAW (before)", st0, self.lim, 1.0)
 
-        # Force processing:
-        # fx, fy -> 0
-        # fz -> raw + EMA
-        # first/last 3 sec -> all zero
-        Fp = process_force_keep_fz_with_ema_and_edge_zero(
+        filter_result = apply_stage1_filter(
+            rawP,
             rawF,
-            fz_ema_alpha=self.fz_ema_alpha,
-            edge_zero_sec=self.force_edge_zero_sec,
-            record_hz=self.record_hz,
-            zero_xy=self.zero_xy_forces,
+            stage1_config_from_recorder(self, self.record_hz),
             logger=self.get_logger(),
         )
-
-        Pf = ema_nd(rawP, alpha=self.pose_ema_alpha) if self.pose_ema_enable else rawP.copy()
-        Fr = Fp
+        Pf = filter_result.position
+        Fr = filter_result.force
 
         st2, _ = eval_qp_proxy(Pf, self.dt, self.lim, safety=1.0)
-        print_eval(self.get_logger(), "FINAL pose (HDF5-compatible)", st2, self.lim, 1.0)
+        print_eval(self.get_logger(), "FINAL pose (stage1-filtered)", st2, self.lim, 1.0)
 
         os.makedirs(os.path.dirname(self.save_path), exist_ok=True)
         out9 = np.hstack([Pf, Fr])

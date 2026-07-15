@@ -58,6 +58,16 @@ from geometry_msgs.msg import Wrench
 from sensor_msgs.msg import Image
 
 from nrs_imitation.pretty_print import block, status
+from nrs_imitation.stage1_filtering import (
+    apply_stage1_filter,
+    stage1_config_from_recorder,
+    take_nearest_by_source_index,
+)
+from nrs_imitation.vr_demo_txt_recorder import (
+    save_plot_1_lin_kinematics,
+    save_plot_2_rotvec_kinematics,
+    save_plot_3_forces,
+)
 
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
@@ -396,14 +406,51 @@ class GripperHDF5Recorder(Node):
         # Unit convention
         declare("pose_xyz_scale", 1000.0)  # m -> mm
 
-        # Force processing
+        # Stage-1-compatible force / pose trajectory filtering
         declare("zero_xy_forces", True)
+        declare("force_clamp_abs", 200.0)
+        declare("force_ema_alpha", 0.2)
+        declare("contact_thr_N", 5.0)
+        declare("consec_on", 10)
+        declare("consec_off", 10)
+        declare("fz_contact_smooth_enable", True)
+        declare("fz_contact_lam_d2", 4000.0)
+
+        # Legacy HDF5-only force parameters are kept for ROS argument compatibility.
         declare("fz_ema_alpha", 0.2)
         declare("force_edge_zero_sec", 3.0)
 
-        # Optional pose smoothing
-        declare("pose_ema_enable", False)
+        declare("hampel_enable", True)
+        declare("hampel_win", 16)
+        declare("hampel_sig", 2.0)
+        declare("lam_pos_d2", 250000.0)
+        declare("lam_ang_d2", 6000.0)
+        declare("pose_ema_enable", True)
         declare("pose_ema_alpha", 0.10)
+        declare("retime_k", 2)
+        declare("approach_slowdown_enable", True)
+        declare("approach_pre_sec", 5.0)
+        declare("approach_post_sec", 0.3)
+        declare("approach_scale_max", 30.0)
+        declare("approach_use_fz_ramp", True)
+        declare("approach_fz_full", 20.0)
+        declare("post_enable", True)
+        declare("lam_pos_d3", 2.0e7)
+        declare("lam_ang_d3", 6.0e5)
+        declare("qp_guard_enable", True)
+        declare("qp_guard_safety", 0.75)
+        declare("qp_guard_max_iter", 8)
+        declare("qp_guard_growth", 2.2)
+        declare("max_dev_pos_mm", 8.0)
+        declare("max_dev_ang_rad", 0.06)
+        declare("cg_iters", 400)
+        declare("cg_tol", 1e-8)
+        declare("pos_vmax", 30.0)
+        declare("pos_amax", 120.0)
+        declare("ang_vmax", 0.6)
+        declare("ang_amax", 3.0)
+        declare("pos_jmax", 5000.0)
+        declare("ang_jmax", 80.0)
 
         # Image save
         declare("image_dataset_name", "cam0")
@@ -484,10 +531,46 @@ class GripperHDF5Recorder(Node):
                 "overriding pose_xyz_scale 1000.0 -> 1.0 to avoid x1000 datasets."
             )
         self.zero_xy_forces = bool(self.get_parameter("zero_xy_forces").value)
+        self.force_clamp_abs = float(self.get_parameter("force_clamp_abs").value)
+        self.force_ema_alpha = float(self.get_parameter("force_ema_alpha").value)
+        self.contact_thr_N = float(self.get_parameter("contact_thr_N").value)
+        self.consec_on = int(self.get_parameter("consec_on").value)
+        self.consec_off = int(self.get_parameter("consec_off").value)
+        self.fz_contact_smooth_enable = bool(self.get_parameter("fz_contact_smooth_enable").value)
+        self.fz_contact_lam_d2 = float(self.get_parameter("fz_contact_lam_d2").value)
         self.fz_ema_alpha = float(self.get_parameter("fz_ema_alpha").value)
         self.force_edge_zero_sec = float(self.get_parameter("force_edge_zero_sec").value)
+        self.hampel_enable = bool(self.get_parameter("hampel_enable").value)
+        self.hampel_win = int(self.get_parameter("hampel_win").value)
+        self.hampel_sig = float(self.get_parameter("hampel_sig").value)
+        self.lam_pos_d2 = float(self.get_parameter("lam_pos_d2").value)
+        self.lam_ang_d2 = float(self.get_parameter("lam_ang_d2").value)
         self.pose_ema_enable = bool(self.get_parameter("pose_ema_enable").value)
         self.pose_ema_alpha = float(self.get_parameter("pose_ema_alpha").value)
+        self.retime_k = int(self.get_parameter("retime_k").value)
+        self.approach_slowdown_enable = bool(self.get_parameter("approach_slowdown_enable").value)
+        self.approach_pre_sec = float(self.get_parameter("approach_pre_sec").value)
+        self.approach_post_sec = float(self.get_parameter("approach_post_sec").value)
+        self.approach_scale_max = float(self.get_parameter("approach_scale_max").value)
+        self.approach_use_fz_ramp = bool(self.get_parameter("approach_use_fz_ramp").value)
+        self.approach_fz_full = float(self.get_parameter("approach_fz_full").value)
+        self.post_enable = bool(self.get_parameter("post_enable").value)
+        self.lam_pos_d3 = float(self.get_parameter("lam_pos_d3").value)
+        self.lam_ang_d3 = float(self.get_parameter("lam_ang_d3").value)
+        self.qp_guard_enable = bool(self.get_parameter("qp_guard_enable").value)
+        self.qp_guard_safety = float(self.get_parameter("qp_guard_safety").value)
+        self.qp_guard_max_iter = int(self.get_parameter("qp_guard_max_iter").value)
+        self.qp_guard_growth = float(self.get_parameter("qp_guard_growth").value)
+        self.max_dev_pos_mm = float(self.get_parameter("max_dev_pos_mm").value)
+        self.max_dev_ang_rad = float(self.get_parameter("max_dev_ang_rad").value)
+        self.cg_iters = int(self.get_parameter("cg_iters").value)
+        self.cg_tol = float(self.get_parameter("cg_tol").value)
+        self.pos_vmax = float(self.get_parameter("pos_vmax").value)
+        self.pos_amax = float(self.get_parameter("pos_amax").value)
+        self.ang_vmax = float(self.get_parameter("ang_vmax").value)
+        self.ang_amax = float(self.get_parameter("ang_amax").value)
+        self.pos_jmax = float(self.get_parameter("pos_jmax").value)
+        self.ang_jmax = float(self.get_parameter("ang_jmax").value)
         self.image_dataset_name = str(self.get_parameter("image_dataset_name").value)
         self.image_compression = str(self.get_parameter("image_compression").value).lower()
         self.image_gzip_level = int(self.get_parameter("image_gzip_level").value)
@@ -538,6 +621,9 @@ class GripperHDF5Recorder(Node):
         self.h5.attrs["image_specular_attenuate_gain"] = float(self.image_specular_attenuate_gain)
         self.h5.attrs["gripper_position_topic"] = str(self.gripper_position_topic)
         self.h5.attrs["gripper_current_topic"] = str(self.gripper_current_topic)
+        self.h5.attrs["trajectory_filter_source"] = "stage1_vr_filtering_pipeline"
+        self.h5.attrs["trajectory_retime_k"] = int(self.retime_k)
+        self.h5.attrs["trajectory_approach_slowdown_enable"] = int(bool(self.approach_slowdown_enable))
         self.grp_eps = self.h5.create_group("episodes")
 
         # Runtime state
@@ -798,11 +884,7 @@ class GripperHDF5Recorder(Node):
 
             P = np.asarray(P_list, dtype=np.float32).reshape(N, 6)
             Fraw = np.asarray(F_list, dtype=np.float32).reshape(N, 3)
-            P_out = ema_nd(P.astype(np.float64), self.pose_ema_alpha).astype(np.float32) if self.pose_ema_enable else P.copy()
-            F_out = process_force_keep_fz_with_ema_and_edge_zero(
-                Fraw, self.fz_ema_alpha, self.force_edge_zero_sec, self.sample_hz,
-                zero_xy=self.zero_xy_forces, logger=self.get_logger()
-            ).astype(np.float32)
+            raw_sample_times = np.asarray(sample_time_list, dtype=np.float64)
 
             images0 = stack_images_repeat_last(I0_list, logger=self.get_logger(), tag="IMAGE/cam0")
             if images0 is None:
@@ -815,10 +897,38 @@ class GripperHDF5Recorder(Node):
             gripper_position = stack_scalar_repeat_last(GP_list, np.int32, logger=self.get_logger(), tag="GRIPPER/present_position")
             gripper_current_mA = stack_scalar_repeat_last(GC_list, np.float32, logger=self.get_logger(), tag="GRIPPER/present_current_mA")
 
+            filter_result = apply_stage1_filter(
+                P,
+                Fraw,
+                stage1_config_from_recorder(self, self.sample_hz),
+                sample_times=raw_sample_times,
+                logger=self.get_logger(),
+            )
+            P_out = filter_result.position
+            F_out = filter_result.force
+            sample_times_out = filter_result.sample_time
+            if sample_times_out is None:
+                sample_times_out = raw_sample_times
+            images0_out = take_nearest_by_source_index(images0, filter_result.source_index)
+            images1_out = (
+                take_nearest_by_source_index(images1, filter_result.source_index)
+                if images1 is not None else None
+            )
+            gripper_position_out = take_nearest_by_source_index(gripper_position, filter_result.source_index)
+            gripper_current_mA_out = take_nearest_by_source_index(gripper_current_mA, filter_result.source_index)
+            self._save_first_episode_filter_plots(ep_idx, P, Fraw, P_out, F_out)
+
             self._save_episode_to_hdf5(
-                ep_idx, P_out, F_out, images0, images1,
-                gripper_position, gripper_current_mA,
-                np.asarray(sample_time_list), reason,
+                ep_idx, P_out, F_out, images0_out, images1_out,
+                gripper_position_out, gripper_current_mA_out,
+                sample_times_out, reason,
+                raw_position=P,
+                raw_ft=Fraw,
+                raw_gripper_position=gripper_position,
+                raw_gripper_current_mA=gripper_current_mA,
+                raw_sample_times=raw_sample_times,
+                source_index=filter_result.source_index,
+                filter_meta=filter_result.meta,
             )
             self.saved_indices.add(ep_idx)
             if ep_idx == self.current_ep_idx:
@@ -826,13 +936,13 @@ class GripperHDF5Recorder(Node):
 
             self.get_logger().info(block("EPISODE SAVED", [
                 ("episode", self._ep_name(ep_idx)),
-                ("samples", N),
+                ("samples", f"{N} -> {P_out.shape[0]}"),
                 ("position", P_out.shape),
                 ("ft", F_out.shape),
-                ("cam0", images0.shape),
-                ("cam1", None if images1 is None else images1.shape),
-                ("grip_position", gripper_position.shape),
-                ("grip_current", gripper_current_mA.shape),
+                ("cam0", images0_out.shape),
+                ("cam1", None if images1_out is None else images1_out.shape),
+                ("grip_position", gripper_position_out.shape),
+                ("grip_current", gripper_current_mA_out.shape),
                 ("reason", reason),
             ]))
             self._print_status("SAVED")
@@ -843,6 +953,17 @@ class GripperHDF5Recorder(Node):
             if self.stop_requested and not self.episode_active:
                 self.finalize_and_shutdown()
 
+    def _save_first_episode_filter_plots(self, ep_idx, raw_position, raw_ft, position, ft):
+        if int(ep_idx) != 0:
+            return
+        try:
+            save_plot_1_lin_kinematics(self.merged_dir, self.dt, raw_position, position)
+            save_plot_2_rotvec_kinematics(self.merged_dir, self.dt, raw_position, position)
+            save_plot_3_forces(self.merged_dir, self.dt, raw_ft, ft)
+            self.get_logger().info(f"[VIZ] Saved first-episode trajectory plots to: {self.merged_dir}")
+        except Exception as e:
+            self.get_logger().error(f"[VIZ] Failed to save first-episode trajectory plots: {e}")
+
     def _compression_kwargs(self) -> Dict[str, object]:
         mode = str(self.image_compression).lower()
         if mode == "gzip":
@@ -851,7 +972,25 @@ class GripperHDF5Recorder(Node):
             return dict(compression="lzf", shuffle=True)
         return {}
 
-    def _save_episode_to_hdf5(self, ep_idx, position, ft, images0, images1, gripper_position, gripper_current_mA, sample_times, reason):
+    def _save_episode_to_hdf5(
+        self,
+        ep_idx,
+        position,
+        ft,
+        images0,
+        images1,
+        gripper_position,
+        gripper_current_mA,
+        sample_times,
+        reason,
+        raw_position=None,
+        raw_ft=None,
+        raw_gripper_position=None,
+        raw_gripper_current_mA=None,
+        raw_sample_times=None,
+        source_index=None,
+        filter_meta=None,
+    ):
         ep_name = self._ep_name(ep_idx)
         tmp_name = self._tmp_ep_name(ep_idx)
         with self.h5_lock:
@@ -867,7 +1006,7 @@ class GripperHDF5Recorder(Node):
                 g = self.grp_eps.create_group(tmp_name)
                 g.attrs["saved_unix"] = float(time.time())
                 g.attrs["reason"] = str(reason)
-                g.attrs["raw_len"] = int(position.shape[0])
+                g.attrs["raw_len"] = int(raw_position.shape[0]) if raw_position is not None else int(position.shape[0])
                 g.attrs["out_len"] = int(position.shape[0])
                 g.attrs["record_hz"] = float(self.sample_hz)
                 g.attrs["dt"] = float(self.dt)
@@ -880,11 +1019,23 @@ class GripperHDF5Recorder(Node):
                 g.attrs["cam1_topic"] = str(self.global_image_topic)
                 g.attrs["gripper_position_topic"] = str(self.gripper_position_topic)
                 g.attrs["gripper_current_topic"] = str(self.gripper_current_topic)
-                g.attrs["schema_version"] = "multimodal_v1"
+                g.attrs["schema_version"] = "multimodal_stage1_filtered_v2"
+                if filter_meta:
+                    for key, value in filter_meta.items():
+                        if isinstance(value, (str, int, float, np.integer, np.floating)):
+                            g.attrs[str(key)] = value
 
                 g.create_dataset("position", data=position.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
                 g.create_dataset("ft", data=ft.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
                 g.create_dataset("sample_time_unix", data=sample_times.astype(np.float64), compression="gzip", compression_opts=4, shuffle=True)
+                if source_index is not None:
+                    g.create_dataset("source_index", data=np.asarray(source_index, dtype=np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                if raw_position is not None:
+                    g.create_dataset("raw_position", data=np.asarray(raw_position, dtype=np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                if raw_ft is not None:
+                    g.create_dataset("raw_ft", data=np.asarray(raw_ft, dtype=np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                if raw_sample_times is not None:
+                    g.create_dataset("raw_sample_time_unix", data=np.asarray(raw_sample_times, dtype=np.float64), compression="gzip", compression_opts=4, shuffle=True)
 
                 g_img = g.create_group("images")
                 g_img.create_dataset(self.image_dataset_name, data=images0.astype(np.uint8), **self._compression_kwargs())
@@ -894,6 +1045,12 @@ class GripperHDF5Recorder(Node):
                 g_gripper = g.create_group("gripper")
                 g_gripper.create_dataset("present_position", data=gripper_position.astype(np.int32), compression="gzip", compression_opts=4, shuffle=True)
                 g_gripper.create_dataset("present_current_mA", data=gripper_current_mA.astype(np.float32), compression="gzip", compression_opts=4, shuffle=True)
+                if raw_gripper_position is not None or raw_gripper_current_mA is not None:
+                    g_raw_gripper = g.create_group("raw_gripper")
+                    if raw_gripper_position is not None:
+                        g_raw_gripper.create_dataset("present_position", data=np.asarray(raw_gripper_position, dtype=np.int32), compression="gzip", compression_opts=4, shuffle=True)
+                    if raw_gripper_current_mA is not None:
+                        g_raw_gripper.create_dataset("present_current_mA", data=np.asarray(raw_gripper_current_mA, dtype=np.float32), compression="gzip", compression_opts=4, shuffle=True)
 
                 g.attrs["save_complete"] = 1
                 self.grp_eps.move(tmp_name, ep_name)
