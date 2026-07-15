@@ -39,7 +39,9 @@ Output per-episode HDF5 layout:
   ├── action/
   │   ├── position                      (T_out, 6)
   │   ├── force                         (T_out, 3)
-  │   └── gripper_present_position      (T_out,)
+  │   ├── gripper_present_position      (T_out,)
+  │   ├── gripper_goal_current_mA       (T_out,) abs(present_current_mA)
+  │   └── gripper_present_current_mA    (T_out,) signed feedback copy
   ├── observations/
   │   ├── position                      (T_out, 6)
   │   ├── force                         (T_out, 3)
@@ -558,12 +560,22 @@ def write_output_episode(
         f.attrs["marker_format"] = "[id0: x,y,z,rx,ry,rz,valid] + [id1: x,y,z,rx,ry,rz,valid]"
         f.attrs["marker_dim"] = int(data["marker"].shape[1])
         f.attrs["qpos_dim"] = 9
-        f.attrs["action_dim"] = 10
+        f.attrs["action_dim"] = 11
 
         g_action = f.create_group("action")
         g_action.create_dataset("position", data=data["position"].astype(np.float32), **arr_kwargs)
         g_action.create_dataset("force", data=data["force"].astype(np.float32), **arr_kwargs)
         g_action.create_dataset("gripper_present_position", data=data["gripper_present_position"].astype(np.int32), **arr_kwargs)
+        g_action.create_dataset(
+            "gripper_goal_current_mA",
+            data=np.abs(data["gripper_present_current_mA"]).astype(np.float32),
+            **arr_kwargs,
+        )
+        g_action.create_dataset(
+            "gripper_present_current_mA",
+            data=data["gripper_present_current_mA"].astype(np.float32),
+            **arr_kwargs,
+        )
 
         g_obs = f.create_group("observations")
         g_obs.create_dataset("position", data=data["position"].astype(np.float32), **arr_kwargs)
@@ -599,6 +611,7 @@ def write_output_episode(
         g_meta.attrs["marker_dim"] = int(data["marker"].shape[1])
         g_meta.attrs["gripper_position_dtype"] = "int32"
         g_meta.attrs["gripper_current_dtype"] = "float32"
+        g_meta.attrs["gripper_goal_current_dtype"] = "float32"
 
         # Compatibility aliases for older quick inspection scripts. The flat
         # action alias cannot be named "action" because /action is the
@@ -611,6 +624,7 @@ def write_output_episode(
                     data["position"],
                     data["force"],
                     data["gripper_present_position"].reshape(-1, 1).astype(np.float32),
+                    np.abs(data["gripper_present_current_mA"]).reshape(-1, 1).astype(np.float32),
                 ],
                 axis=1,
             ).astype(np.float32),

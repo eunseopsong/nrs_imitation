@@ -67,12 +67,15 @@ class GripperSubNode(Node):
         self.declare_parameter('dxl.profile_velocity', 0)
         self.declare_parameter('dxl.current_limit_mA', 1345)
         self.declare_parameter('dxl.goal_current_mA', 200)
+        self.declare_parameter('dxl.goal_current_min_mA', 0)
+        self.declare_parameter('dxl.goal_current_max_mA', 1345)
         self.declare_parameter('gripper.current_stop_enabled', True)
         self.declare_parameter('gripper.close_current_stop_mA', 400)
         self.declare_parameter('gripper.close_increases_tick', True)
         self.declare_parameter('gripper.present_current_mA_topic', '/gripper/present_current_mA')
         self.declare_parameter('gripper.present_position_topic', '/gripper/present_position')
         self.declare_parameter('gripper.command_topic', '/gripper/command')
+        self.declare_parameter('gripper.goal_current_mA_topic', '/gripper/goal_current_mA')
         self.declare_parameter('joystick.enabled', True)
         self.declare_parameter('joystick.command_topic', '/ur10skku/joy_move')
         self.declare_parameter('joystick.axis_index', 5)
@@ -98,6 +101,8 @@ class GripperSubNode(Node):
         PROFILE_VELOCITY = self.get_parameter('dxl.profile_velocity').get_parameter_value().integer_value
         CURRENT_LIMIT_mA = self.get_parameter('dxl.current_limit_mA').get_parameter_value().integer_value
         GOAL_CURRENT_mA = self.get_parameter('dxl.goal_current_mA').get_parameter_value().integer_value
+        GOAL_CURRENT_MIN_mA = self.get_parameter('dxl.goal_current_min_mA').get_parameter_value().integer_value
+        GOAL_CURRENT_MAX_mA = self.get_parameter('dxl.goal_current_max_mA').get_parameter_value().integer_value
         CURRENT_STOP_ENABLED = self.get_parameter('gripper.current_stop_enabled').get_parameter_value().bool_value
         CLOSE_CURRENT_STOP_mA = self.get_parameter('gripper.close_current_stop_mA').get_parameter_value().integer_value
         CLOSE_INCREASES_TICK = self.get_parameter('gripper.close_increases_tick').get_parameter_value().bool_value
@@ -106,6 +111,7 @@ class GripperSubNode(Node):
         CURR_TOPIC = self.get_parameter('gripper.present_current_mA_topic').get_parameter_value().string_value
         POS_TOPIC = self.get_parameter('gripper.present_position_topic').get_parameter_value().string_value
         CMD_TOPIC = self.get_parameter('gripper.command_topic').get_parameter_value().string_value
+        GOAL_CURRENT_TOPIC = self.get_parameter('gripper.goal_current_mA_topic').get_parameter_value().string_value
         JOY_ENABLED = self.get_parameter('joystick.enabled').get_parameter_value().bool_value
         JOY_TOPIC = self.get_parameter('joystick.command_topic').get_parameter_value().string_value
         JOY_AXIS_INDEX = self.get_parameter('joystick.axis_index').get_parameter_value().integer_value
@@ -126,7 +132,9 @@ class GripperSubNode(Node):
         self.PROFILE_ACCEL = PROFILE_ACCEL
         self.PROFILE_VELOCITY = PROFILE_VELOCITY
         self.CURRENT_LIMIT_mA = CURRENT_LIMIT_mA
-        self.GOAL_CURRENT_mA = GOAL_CURRENT_mA
+        self.GOAL_CURRENT_MIN_mA = max(0, min(GOAL_CURRENT_MIN_mA, CURRENT_LIMIT_mA))
+        self.GOAL_CURRENT_MAX_mA = max(self.GOAL_CURRENT_MIN_mA, min(GOAL_CURRENT_MAX_mA, CURRENT_LIMIT_mA))
+        self.GOAL_CURRENT_mA = clamp(GOAL_CURRENT_mA, self.GOAL_CURRENT_MIN_mA, self.GOAL_CURRENT_MAX_mA)
         self.CURRENT_STOP_ENABLED = CURRENT_STOP_ENABLED
         self.CLOSE_CURRENT_STOP_mA = CLOSE_CURRENT_STOP_mA
         self.CLOSE_INCREASES_TICK = CLOSE_INCREASES_TICK
@@ -143,6 +151,12 @@ class GripperSubNode(Node):
         self.curr_pub = self.create_publisher(Float32, CURR_TOPIC, 20)
         self.pos_pub = self.create_publisher(Int32, POS_TOPIC, 20)
         self.cmd_sub = self.create_subscription(Int32, CMD_TOPIC, self._cmd_callback, 10)
+        self.goal_current_sub = self.create_subscription(
+            Float32,
+            GOAL_CURRENT_TOPIC,
+            self._goal_current_callback,
+            10,
+        )
         self.joy_sub = None
         if JOY_ENABLED:
             self.joy_sub = self.create_subscription(
@@ -166,7 +180,7 @@ class GripperSubNode(Node):
         self._w4u(ADDR_MIN_POSITION_LIMIT, GR_MIN)
         self._w1(ADDR_OPERATING_MODE, OPMODE_CURRENT_BASED_POSITION)
         self._w2u(ADDR_CURRENT_LIMIT, clamp(mA2lsb(CURRENT_LIMIT_mA), 1, 0xFFFF))
-        self._w2u(ADDR_GOAL_CURRENT, clamp(mA2lsb(GOAL_CURRENT_mA), 1, 0xFFFF))
+        self._w2u(ADDR_GOAL_CURRENT, clamp(mA2lsb(self.GOAL_CURRENT_mA), 1, 0xFFFF))
         self._w4u(ADDR_PROFILE_ACCEL, PROFILE_ACCEL)
         self._w4u(ADDR_PROFILE_VELOCITY, PROFILE_VELOCITY)
         self._w1(ADDR_TORQUE_ENABLE, TORQUE_ENABLE)
@@ -188,7 +202,10 @@ class GripperSubNode(Node):
             f"mode=Current-based Position Control(5) | "
             f"range [{GR_MIN}..{GR_MAX}] | command topic: {CMD_TOPIC} | "
             f"joy={'on' if JOY_ENABLED else 'off'} topic={JOY_TOPIC} axis_index={JOY_AXIS_INDEX} | "
-            f"current_limit={CURRENT_LIMIT_mA}mA goal_current={GOAL_CURRENT_mA}mA | "
+            f"current_limit={CURRENT_LIMIT_mA}mA "
+            f"goal_current={self.GOAL_CURRENT_mA}mA "
+            f"range=[{self.GOAL_CURRENT_MIN_mA}..{self.GOAL_CURRENT_MAX_mA}]mA "
+            f"goal_current_topic={GOAL_CURRENT_TOPIC} | "
             f"current_stop={CURRENT_STOP_ENABLED} threshold={CLOSE_CURRENT_STOP_mA}mA"
         )
         
@@ -202,6 +219,24 @@ class GripperSubNode(Node):
             goal = clamp(msg.data, self.GR_MIN, self.GR_MAX)
             self._goal_position = goal
             self.get_logger().debug(f"Received command: {msg.data} -> clamped to {goal}")
+
+    def _goal_current_callback(self, msg: Float32):
+        """Receive a gripper goal current command in mA."""
+        goal_current_mA = clamp(
+            float(msg.data),
+            float(self.GOAL_CURRENT_MIN_mA),
+            float(self.GOAL_CURRENT_MAX_mA),
+        )
+        goal_current_lsb = clamp(mA2lsb(goal_current_mA), 1, 0xFFFF)
+        if self._w2u(ADDR_GOAL_CURRENT, goal_current_lsb):
+            with self._lk:
+                self.GOAL_CURRENT_mA = goal_current_mA
+            self.get_logger().debug(
+                f"Goal current command: {msg.data:.2f}mA -> {goal_current_mA:.2f}mA"
+            )
+
+    def _current_stop_threshold_mA(self):
+        return max(float(self.CLOSE_CURRENT_STOP_mA), float(self.GOAL_CURRENT_mA))
 
     def _joy_callback(self, msg: Float64MultiArray):
         """Map a joystick axis in [-1, 1] to the gripper tick range."""
@@ -308,7 +343,7 @@ class GripperSubNode(Node):
 
         if (
             present_current_mA is not None
-            and abs(present_current_mA) >= self.CLOSE_CURRENT_STOP_mA
+            and abs(present_current_mA) >= self._current_stop_threshold_mA()
             and self._is_closing_motion(cmd, self._last_cmd)
         ):
             self._close_stop_latched = True
@@ -317,7 +352,10 @@ class GripperSubNode(Node):
                 self._goal_position = self._close_stop_position
             self.get_logger().warn(
                 f"Close current stop latched at pos={self._close_stop_position}, "
-                f"current={present_current_mA:.1f}mA. Holding position until opening command."
+                f"current={present_current_mA:.1f}mA "
+                f"(threshold={self._current_stop_threshold_mA():.1f}mA, "
+                f"goal_current={self.GOAL_CURRENT_mA:.1f}mA). "
+                f"Holding position until opening command."
             )
             return self._close_stop_position
 

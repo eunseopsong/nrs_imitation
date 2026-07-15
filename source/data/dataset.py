@@ -15,6 +15,7 @@ Canonical episode layout:
   ├── action/position        (T,6)
   ├── action/force           (T,3)
   ├── action/gripper_present_position (T,), optional
+  ├── action/gripper_goal_current_mA (T,), optional when include_gripper=True
   ├── observations/position  (T,6)
   ├── observations/force     (T,3)
   ├── observations/marker    (T,M), optional
@@ -39,7 +40,7 @@ Shapes:
   image         : (K,3,H,W), float32 in [0,1]
   stain_mask    : (1,H,W), float32 in [0,1], appended when use_stain_mask=True
   qpos          : (9,), normalized
-  action        : (seq_len,9) or (seq_len,10), normalized
+  action        : (seq_len,9) or gripper-extended (seq_len,11), normalized
   is_pad        : (seq_len,), bool
   force_history : (L,3), normalized, if requested
   marker        : (M,), normalized, only if obs_mode is a marker mode
@@ -169,6 +170,7 @@ def _read_action(
     fallback_pos: np.ndarray,
     fallback_force: np.ndarray,
     fallback_gripper_position: Optional[np.ndarray] = None,
+    fallback_gripper_current: Optional[np.ndarray] = None,
     include_gripper: bool = False,
 ) -> np.ndarray:
     pos = _read_dataset(f, ["action/position", "actions/position"], required=False)
@@ -178,6 +180,19 @@ def _read_action(
         ["action/gripper_present_position", "actions/gripper_present_position"],
         required=False,
     )
+    gripper_goal_current = _read_dataset(
+        f,
+        ["action/gripper_goal_current_mA", "actions/gripper_goal_current_mA"],
+        required=False,
+    )
+    if include_gripper and gripper_goal_current is None:
+        gripper_present_current = _read_dataset(
+            f,
+            ["action/gripper_present_current_mA", "actions/gripper_present_current_mA"],
+            required=False,
+        )
+        if gripper_present_current is not None:
+            gripper_goal_current = np.abs(np.asarray(gripper_present_current, dtype=np.float32))
     if pos is None:
         pos = fallback_pos
     if force is None:
@@ -186,6 +201,10 @@ def _read_action(
         if fallback_gripper_position is None:
             raise KeyError("Missing action/gripper_present_position and no fallback provided")
         gripper_pos = fallback_gripper_position
+    if include_gripper and gripper_goal_current is None:
+        if fallback_gripper_current is None:
+            raise KeyError("Missing action/gripper_goal_current_mA and no fallback provided")
+        gripper_goal_current = np.abs(np.asarray(fallback_gripper_current, dtype=np.float32))
     pos = np.asarray(pos, dtype=np.float32)
     force = np.asarray(force, dtype=np.float32)
     if pos.ndim == 1:
@@ -198,6 +217,10 @@ def _read_action(
         if gripper_pos.shape[0] == 1 and pos.shape[0] > 1:
             gripper_pos = np.repeat(gripper_pos, pos.shape[0], axis=0)
         out.append(gripper_pos[:, :1])
+        gripper_goal_current = np.asarray(gripper_goal_current, dtype=np.float32).reshape(-1, 1)
+        if gripper_goal_current.shape[0] == 1 and pos.shape[0] > 1:
+            gripper_goal_current = np.repeat(gripper_goal_current, pos.shape[0], axis=0)
+        out.append(gripper_goal_current[:, :1])
     return np.concatenate(out, axis=-1).astype(np.float32)
 
 
@@ -372,6 +395,7 @@ def compute_dataset_stats(
                 fallback_pos=pos,
                 fallback_force=force,
                 fallback_gripper_position=gripper_position,
+                fallback_gripper_current=gripper_current,
                 include_gripper=include_gripper,
             )[:T]
             marker = _read_marker(f, T=T, marker_dim=marker_dim)[:T]
@@ -484,6 +508,7 @@ class ImitationEpisodeDataset(Dataset):
                 fallback_pos=pos,
                 fallback_force=force,
                 fallback_gripper_position=gripper_position,
+                fallback_gripper_current=gripper_current,
                 include_gripper=self.include_gripper,
             )
             marker = _read_marker(f, T=pos.shape[0], marker_dim=self.marker_dim)

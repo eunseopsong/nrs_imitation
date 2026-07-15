@@ -45,7 +45,10 @@ def _has_required_gripper_keys(path: Path) -> bool:
                 "action/force",
                 "action/gripper_present_position",
             ]
-            return all(key in f for key in required)
+            return all(key in f for key in required) and (
+                "action/gripper_goal_current_mA" in f
+                or "action/gripper_present_current_mA" in f
+            )
     except Exception:
         return False
 
@@ -95,7 +98,7 @@ def main() -> None:
         obs_mode="single_cam",
         camera_names=["cam0"],
         train_all_obs_modes=False,
-        action_dim=10,
+        action_dim=11,
         ckpt_root=str(CKPT_ROOT),
     )
     parser.add_argument(
@@ -108,7 +111,7 @@ def main() -> None:
     args.obs_mode = "single_cam"
     args.camera_names = ["cam0"]
     args.train_all_obs_modes = False
-    args.action_dim = 10
+    args.action_dim = 11
 
     if not args.dataset_dir:
         args.dataset_dir = _find_latest_gripper_imitation_form(Path(args.dataset_root))

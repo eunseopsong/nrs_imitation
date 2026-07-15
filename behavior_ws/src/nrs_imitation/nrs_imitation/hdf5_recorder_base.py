@@ -377,7 +377,8 @@ class HDF5Recorder(Node):
         declare("pose_xyz_scale", 1000.0)  # m -> mm
 
         # Stage-1-compatible force / pose trajectory filtering
-        declare("zero_xy_forces", True)
+        declare("force_filter_mode", "ema")  # ema | contact_cleanup
+        declare("zero_xy_forces", False)
         declare("force_clamp_abs", 200.0)
         declare("force_ema_alpha", 0.2)
         declare("contact_thr_N", 5.0)
@@ -390,15 +391,17 @@ class HDF5Recorder(Node):
         declare("fz_ema_alpha", 0.2)
         declare("force_edge_zero_sec", 3.0)
 
+        declare("filter_reference_hz", 125.0)
+        declare("scale_filter_params_with_hz", True)
         declare("hampel_enable", True)
         declare("hampel_win", 16)
         declare("hampel_sig", 2.0)
         declare("lam_pos_d2", 250000.0)
         declare("lam_ang_d2", 6000.0)
-        declare("pose_ema_enable", True)
+        declare("pose_ema_enable", False)
         declare("pose_ema_alpha", 0.10)
-        declare("retime_k", 2)
-        declare("approach_slowdown_enable", True)
+        declare("retime_k", 1)
+        declare("approach_slowdown_enable", False)
         declare("approach_pre_sec", 5.0)
         declare("approach_post_sec", 0.3)
         declare("approach_scale_max", 30.0)
@@ -498,6 +501,7 @@ class HDF5Recorder(Node):
                 "[UNIT] robot recording uses /ur10skku/currentP in mm; "
                 "overriding pose_xyz_scale 1000.0 -> 1.0 to avoid x1000 datasets."
             )
+        self.force_filter_mode = str(self.get_parameter("force_filter_mode").value)
         self.zero_xy_forces = bool(self.get_parameter("zero_xy_forces").value)
         self.force_clamp_abs = float(self.get_parameter("force_clamp_abs").value)
         self.force_ema_alpha = float(self.get_parameter("force_ema_alpha").value)
@@ -508,6 +512,8 @@ class HDF5Recorder(Node):
         self.fz_contact_lam_d2 = float(self.get_parameter("fz_contact_lam_d2").value)
         self.fz_ema_alpha = float(self.get_parameter("fz_ema_alpha").value)
         self.force_edge_zero_sec = float(self.get_parameter("force_edge_zero_sec").value)
+        self.filter_reference_hz = float(self.get_parameter("filter_reference_hz").value)
+        self.scale_filter_params_with_hz = bool(self.get_parameter("scale_filter_params_with_hz").value)
         self.hampel_enable = bool(self.get_parameter("hampel_enable").value)
         self.hampel_win = int(self.get_parameter("hampel_win").value)
         self.hampel_sig = float(self.get_parameter("hampel_sig").value)
@@ -588,8 +594,14 @@ class HDF5Recorder(Node):
         self.h5.attrs["image_specular_inpaint_radius"] = float(self.image_specular_inpaint_radius)
         self.h5.attrs["image_specular_attenuate_gain"] = float(self.image_specular_attenuate_gain)
         self.h5.attrs["trajectory_filter_source"] = "stage1_vr_filtering_pipeline"
+        self.h5.attrs["trajectory_filter_reference_hz"] = float(self.filter_reference_hz)
+        self.h5.attrs["trajectory_scale_filter_params_with_hz"] = int(bool(self.scale_filter_params_with_hz))
+        self.h5.attrs["trajectory_force_filter_mode"] = str(self.force_filter_mode)
+        self.h5.attrs["trajectory_zero_xy_forces"] = int(bool(self.zero_xy_forces))
+        self.h5.attrs["trajectory_force_ema_alpha"] = float(self.force_ema_alpha)
         self.h5.attrs["trajectory_retime_k"] = int(self.retime_k)
         self.h5.attrs["trajectory_approach_slowdown_enable"] = int(bool(self.approach_slowdown_enable))
+        self.h5.attrs["trajectory_pose_ema_enable"] = int(bool(self.pose_ema_enable))
         self.grp_eps = self.h5.create_group("episodes")
 
         # Runtime state

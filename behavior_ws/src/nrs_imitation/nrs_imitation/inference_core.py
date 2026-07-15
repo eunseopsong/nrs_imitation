@@ -1101,12 +1101,14 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("debug_stain_pooling", False)
 
         # Optional gripper extension. When enabled, the policy uses gripper state
-        # observations and action[9] is published to /gripper/command. The robot
+        # observations. action[9] is published to /gripper/command as position
+        # tick, and action[10] is published as goal current in mA. The robot
         # motion command path still uses action[0:9] and the same polishing safety loop.
         self.declare_parameter("use_gripper", False)
         self.declare_parameter("gripper_position_topic", "/gripper/present_position")
         self.declare_parameter("gripper_current_topic", "/gripper/present_current_mA")
         self.declare_parameter("gripper_command_topic", "/gripper/command")
+        self.declare_parameter("gripper_goal_current_topic", "/gripper/goal_current_mA")
         self.declare_parameter("gripper_command_min_tick", -653)
         self.declare_parameter("gripper_command_max_tick", 733)
         self.declare_parameter("gripper_command_deadband_tick", 2)
@@ -1114,6 +1116,9 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("gripper_command_step_cap_tick", 200.0)
         self.declare_parameter("gripper_cmd_safety_enable", True)
         self.declare_parameter("gripper_cmd_safety_max_tick_from_present", 1500.0)
+        self.declare_parameter("gripper_goal_current_min_mA", 0.0)
+        self.declare_parameter("gripper_goal_current_max_mA", 1345.0)
+        self.declare_parameter("gripper_goal_current_deadband_mA", 5.0)
 
         # stall + recover
         self.declare_parameter("stall_sec", 1.2)
@@ -1383,6 +1388,7 @@ class NodeCmdMotionInfer(Node):
         self.gripper_position_topic = str(self.get_parameter("gripper_position_topic").value)
         self.gripper_current_topic = str(self.get_parameter("gripper_current_topic").value)
         self.gripper_command_topic = str(self.get_parameter("gripper_command_topic").value)
+        self.gripper_goal_current_topic = str(self.get_parameter("gripper_goal_current_topic").value)
         self.gripper_command_min_tick = int(self.get_parameter("gripper_command_min_tick").value)
         self.gripper_command_max_tick = int(self.get_parameter("gripper_command_max_tick").value)
         self.gripper_command_deadband_tick = max(0, int(self.get_parameter("gripper_command_deadband_tick").value))
@@ -1392,6 +1398,15 @@ class NodeCmdMotionInfer(Node):
         self.gripper_cmd_safety_max_tick_from_present = max(
             0.0,
             float(self.get_parameter("gripper_cmd_safety_max_tick_from_present").value),
+        )
+        self.gripper_goal_current_min_mA = max(0.0, float(self.get_parameter("gripper_goal_current_min_mA").value))
+        self.gripper_goal_current_max_mA = max(
+            self.gripper_goal_current_min_mA,
+            float(self.get_parameter("gripper_goal_current_max_mA").value),
+        )
+        self.gripper_goal_current_deadband_mA = max(
+            0.0,
+            float(self.get_parameter("gripper_goal_current_deadband_mA").value),
         )
         if self.use_gripper and self.policy_class != "FLOW":
             raise RuntimeError("use_gripper=True currently requires policy_class=FLOW")
@@ -1464,7 +1479,7 @@ class NodeCmdMotionInfer(Node):
                     f"action_fz_range=[{float(self.stats.act_a[8]):.3f},{float(self.stats.act_b[8]):.3f}]"
                 )
 
-        self.action_dim = 10 if self.use_gripper else 9
+        self.action_dim = 11 if self.use_gripper else 9
         if self.use_gripper and self.stats is None:
             raise RuntimeError("use_gripper=True requires dataset_stats.pkl")
         if self.stats is not None:
@@ -1540,6 +1555,7 @@ class NodeCmdMotionInfer(Node):
         self._last_gripper_cmd_t: Optional[float] = None
         self._gripper_startup_position: Optional[float] = None
         self._gripper_cmd_safety_last_log = 0.0
+        self._last_gripper_goal_current_mA: Optional[float] = None
 
         # baseline state
         self._sent_first_cmd = False
@@ -1633,8 +1649,14 @@ class NodeCmdMotionInfer(Node):
 
         self.pub_cmd = self.create_publisher(Float64MultiArray, self.cmd_topic, 10)
         self.pub_gripper_cmd = None
+        self.pub_gripper_goal_current = None
         if self.use_gripper:
             self.pub_gripper_cmd = self.create_publisher(Int32, self.gripper_command_topic, 10)
+            self.pub_gripper_goal_current = self.create_publisher(
+                Float32,
+                self.gripper_goal_current_topic,
+                10,
+            )
         self.pub_gradcam_overlay = None
         self.pub_gradcam_global_overlay = None
         if self.gradcam_enable and self.gradcam_publish:
@@ -1656,7 +1678,9 @@ class NodeCmdMotionInfer(Node):
             f"  image_topic={self.image_topic}\n"
             f"  global_image_topic={self.global_image_topic if self.use_global_image else '(disabled)'}\n"
             f"  cmd_topic={self.cmd_topic}\n"
-            f"  gripper(enable={int(self.use_gripper)}, state=({self.gripper_position_topic}, {self.gripper_current_topic}), command={self.gripper_command_topic if self.use_gripper else '(disabled)'})\n"
+            f"  gripper(enable={int(self.use_gripper)}, state=({self.gripper_position_topic}, {self.gripper_current_topic}), "
+            f"position_cmd={self.gripper_command_topic if self.use_gripper else '(disabled)'}, "
+            f"goal_current_cmd={self.gripper_goal_current_topic if self.use_gripper else '(disabled)'})\n"
             f"  image_qos={self.image_qos_str}\n"
             f"  policy_class={self.policy_class} phase_mode={self.phase_mode}\n"
             f"  control_hz={self.control_hz} infer_hz={self.infer_hz}\n"
@@ -1762,8 +1786,8 @@ class NodeCmdMotionInfer(Node):
         )
 
     def _select_gradcam_scalar(self, seq_phys: torch.Tensor) -> torch.Tensor:
-        if seq_phys.dim() != 2 or seq_phys.shape[-1] not in (9, 10):
-            raise RuntimeError(f"Grad-CAM seq must be (T,9) or (T,10), got {tuple(seq_phys.shape)}")
+        if seq_phys.dim() != 2 or seq_phys.shape[-1] not in (9, 10, 11):
+            raise RuntimeError(f"Grad-CAM seq must be (T,9), (T,10), or (T,11), got {tuple(seq_phys.shape)}")
 
         T = int(seq_phys.shape[0])
         s = min(max(0, int(self.gradcam_target_step)), max(0, T - 1))
@@ -1791,8 +1815,12 @@ class NodeCmdMotionInfer(Node):
             return block[:, 8].mean()
         if target in ("gripper", "grip", "tick", "gripper_position"):
             if block.shape[-1] < 10:
-                raise RuntimeError("gradcam_target=gripper requires a 10D gripper policy output")
+                raise RuntimeError("gradcam_target=gripper requires a gripper policy output")
             return block[:, 9].mean()
+        if target in ("gripper_current", "goal_current", "gripper_goal_current"):
+            if block.shape[-1] < 11:
+                raise RuntimeError("gradcam_target=gripper_current requires an 11D gripper policy output")
+            return block[:, 10].mean()
         if target in ("abs_z", "z_abs"):
             return block[:, 2].abs().mean()
         if target in ("abs_fz", "fz_abs"):
@@ -2142,7 +2170,7 @@ class NodeCmdMotionInfer(Node):
             ):
                 if key in ckpt_policy_cfg:
                     args_override[key] = ckpt_policy_cfg[key]
-            args_override["action_dim"] = 10
+            args_override["action_dim"] = 11
             args_override["pretrained_backbone"] = False
 
         policy_class = str(self.policy_class).upper()
@@ -2579,6 +2607,8 @@ class NodeCmdMotionInfer(Node):
             gripper_dbg = ""
             if self.use_gripper and seq_den.shape[-1] >= 10:
                 gripper_dbg = f" gripper_target={seq_den[0,9]:.1f}"
+                if seq_den.shape[-1] >= 11:
+                    gripper_dbg += f" gripper_goal_current={seq_den[0,10]:.1f}mA"
             self.get_logger().info(
                 f"[INFER] plan appended #{self._infer_plan_count} | "
                 f"seq_shape={tuple(seq_den.shape)} first_xyz=[{seq_den[0,0]:.3f},{seq_den[0,1]:.3f},{seq_den[0,2]:.3f}] "
@@ -2776,6 +2806,28 @@ class NodeCmdMotionInfer(Node):
         self.pub_gripper_cmd.publish(msg)
         self._last_gripper_cmd = target_i
         self._last_gripper_cmd_t = now
+        return True
+
+    def _publish_gripper_goal_current(self, goal_current_mA: float) -> bool:
+        if not self.use_gripper or self.pub_gripper_goal_current is None:
+            return False
+
+        value = float(goal_current_mA)
+        if not np.isfinite(value):
+            self.get_logger().error("[GRIPPER-CURRENT-SAFETY] blocked non-finite goal current command")
+            return False
+
+        value = float(np.clip(value, self.gripper_goal_current_min_mA, self.gripper_goal_current_max_mA))
+        if (
+            self._last_gripper_goal_current_mA is not None
+            and abs(value - self._last_gripper_goal_current_mA) < self.gripper_goal_current_deadband_mA
+        ):
+            return False
+
+        msg = Float32()
+        msg.data = value
+        self.pub_gripper_goal_current.publish(msg)
+        self._last_gripper_goal_current_mA = value
         return True
 
     def _ramp_from(self, t0: float, ramp_sec: float) -> float:
@@ -3192,6 +3244,7 @@ class NodeCmdMotionInfer(Node):
         # -----------------------------
         cmd_target = None
         gripper_target_tick = None
+        gripper_goal_current_mA = None
 
         if self.stage == Stage.PRELOAD:
             cmd_target = self._preload_control_step(pose6.astype(np.float32), meas_fz)
@@ -3231,6 +3284,8 @@ class NodeCmdMotionInfer(Node):
 
             if self.use_gripper and cmd_pred_full.size >= 10:
                 gripper_target_tick = float(cmd_pred_full[9])
+            if self.use_gripper and cmd_pred_full.size >= 11:
+                gripper_goal_current_mA = float(cmd_pred_full[10])
             cmd_target = cmd_pred_full[:9].astype(np.float32).copy()
 
             if self.action_type == "delta":
@@ -3411,6 +3466,8 @@ class NodeCmdMotionInfer(Node):
         if self.use_gripper:
             motion_safe = bool(np.allclose(published, cmd_next, atol=1e-6, rtol=0.0))
             if motion_safe and gripper_target_tick is not None:
+                if gripper_goal_current_mA is not None:
+                    self._publish_gripper_goal_current(float(gripper_goal_current_mA))
                 self._publish_gripper_command(float(gripper_target_tick), now_t)
             else:
                 present_grip = self._current_gripper_position_snapshot()

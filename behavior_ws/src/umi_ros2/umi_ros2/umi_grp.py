@@ -146,6 +146,8 @@ class GripperNode(Node):
         # Dynamixel Wizard:
         # Goal Current = 74 LSB = 199.06 mA
         self.declare_parameter('dxl.goal_current_mA', 200)
+        self.declare_parameter('dxl.goal_current_min_mA', 0)
+        self.declare_parameter('dxl.goal_current_max_mA', 1345)
 
         # 물체를 잡았을 때 전류 기준으로 멈추는 기능
         self.declare_parameter('gripper.current_stop_enabled', True)
@@ -162,6 +164,7 @@ class GripperNode(Node):
         self.declare_parameter('gripper.present_current_mA_topic', '/gripper/present_current_mA')
         self.declare_parameter('gripper.present_position_topic', '/gripper/present_position')
         self.declare_parameter('gripper.command_topic', '/gripper/command')
+        self.declare_parameter('gripper.goal_current_mA_topic', '/gripper/goal_current_mA')
 
         # Keyboard
         self.declare_parameter('keyboard.step_size', 50)
@@ -188,6 +191,8 @@ class GripperNode(Node):
         PROFILE_VELOCITY = self.get_parameter('dxl.profile_velocity').get_parameter_value().integer_value
         CURRENT_LIMIT_mA = self.get_parameter('dxl.current_limit_mA').get_parameter_value().integer_value
         GOAL_CURRENT_mA = self.get_parameter('dxl.goal_current_mA').get_parameter_value().integer_value
+        GOAL_CURRENT_MIN_mA = self.get_parameter('dxl.goal_current_min_mA').get_parameter_value().integer_value
+        GOAL_CURRENT_MAX_mA = self.get_parameter('dxl.goal_current_max_mA').get_parameter_value().integer_value
 
         CURRENT_STOP_ENABLED = self.get_parameter('gripper.current_stop_enabled').get_parameter_value().bool_value
         CLOSE_CURRENT_STOP_mA = self.get_parameter('gripper.close_current_stop_mA').get_parameter_value().integer_value
@@ -199,6 +204,7 @@ class GripperNode(Node):
         CURR_TOPIC = self.get_parameter('gripper.present_current_mA_topic').get_parameter_value().string_value
         POS_TOPIC = self.get_parameter('gripper.present_position_topic').get_parameter_value().string_value
         CMD_TOPIC = self.get_parameter('gripper.command_topic').get_parameter_value().string_value
+        GOAL_CURRENT_TOPIC = self.get_parameter('gripper.goal_current_mA_topic').get_parameter_value().string_value
 
         KEYBOARD_STEP = self.get_parameter('keyboard.step_size').get_parameter_value().integer_value
 
@@ -226,7 +232,9 @@ class GripperNode(Node):
         self.PROFILE_ACCEL = PROFILE_ACCEL
         self.PROFILE_VELOCITY = PROFILE_VELOCITY
         self.CURRENT_LIMIT_mA = CURRENT_LIMIT_mA
-        self.GOAL_CURRENT_mA = GOAL_CURRENT_mA
+        self.GOAL_CURRENT_MIN_mA = max(0, min(GOAL_CURRENT_MIN_mA, CURRENT_LIMIT_mA))
+        self.GOAL_CURRENT_MAX_mA = max(self.GOAL_CURRENT_MIN_mA, min(GOAL_CURRENT_MAX_mA, CURRENT_LIMIT_mA))
+        self.GOAL_CURRENT_mA = clamp(GOAL_CURRENT_mA, self.GOAL_CURRENT_MIN_mA, self.GOAL_CURRENT_MAX_mA)
 
         self.CURRENT_STOP_ENABLED = CURRENT_STOP_ENABLED
         self.CLOSE_CURRENT_STOP_mA = CLOSE_CURRENT_STOP_mA
@@ -251,6 +259,12 @@ class GripperNode(Node):
         self.curr_pub = self.create_publisher(Float32, CURR_TOPIC, 20)
         self.pos_pub = self.create_publisher(Int32, POS_TOPIC, 20)
         self.cmd_sub = self.create_subscription(Int32, CMD_TOPIC, self._cmd_callback, 10)
+        self.goal_current_sub = self.create_subscription(
+            Float32,
+            GOAL_CURRENT_TOPIC,
+            self._goal_current_callback,
+            10,
+        )
 
         # Do not command open/close on startup. The first goal should come from
         # keyboard input or /gripper/command after the operator checks the state.
@@ -279,7 +293,7 @@ class GripperNode(Node):
         self._w2u(ADDR_CURRENT_LIMIT, current_limit_lsb)
 
         # Goal Current: Address 102
-        goal_current_lsb = clamp(mA2lsb(GOAL_CURRENT_mA), 1, 0xFFFF)
+        goal_current_lsb = clamp(mA2lsb(self.GOAL_CURRENT_mA), 1, 0xFFFF)
         self._w2u(ADDR_GOAL_CURRENT, goal_current_lsb)
 
         # Profile 설정
@@ -376,12 +390,14 @@ class GripperNode(Node):
             f"umi gripper node ON | "
             f"port={PORT} baud={BAUD} id={GRIPPER_ID} | "
             f"command_topic={CMD_TOPIC} | "
+            f"goal_current_topic={GOAL_CURRENT_TOPIC} | "
             f"mode=Current-based Position Control(5) | "
             f"map [{TR_MIN}..{TR_MAX}] -> [{GR_MIN}..{GR_MAX}] "
             f"invert={INVERT} | "
             f"software_range=[{GR_MIN}..{GR_MAX}] | "
             f"current_limit={CURRENT_LIMIT_mA}mA "
-            f"goal_current={GOAL_CURRENT_mA}mA | "
+            f"goal_current={self.GOAL_CURRENT_mA}mA "
+            f"range=[{self.GOAL_CURRENT_MIN_mA}..{self.GOAL_CURRENT_MAX_mA}]mA | "
             f"current_stop={CURRENT_STOP_ENABLED} "
             f"threshold={CLOSE_CURRENT_STOP_mA}mA "
             f"debounce={self.CURRENT_STOP_DEBOUNCE_SEC:.2f}s"
@@ -500,6 +516,24 @@ class GripperNode(Node):
         with self._lk:
             self._direct_goal_position = goal
         self.get_logger().info(f"Topic command: {msg.data} -> goal={goal}")
+
+    def _goal_current_callback(self, msg: Float32):
+        """Receive a gripper goal current command in mA."""
+        goal_current_mA = clamp(
+            float(msg.data),
+            float(self.GOAL_CURRENT_MIN_mA),
+            float(self.GOAL_CURRENT_MAX_mA),
+        )
+        goal_current_lsb = clamp(mA2lsb(goal_current_mA), 1, 0xFFFF)
+        if self._w2u(ADDR_GOAL_CURRENT, goal_current_lsb):
+            with self._lk:
+                self.GOAL_CURRENT_mA = goal_current_mA
+            self.get_logger().debug(
+                f"Goal current command: {msg.data:.2f}mA -> {goal_current_mA:.2f}mA"
+            )
+
+    def _current_stop_threshold_mA(self):
+        return max(float(self.CLOSE_CURRENT_STOP_mA), float(self.GOAL_CURRENT_mA))
 
     # ================= Dynamixel I/O =================
     def _w1(self, addr, v):
@@ -717,7 +751,7 @@ class GripperNode(Node):
 
         if (
             present_current_mA is not None
-            and abs(present_current_mA) >= self.CLOSE_CURRENT_STOP_mA
+            and abs(present_current_mA) >= self._current_stop_threshold_mA()
             and self._is_closing_motion(cmd, self._last_cmd)
         ):
             now = time.time()
@@ -744,7 +778,9 @@ class GripperNode(Node):
 
             self.get_logger().warn(
                 f"Close current stop latched at pos={self._close_stop_position}, "
-                f"current={present_current_mA:.1f}mA. "
+                f"current={present_current_mA:.1f}mA "
+                f"(threshold={self._current_stop_threshold_mA():.1f}mA, "
+                f"goal_current={self.GOAL_CURRENT_mA:.1f}mA). "
                 f"Holding position until opening command."
             )
 

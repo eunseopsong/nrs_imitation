@@ -686,7 +686,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save_every", type=int, default=100)
 
     parser.add_argument("--state_dim", type=int, default=9)
-    parser.add_argument("--action_dim", type=int, default=10)
+    parser.add_argument("--action_dim", type=int, default=11)
     parser.add_argument("--force_dim", type=int, default=3)
 
     parser.add_argument("--use_force_history", dest="use_force_history", action="store_true", default=True)

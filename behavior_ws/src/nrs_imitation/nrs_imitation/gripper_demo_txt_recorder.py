@@ -131,7 +131,8 @@ class GripperDemoTxtRecorder(Node):
         self.declare_parameter("remote_dir", "dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/")
 
         # Stage-1-compatible force / pose trajectory filtering
-        self.declare_parameter("zero_xy_forces", True)
+        self.declare_parameter("force_filter_mode", "ema")  # ema | contact_cleanup
+        self.declare_parameter("zero_xy_forces", False)
         self.declare_parameter("force_clamp_abs", 200.0)
         self.declare_parameter("force_ema_alpha", 0.2)
         self.declare_parameter("contact_thr_N", 5.0)
@@ -190,6 +191,7 @@ class GripperDemoTxtRecorder(Node):
         self.remote_ip = str(self.get_parameter("remote_ip").value)
         self.remote_dir = str(self.get_parameter("remote_dir").value)
 
+        self.force_filter_mode = str(self.get_parameter("force_filter_mode").value)
         self.zero_xy_forces = bool(self.get_parameter("zero_xy_forces").value)
         self.force_clamp_abs = float(self.get_parameter("force_clamp_abs").value)
         self.force_ema_alpha = float(self.get_parameter("force_ema_alpha").value)
@@ -266,7 +268,7 @@ class GripperDemoTxtRecorder(Node):
             ("force", self.force_topic),
             ("gripper", f"pos={self.gripper_position_topic}, cur={self.gripper_current_topic}"),
             ("record_hz", self.record_hz),
-            ("filter", f"stage1 retime=x{self.retime_k}, approach={self.approach_slowdown_enable}, QP={self.qp_guard_enable}"),
+            ("filter", f"stage1 retime=x{self.retime_k}, force={self.force_filter_mode}, approach={self.approach_slowdown_enable}, QP={self.qp_guard_enable}"),
             ("columns", "x y z rx ry rz fx fy fz gripper_present_position gripper_present_current_mA"),
             ("command", self.command_topic),
         ]))

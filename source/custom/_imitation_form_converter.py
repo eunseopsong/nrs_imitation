@@ -1547,6 +1547,8 @@ def write_episode(
         f.attrs["orig_len"] = int(orig_len)
         f.attrs["truncated"] = int(bool(truncated))
         f.attrs["has_gripper"] = int(bool(has_gripper))
+        f.attrs["qpos_dim"] = 9
+        f.attrs["action_dim"] = 11 if has_gripper else 9
 
         g_action = f.create_group("action")
         g_action.create_dataset("position", data=data["position"].astype(np.float32), **kwargs)
@@ -1555,6 +1557,11 @@ def write_episode(
             g_action.create_dataset(
                 "gripper_present_position",
                 data=data["gripper_present_position"].astype(np.int32),
+                **kwargs,
+            )
+            g_action.create_dataset(
+                "gripper_goal_current_mA",
+                data=np.abs(data["gripper_present_current_mA"]).astype(np.float32),
                 **kwargs,
             )
             g_action.create_dataset(

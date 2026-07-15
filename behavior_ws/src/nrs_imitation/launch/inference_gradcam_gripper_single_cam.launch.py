@@ -22,6 +22,7 @@ def generate_launch_description():
     gripper_position_topic = LaunchConfiguration("gripper_position_topic")
     gripper_current_topic = LaunchConfiguration("gripper_current_topic")
     gripper_command_topic = LaunchConfiguration("gripper_command_topic")
+    gripper_goal_current_topic = LaunchConfiguration("gripper_goal_current_topic")
     control_hz = LaunchConfiguration("control_hz")
     infer_hz = LaunchConfiguration("infer_hz")
     use_temporal_agg = LaunchConfiguration("use_temporal_agg")
@@ -36,6 +37,9 @@ def generate_launch_description():
     tau_sec = LaunchConfiguration("tau_sec")
     startup_ramp_sec = LaunchConfiguration("startup_ramp_sec")
     gripper_command_step_cap_tick = LaunchConfiguration("gripper_command_step_cap_tick")
+    gripper_goal_current_min_mA = LaunchConfiguration("gripper_goal_current_min_mA")
+    gripper_goal_current_max_mA = LaunchConfiguration("gripper_goal_current_max_mA")
+    gripper_goal_current_deadband_mA = LaunchConfiguration("gripper_goal_current_deadband_mA")
     gripper_cmd_safety_enable = LaunchConfiguration("gripper_cmd_safety_enable")
     gripper_cmd_safety_max_tick_from_present = LaunchConfiguration("gripper_cmd_safety_max_tick_from_present")
 
@@ -59,6 +63,7 @@ def generate_launch_description():
         DeclareLaunchArgument("gripper_position_topic", default_value="/gripper/present_position"),
         DeclareLaunchArgument("gripper_current_topic", default_value="/gripper/present_current_mA"),
         DeclareLaunchArgument("gripper_command_topic", default_value="/gripper/command"),
+        DeclareLaunchArgument("gripper_goal_current_topic", default_value="/gripper/goal_current_mA"),
         DeclareLaunchArgument("control_hz", default_value="125.0"),
         DeclareLaunchArgument("infer_hz", default_value="5.0"),
         DeclareLaunchArgument("use_temporal_agg", default_value="true"),
@@ -73,6 +78,9 @@ def generate_launch_description():
         DeclareLaunchArgument("tau_sec", default_value="0.8"),
         DeclareLaunchArgument("startup_ramp_sec", default_value="3.0"),
         DeclareLaunchArgument("gripper_command_step_cap_tick", default_value="200.0"),
+        DeclareLaunchArgument("gripper_goal_current_min_mA", default_value="0.0"),
+        DeclareLaunchArgument("gripper_goal_current_max_mA", default_value="1345.0"),
+        DeclareLaunchArgument("gripper_goal_current_deadband_mA", default_value="5.0"),
         DeclareLaunchArgument("gripper_cmd_safety_enable", default_value="true"),
         DeclareLaunchArgument("gripper_cmd_safety_max_tick_from_present", default_value="1500.0"),
 
@@ -104,6 +112,7 @@ def generate_launch_description():
                 "gripper_position_topic": gripper_position_topic,
                 "gripper_current_topic": gripper_current_topic,
                 "gripper_command_topic": gripper_command_topic,
+                "gripper_goal_current_topic": gripper_goal_current_topic,
                 "control_hz": ParameterValue(control_hz, value_type=float),
                 "infer_hz": ParameterValue(infer_hz, value_type=float),
                 "use_temporal_agg": ParameterValue(use_temporal_agg, value_type=bool),
@@ -118,6 +127,9 @@ def generate_launch_description():
                 "tau_sec": ParameterValue(tau_sec, value_type=float),
                 "startup_ramp_sec": ParameterValue(startup_ramp_sec, value_type=float),
                 "gripper_command_step_cap_tick": ParameterValue(gripper_command_step_cap_tick, value_type=float),
+                "gripper_goal_current_min_mA": ParameterValue(gripper_goal_current_min_mA, value_type=float),
+                "gripper_goal_current_max_mA": ParameterValue(gripper_goal_current_max_mA, value_type=float),
+                "gripper_goal_current_deadband_mA": ParameterValue(gripper_goal_current_deadband_mA, value_type=float),
                 "gripper_cmd_safety_enable": ParameterValue(gripper_cmd_safety_enable, value_type=bool),
                 "gripper_cmd_safety_max_tick_from_present": ParameterValue(gripper_cmd_safety_max_tick_from_present, value_type=float),
                 "gradcam_enable": ParameterValue(gradcam_enable, value_type=bool),

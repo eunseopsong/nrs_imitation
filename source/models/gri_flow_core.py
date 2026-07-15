@@ -10,8 +10,8 @@ Supported observation modes:
   - dual_cam         : cam0/cam1 + qpos + gripper + optional force_history
   - single_cam_marker: cam0 + marker + qpos + gripper + optional force_history
 
-Action is a 10D command chunk:
-  [x, y, z, wx, wy, wz, fx, fy, fz, gripper_present_position]
+Action is an 11D command chunk:
+  [x, y, z, wx, wy, wz, fx, fy, fz, gripper_present_position, gripper_goal_current_mA]
 
 The class name FlowRGBPolicy is preserved for backward compatibility with the
 existing inference/training code.
@@ -402,7 +402,7 @@ class FlowRGBPolicy(nn.Module):
         super().__init__()
         self.cfg = dict(cfg)
         self.num_queries = int(cfg.get("num_queries", 200))
-        self.action_dim = int(cfg.get("action_dim", 10))
+        self.action_dim = int(cfg.get("action_dim", 11))
         self.flow_train_eps = float(cfg.get("flow_train_eps", 1e-4))
         self.flow_infer_steps = int(cfg.get("flow_infer_steps", 10))
         self.flow_loss_type = str(cfg.get("flow_loss_type", "mse")).lower()

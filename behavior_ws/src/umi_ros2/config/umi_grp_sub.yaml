@@ -12,12 +12,15 @@ umi_gripper_sub:
     dxl.profile_velocity: 0
     dxl.current_limit_mA: 1345
     dxl.goal_current_mA: 200
+    dxl.goal_current_min_mA: 0
+    dxl.goal_current_max_mA: 1345
     gripper.current_stop_enabled: true
     gripper.close_current_stop_mA: 400
     gripper.close_increases_tick: true
     gripper.present_current_mA_topic: /gripper/present_current_mA
     gripper.present_position_topic: /gripper/present_position
     gripper.command_topic: /gripper/command
+    gripper.goal_current_mA_topic: /gripper/goal_current_mA
     joystick.enabled: true
     joystick.command_topic: /ur10skku/joy_move
     joystick.axis_index: 5

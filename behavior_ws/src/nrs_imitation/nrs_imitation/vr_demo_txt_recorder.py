@@ -622,7 +622,8 @@ class VrDemoTxtRecorder(Node):
         self.declare_parameter("remote_dir", "dev_ws/src/y2_ur10skku_control/Y2RobMotion/txtcmd/")
 
         # Stage-1-compatible force / pose trajectory filtering
-        self.declare_parameter("zero_xy_forces", True)
+        self.declare_parameter("force_filter_mode", "ema")  # ema | contact_cleanup
+        self.declare_parameter("zero_xy_forces", False)
         self.declare_parameter("force_clamp_abs", 200.0)
         self.declare_parameter("force_ema_alpha", 0.2)
         self.declare_parameter("contact_thr_N", 5.0)
@@ -705,6 +706,7 @@ class VrDemoTxtRecorder(Node):
         self.remote_ip = str(self.get_parameter("remote_ip").value)
         self.remote_dir = str(self.get_parameter("remote_dir").value)
 
+        self.force_filter_mode = str(self.get_parameter("force_filter_mode").value)
         self.zero_xy_forces = bool(self.get_parameter("zero_xy_forces").value)
         self.force_clamp_abs = float(self.get_parameter("force_clamp_abs").value)
         self.force_ema_alpha = float(self.get_parameter("force_ema_alpha").value)
@@ -783,7 +785,7 @@ class VrDemoTxtRecorder(Node):
         self.get_logger().info(f"[FILTER] Stage1-compatible txt output. dt={self.dt:.6f}s, save={self.save_path}")
         self.get_logger().info(
             f"[FORCE] clamp={self.force_clamp_abs}, EMA={self.force_ema_alpha}, "
-            f"zero_xy={self.zero_xy_forces}, contact_thr={self.contact_thr_N}"
+            f"mode={self.force_filter_mode}, zero_xy={self.zero_xy_forces}, contact_thr={self.contact_thr_N}"
         )
         self.get_logger().info(
             f"[POSE] Hampel={self.hampel_enable}, D2=({self.lam_pos_d2}, {self.lam_ang_d2}), "

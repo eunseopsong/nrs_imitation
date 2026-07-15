@@ -152,6 +152,7 @@ gripper recorder로 생성한 데이터는 gripper 변환 스크립트를 사용
 ```text
 observations/gripper/present_current_mA
 observations/gripper/present_position
+action/gripper_goal_current_mA
 action/gripper_present_current_mA
 action/gripper_present_position
 ```
@@ -260,7 +261,7 @@ python3 scripts/flow/train_flow_gripper_single_cam.py \
   --dataset_dir datasets/gripper/single_cam/<YYYYMMDD_HHMM>/imitation_form
 ```
 
-이 policy는 `cam0 + qpos(position, force) + gripper state(position, current)`를 observation으로 사용합니다. gripper state encoder는 MLP이고, action target은 `position(6) + force(3) + gripper_present_position(1)`의 10D입니다. `action/gripper_present_current_mA`는 imitation_form에 보존되지만 command target으로는 사용하지 않습니다.
+이 policy는 `cam0 + qpos(position, force) + gripper state(position, current)`를 observation으로 사용합니다. gripper state encoder는 MLP이고, action target은 `position(6) + force(3) + gripper_present_position(1) + gripper_goal_current_mA(1)`의 11D입니다. `gripper_goal_current_mA`는 recorded `present_current_mA`의 magnitude에서 만들어지며, signed `action/gripper_present_current_mA`는 분석/호환용으로 보존됩니다.
 
 ### Dual Cam
 
@@ -336,13 +337,14 @@ cam0             = /realsense/vr/color/image_raw
 gripper position = /gripper/present_position
 gripper current  = /gripper/present_current_mA
 robot command    = /ur10skku/cmdMotion
-gripper command  = /gripper/command
+gripper position = /gripper/command
+gripper current  = /gripper/goal_current_mA
 heatmap overlay  = /inference_gripper_single_cam/gradcam_overlay
 ```
 
-`ckpt_dir`를 생략하면 `checkpoints/flow/gripper/single_cam` 아래 최신 checkpoint를 자동 선택합니다. 이 node는 polishing inference와 같은 shared control loop를 사용해서 policy action `[0:9]`를 `/ur10skku/cmdMotion`으로 publish하고, 추가로 action `[9]`의 `gripper_present_position`을 `std_msgs/Int32`로 `/gripper/command`에 publish합니다. stain-mask node/option은 사용하지 않습니다.
+`ckpt_dir`를 생략하면 `checkpoints/flow/gripper/single_cam` 아래 최신 checkpoint를 자동 선택합니다. 이 node는 polishing inference와 같은 shared control loop를 사용해서 policy action `[0:9]`를 `/ur10skku/cmdMotion`으로 publish하고, 추가로 action `[9]`의 `gripper_present_position`을 `std_msgs/Int32`로 `/gripper/command`, action `[10]`의 `gripper_goal_current_mA`를 `std_msgs/Float32`로 `/gripper/goal_current_mA`에 publish합니다. stain-mask node/option은 사용하지 않습니다.
 
-10D action은 checkpoint의 `dataset_stats.pkl` 범위로 denormalize합니다. robot motion `[0:9]`는 polishing inference의 temporal aggregation, anchor, stage, startup ramp, `step_cap_pos_mm`, `step_cap_ang_rad`, `step_cap_fz`, `cmd_safety_max_xyz_from_current_mm` 경로를 그대로 통과합니다. gripper action `[9]`는 같은 `tau_sec:=0.8`, `startup_ramp_sec:=3.0`을 사용하고, 기본 `gripper_command_step_cap_tick:=200.0`, `gripper_command_slew_per_sec:=1000.0`, `gripper_cmd_safety_max_tick_from_present:=700.0` guard를 추가로 통과합니다.
+11D action은 checkpoint의 `dataset_stats.pkl` 범위로 denormalize합니다. robot motion `[0:9]`는 polishing inference의 temporal aggregation, anchor, stage, startup ramp, `step_cap_pos_mm`, `step_cap_ang_rad`, `step_cap_fz`, `cmd_safety_max_xyz_from_current_mm` 경로를 그대로 통과합니다. gripper position action `[9]`는 같은 `tau_sec:=0.8`, `startup_ramp_sec:=3.0`을 사용하고, 기본 `gripper_command_step_cap_tick:=200.0`, `gripper_command_slew_per_sec:=1000.0`, `gripper_cmd_safety_max_tick_from_present:=1500.0` guard를 추가로 통과합니다. gripper current action `[10]`은 기본 `0..1345mA`로 clip되어 publish됩니다. driver의 close-current-stop은 `max(close_current_stop_mA, goal_current_mA)` 기준으로 latch되며, 실제 파지력 안전 상한은 `dxl.goal_current_max_mA`로 제한합니다.
 
 tracker pose/force topic 기준으로 실행할 때:
 

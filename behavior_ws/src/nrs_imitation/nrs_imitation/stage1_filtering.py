@@ -26,7 +26,10 @@ from nrs_imitation.vr_stage1_hdf5_recorder import (
 @dataclass
 class Stage1FilterConfig:
     sample_hz: float
-    zero_xy_forces: bool = True
+    filter_reference_hz: float = 125.0
+    scale_filter_params_with_hz: bool = False
+    force_filter_mode: str = "ema"
+    zero_xy_forces: bool = False
     force_clamp_abs: float = 200.0
     force_ema_alpha: float = 0.2
     contact_thr_N: float = 5.0
@@ -77,9 +80,12 @@ class Stage1FilterResult:
 
 
 def stage1_config_from_recorder(recorder, sample_hz: float) -> Stage1FilterConfig:
-    return Stage1FilterConfig(
+    cfg = Stage1FilterConfig(
         sample_hz=float(sample_hz),
-        zero_xy_forces=bool(getattr(recorder, "zero_xy_forces", True)),
+        filter_reference_hz=float(getattr(recorder, "filter_reference_hz", 125.0)),
+        scale_filter_params_with_hz=bool(getattr(recorder, "scale_filter_params_with_hz", False)),
+        force_filter_mode=str(getattr(recorder, "force_filter_mode", "ema")),
+        zero_xy_forces=bool(getattr(recorder, "zero_xy_forces", False)),
         force_clamp_abs=float(getattr(recorder, "force_clamp_abs", 200.0)),
         force_ema_alpha=float(getattr(recorder, "force_ema_alpha", getattr(recorder, "fz_ema_alpha", 0.2))),
         contact_thr_N=float(getattr(recorder, "contact_thr_N", getattr(recorder, "fz_gate_N", 5.0))),
@@ -119,6 +125,44 @@ def stage1_config_from_recorder(recorder, sample_hz: float) -> Stage1FilterConfi
         pos_jmax=float(getattr(recorder, "pos_jmax", 5000.0)),
         ang_jmax=float(getattr(recorder, "ang_jmax", 80.0)),
     )
+    return _with_sample_hz_scaled_params(cfg)
+
+
+def _scale_whittaker_lambda(lam: float, derivative_order: int, sample_hz: float, reference_hz: float) -> float:
+    if lam <= 0.0 or sample_hz <= 0.0 or reference_hz <= 0.0:
+        return float(lam)
+    power = 2 * int(derivative_order) - 1
+    return float(lam) * (float(sample_hz) / float(reference_hz)) ** power
+
+
+def _scale_ema_alpha(alpha: float, sample_hz: float, reference_hz: float) -> float:
+    if alpha <= 0.0 or alpha >= 1.0 or sample_hz <= 0.0 or reference_hz <= 0.0:
+        return float(alpha)
+    return float(np.clip(1.0 - (1.0 - float(alpha)) ** (float(reference_hz) / float(sample_hz)), 0.0, 1.0))
+
+
+def _scale_sample_count(count: int, sample_hz: float, reference_hz: float) -> int:
+    if count <= 1 or sample_hz <= 0.0 or reference_hz <= 0.0:
+        return int(count)
+    return max(1, int(round(float(count) * float(sample_hz) / float(reference_hz))))
+
+
+def _with_sample_hz_scaled_params(cfg: Stage1FilterConfig) -> Stage1FilterConfig:
+    if not bool(cfg.scale_filter_params_with_hz):
+        return cfg
+
+    hz = float(cfg.sample_hz)
+    ref = float(cfg.filter_reference_hz)
+    cfg.fz_contact_lam_d2 = _scale_whittaker_lambda(float(cfg.fz_contact_lam_d2), 2, hz, ref)
+    cfg.hampel_win = _scale_sample_count(int(cfg.hampel_win), hz, ref)
+    cfg.consec_on = _scale_sample_count(int(cfg.consec_on), hz, ref)
+    cfg.consec_off = _scale_sample_count(int(cfg.consec_off), hz, ref)
+    cfg.lam_pos_d2 = _scale_whittaker_lambda(float(cfg.lam_pos_d2), 2, hz, ref)
+    cfg.lam_ang_d2 = _scale_whittaker_lambda(float(cfg.lam_ang_d2), 2, hz, ref)
+    cfg.pose_ema_alpha = _scale_ema_alpha(float(cfg.pose_ema_alpha), hz, ref)
+    cfg.lam_pos_d3 = _scale_whittaker_lambda(float(cfg.lam_pos_d3), 3, hz, ref)
+    cfg.lam_ang_d3 = _scale_whittaker_lambda(float(cfg.lam_ang_d3), 3, hz, ref)
+    return cfg
 
 
 def take_nearest_by_source_index(array: np.ndarray, source_index: np.ndarray) -> np.ndarray:
@@ -156,19 +200,25 @@ def apply_stage1_filter(
     rawN = int(rawP.shape[0])
     dt = 1.0 / max(1e-9, float(cfg.sample_hz))
 
-    Fp, on_idx, off_idx = force_process_with_contact_cleanup(
-        rawF,
-        clamp_abs=float(cfg.force_clamp_abs),
-        ema_alpha=float(cfg.force_ema_alpha),
-        zero_xy=bool(cfg.zero_xy_forces),
-        contact_thr_N=float(cfg.contact_thr_N),
-        consec_on=int(cfg.consec_on),
-        consec_off=int(cfg.consec_off),
-        fz_contact_smooth_enable=bool(cfg.fz_contact_smooth_enable),
-        fz_contact_lam_d2=float(cfg.fz_contact_lam_d2),
-        cg_iters=int(cfg.cg_iters),
-        cg_tol=float(cfg.cg_tol),
-    )
+    force_filter_mode = str(cfg.force_filter_mode or "ema").strip().lower()
+    if force_filter_mode in ("contact", "contact_cleanup", "stage1_contact", "legacy_contact"):
+        Fp, on_idx, off_idx = force_process_with_contact_cleanup(
+            rawF,
+            clamp_abs=float(cfg.force_clamp_abs),
+            ema_alpha=float(cfg.force_ema_alpha),
+            zero_xy=bool(cfg.zero_xy_forces),
+            contact_thr_N=float(cfg.contact_thr_N),
+            consec_on=int(cfg.consec_on),
+            consec_off=int(cfg.consec_off),
+            fz_contact_smooth_enable=bool(cfg.fz_contact_smooth_enable),
+            fz_contact_lam_d2=float(cfg.fz_contact_lam_d2),
+            cg_iters=int(cfg.cg_iters),
+            cg_tol=float(cfg.cg_tol),
+        )
+    else:
+        Fp = _force_ema_only(rawF, cfg)
+        on_idx = detect_contact_on_idx(Fp[:, 2], float(cfg.contact_thr_N), int(cfg.consec_on))
+        off_idx = None
 
     Ps = _pose_pre_smooth(rawP, cfg)
 
@@ -190,6 +240,18 @@ def apply_stage1_filter(
 
     meta = {
         "filter_source": "stage1_vr_filtering_pipeline",
+        "filter_reference_hz": float(cfg.filter_reference_hz),
+        "scale_filter_params_with_hz": int(bool(cfg.scale_filter_params_with_hz)),
+        "force_filter_mode": force_filter_mode,
+        "zero_xy_forces": int(bool(cfg.zero_xy_forces)),
+        "force_ema_alpha": float(cfg.force_ema_alpha),
+        "hampel_win": int(cfg.hampel_win),
+        "lam_pos_d2": float(cfg.lam_pos_d2),
+        "lam_ang_d2": float(cfg.lam_ang_d2),
+        "pose_ema_enable": int(bool(cfg.pose_ema_enable)),
+        "pose_ema_alpha": float(cfg.pose_ema_alpha),
+        "lam_pos_d3": float(cfg.lam_pos_d3),
+        "lam_ang_d3": float(cfg.lam_ang_d3),
         "raw_len": rawN,
         "out_len": int(Pf.shape[0]),
         "retime_k": retime_k,
@@ -203,7 +265,8 @@ def apply_stage1_filter(
     if logger is not None:
         logger.info(
             f"[STAGE1-FILTER] raw_len={rawN} -> out_len={Pf.shape[0]}, "
-            f"retime_k={retime_k}, approach={bool(approach_applied)}, "
+            f"retime_k={retime_k}, force_mode={force_filter_mode}, "
+            f"approach={bool(approach_applied)}, "
             f"force_contact_on={meta['force_contact_on_idx']}"
         )
 
@@ -237,6 +300,21 @@ def _ema_nd(Y: np.ndarray, alpha: float) -> np.ndarray:
     for i in range(1, Y.shape[0]):
         Z[i] = alpha * Y[i] + (1.0 - alpha) * Z[i - 1]
     return Z
+
+
+def _force_ema_only(F: np.ndarray, cfg: Stage1FilterConfig) -> np.ndarray:
+    Fp = np.asarray(F, dtype=np.float64).reshape(-1, 3).copy()
+    Fp[~np.isfinite(Fp)] = 0.0
+
+    clamp_abs = float(cfg.force_clamp_abs)
+    if clamp_abs > 0.0:
+        Fp = np.clip(Fp, -clamp_abs, clamp_abs)
+
+    if bool(cfg.zero_xy_forces):
+        Fp[:, 0] = 0.0
+        Fp[:, 1] = 0.0
+
+    return _ema_nd(Fp, alpha=float(cfg.force_ema_alpha))
 
 
 def _apply_contact_approach_slowdown(

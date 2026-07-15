@@ -15,6 +15,8 @@ umi_gripper:
     dxl.profile_velocity: 0
     dxl.current_limit_mA: 1345
     dxl.goal_current_mA: 500
+    dxl.goal_current_min_mA: 0
+    dxl.goal_current_max_mA: 1345
     gripper.current_stop_enabled: true
     gripper.close_current_stop_mA: 400
     gripper.current_stop_debounce_sec: 0.12
@@ -23,4 +25,5 @@ umi_gripper:
     gripper.present_current_mA_topic: /gripper/present_current_mA
     gripper.present_position_topic: /gripper/present_position
     gripper.command_topic: /gripper/command
+    gripper.goal_current_mA_topic: /gripper/goal_current_mA
     keyboard.step_size: 50

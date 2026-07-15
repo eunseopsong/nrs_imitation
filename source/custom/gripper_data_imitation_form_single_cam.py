@@ -4,9 +4,10 @@
 Convert gripper_hdf5_recorder_single_cam.py merged HDF5 output into compact
 single-camera imitation form.
 
-Output HDF5 layout extends demo_data_imitation_form_single_cam.py with:
-  action/gripper_present_current_mA
-  action/gripper_present_position
+  Output HDF5 layout extends demo_data_imitation_form_single_cam.py with:
+    action/gripper_goal_current_mA
+    action/gripper_present_current_mA
+    action/gripper_present_position
   observations/gripper/present_current_mA
   observations/gripper/present_position
 """
