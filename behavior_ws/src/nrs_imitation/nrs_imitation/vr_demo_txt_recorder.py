@@ -8,6 +8,7 @@ Filtering policy:
 - Match hdf5_recorder_* before writing position/force output.
 - position: raw pose, with optional EMA only.
 - force: fx/fy zeroed, fz EMA, first/last edge window zeroed.
+- recording control: same joy command topic as hdf5_recorder_*.
 - image handling is intentionally absent in this txt recorder.
 """
 
@@ -21,7 +22,7 @@ import numpy as np
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray
+from std_msgs.msg import Float64MultiArray, String
 from geometry_msgs.msg import Wrench
 
 from nrs_imitation.pretty_print import block
@@ -594,6 +595,7 @@ class VrDemoTxtRecorder(Node):
         # topics
         self.declare_parameter("pose_topic", "/calibrated_pose")
         self.declare_parameter("force_topic", "/ftsensor/measured_Cvalue")
+        self.declare_parameter("command_topic", "/vr_demo_recorder/command")
 
         # timing
         self.declare_parameter("record_hz", 125.0)
@@ -677,6 +679,7 @@ class VrDemoTxtRecorder(Node):
 
         self.pose_topic = str(self.get_parameter("pose_topic").value)
         self.force_topic = str(self.get_parameter("force_topic").value)
+        self.command_topic = str(self.get_parameter("command_topic").value)
 
         self.record_hz = float(self.get_parameter("record_hz").value)
         self.dt = 1.0 / max(1e-9, self.record_hz)
@@ -753,6 +756,7 @@ class VrDemoTxtRecorder(Node):
 
         self.sub_pose = self.create_subscription(Float64MultiArray, self.pose_topic, self.cb_pose, 50)
         self.sub_force = self.create_subscription(Wrench, self.force_topic, self.cb_force, 10)
+        self.sub_command = self.create_subscription(String, self.command_topic, self.cb_command, 10)
         self.timer = self.create_timer(self.dt, self.cb_timer)
 
         self.get_logger().info(f"[FILTER] HDF5-compatible txt output. dt={self.dt:.6f}s, save={self.save_path}")
@@ -763,6 +767,8 @@ class VrDemoTxtRecorder(Node):
         self.get_logger().info(
             f"[POSE] pose_ema_enable={self.pose_ema_enable}, pose_ema_alpha={self.pose_ema_alpha}"
         )
+        self.get_logger().info(f"[COMMAND] command_topic={self.command_topic} (start_recording/end_recording)")
+        self.get_logger().info("[LEGACY] force threshold start/stop parameters are accepted but not applied.")
         self.get_logger().info("[LEGACY] txt retime/approach/QP smoothing parameters are accepted but not applied.")
 
     def cb_pose(self, msg: Float64MultiArray):
@@ -779,20 +785,39 @@ class VrDemoTxtRecorder(Node):
         self.latest_force3_N = np.array([fx, fy, fz], dtype=np.float64)
         self.latest_force_t = time.time()
 
+    def cb_command(self, msg: String):
+        cmd = str(msg.data).strip().lower()
+        if not cmd:
+            return
+        self.get_logger().warn(f"[COMMAND] {cmd}")
+        if cmd == "start_recording":
+            self.start_episode(reason="joystick_start")
+        elif cmd == "end_recording":
+            self.end_episode(reason="joystick_end")
+        else:
+            self.get_logger().warn(f"[COMMAND] unknown command ignored: {cmd}")
+
+    def start_episode(self, reason: str = "start"):
         if self.finishing_:
+            self.get_logger().warn("Cannot start episode: previous episode is still being saved.")
             return
+        if self.episode_active:
+            self.get_logger().warn("Episode already active.")
+            return
+        self.episode_active = True
+        self.buf_pose.clear()
+        self.buf_force.clear()
+        self.get_logger().info(f"=== EPISODE STARTED ({reason}) ===")
 
-        if (not self.episode_active) and (abs(fx) >= self.start_abs_fx):
-            self.episode_active = True
-            self.buf_pose.clear()
-            self.buf_force.clear()
-            self.get_logger().info("=== EPISODE STARTED (|fx| >= start_abs_fx) ===")
+    def end_episode(self, reason: str = "end"):
+        if not self.episode_active:
+            self.get_logger().warn("No active episode to end.")
             return
-
-        if self.episode_active and (abs(fy) >= self.stop_abs_fy):
-            self.get_logger().info("=== EPISODE ENDED (|fy| >= stop_abs_fy) ===")
-            self.finish_episode()
+        if self.finishing_:
+            self.get_logger().warn("Episode already finishing.")
             return
+        self.get_logger().info(f"=== EPISODE ENDED ({reason}) ===")
+        self.finish_episode()
 
     def cb_timer(self):
         if (not self.episode_active) or self.finishing_:
