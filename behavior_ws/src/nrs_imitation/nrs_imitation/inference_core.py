@@ -1107,13 +1107,13 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("gripper_position_topic", "/gripper/present_position")
         self.declare_parameter("gripper_current_topic", "/gripper/present_current_mA")
         self.declare_parameter("gripper_command_topic", "/gripper/command")
-        self.declare_parameter("gripper_command_min_tick", 590)
-        self.declare_parameter("gripper_command_max_tick", 2500)
+        self.declare_parameter("gripper_command_min_tick", -653)
+        self.declare_parameter("gripper_command_max_tick", 733)
         self.declare_parameter("gripper_command_deadband_tick", 2)
         self.declare_parameter("gripper_command_slew_per_sec", 1000.0)
         self.declare_parameter("gripper_command_step_cap_tick", 200.0)
         self.declare_parameter("gripper_cmd_safety_enable", True)
-        self.declare_parameter("gripper_cmd_safety_max_tick_from_present", 700.0)
+        self.declare_parameter("gripper_cmd_safety_max_tick_from_present", 1500.0)
 
         # stall + recover
         self.declare_parameter("stall_sec", 1.2)

@@ -60,20 +60,32 @@ def _find_latest_gripper_imitation_form(root: Path) -> str:
         raise FileNotFoundError(f"Dataset root does not exist: {root}")
 
     candidates = []
-    for ep_dir in root.rglob("imitation_form"):
-        if not ep_dir.is_dir():
-            continue
-        n = _count_gripper_episodes(ep_dir)
-        if n <= 0:
-            continue
-        run_name = ep_dir.parent.name
-        candidates.append((1 if _timestamp_like(run_name) else 0, run_name, ep_dir.stat().st_mtime, ep_dir, n))
+    preferred_names = ("imitation_form_current_gripper", "imitation_form")
+    for idx, dirname in enumerate(preferred_names):
+        preference = len(preferred_names) - idx
+        for ep_dir in root.rglob(dirname):
+            if not ep_dir.is_dir():
+                continue
+            n = _count_gripper_episodes(ep_dir)
+            if n <= 0:
+                continue
+            run_name = ep_dir.parent.name
+            candidates.append(
+                (
+                    1 if _timestamp_like(run_name) else 0,
+                    run_name,
+                    preference,
+                    ep_dir.stat().st_mtime,
+                    ep_dir,
+                    n,
+                )
+            )
 
     if not candidates:
         raise FileNotFoundError(f"No gripper imitation_form/episode_*.hdf5 found under {root}")
 
-    candidates.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
-    return str(candidates[0][3])
+    candidates.sort(key=lambda x: (x[0], x[1], x[2], x[3]), reverse=True)
+    return str(candidates[0][4])
 
 
 def main() -> None:

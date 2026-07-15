@@ -108,14 +108,21 @@ def _count_episodes(dataset_dir: str | Path) -> int:
 
 def find_latest_episode_dir(
     root_dir: str = str(DATASETS_GRIPPER_ROOT),
-    subdir_preference: Sequence[str] = ("imitation_form", "episodes_multimodal", "episodes_ft_camproc", "episodes_ft"),
+    subdir_preference: Sequence[str] = (
+        "imitation_form_current_gripper",
+        "imitation_form",
+        "episodes_multimodal",
+        "episodes_ft_camproc",
+        "episodes_ft",
+    ),
 ) -> str:
     root = Path(root_dir).expanduser()
     if not root.exists():
         raise FileNotFoundError(f"Dataset root does not exist: {root}")
 
     candidates = []
-    for subdir_name in subdir_preference:
+    for idx, subdir_name in enumerate(subdir_preference):
+        preference = len(subdir_preference) - idx
         for ep_dir in root.rglob(subdir_name):
             if not ep_dir.is_dir():
                 continue
@@ -123,14 +130,21 @@ def find_latest_episode_dir(
             if n <= 0:
                 continue
             run_name = ep_dir.parent.name
-            candidates.append((1 if _timestamp_like(run_name) else 0, run_name, ep_dir.stat().st_mtime, ep_dir, n))
-        if candidates:
-            break
+            candidates.append(
+                (
+                    1 if _timestamp_like(run_name) else 0,
+                    run_name,
+                    preference,
+                    ep_dir.stat().st_mtime,
+                    ep_dir,
+                    n,
+                )
+            )
 
     if not candidates:
         raise FileNotFoundError(f"No usable episode dataset found under {root}")
-    candidates.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
-    return str(candidates[0][3])
+    candidates.sort(key=lambda x: (x[0], x[1], x[2], x[3]), reverse=True)
+    return str(candidates[0][4])
 
 
 def resolve_dataset_dir(dataset_dir: Optional[str]) -> str:
