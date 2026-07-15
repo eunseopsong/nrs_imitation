@@ -48,6 +48,7 @@ setup(
             'gripper_hdf5_recorder_single_cam = nrs_imitation.gripper_hdf5_recorder_single_cam:main',
             'gripper_hdf5_recorder_dual_cam = nrs_imitation.gripper_hdf5_recorder_dual_cam:main',
             'vr_demo_txt_recorder = nrs_imitation.vr_demo_txt_recorder:main',
+            'gripper_demo_txt_recorder = nrs_imitation.gripper_demo_txt_recorder:main',
 
             # Stage-1 / Stage-2 separated workflow
             'vr_stage1_hdf5_recorder = nrs_imitation.vr_stage1_hdf5_recorder:main',
