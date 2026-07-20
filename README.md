@@ -187,6 +187,21 @@ source install/setup.bash
 ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ```
 
+Joystick gripper controls:
+
+```text
+A           -> fully close (-653 tick by default)
+B           -> fully open (733 tick by default)
+D-pad left  -> close by 50 tick
+D-pad right -> open by 50 tick
+```
+
+The fine-adjustment size can be changed at launch, for example:
+
+```bash
+ros2 launch nrs_imitation vr_demo_joy_controller.launch.py gripper_step_tick:=20
+```
+
 ### 2. HDF5 recording
 
 Run this in a dedicated terminal and keep it running while recording episodes:
