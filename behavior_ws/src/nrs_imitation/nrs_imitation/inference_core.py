@@ -624,8 +624,10 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         qmax = np.asarray(st["qpos_max"], dtype=np.float32).reshape(9)
         amin = np.asarray(st["action_min"], dtype=np.float32).reshape(-1)
         amax = np.asarray(st["action_max"], dtype=np.float32).reshape(-1)
-        if amin.size not in (9, 10) or amax.size != amin.size:
-            raise ValueError(f"action min/max size must be 9 or 10. got {amin.size}, {amax.size}")
+        if amin.size not in (9, 10, 11) or amax.size != amin.size:
+            raise ValueError(
+                f"action min/max size must be 9, 10, or 11. got {amin.size}, {amax.size}"
+            )
 
         xyz_scale = _infer_xyz_stats_scale(qmin, qmax, amin, amax)
         if abs(xyz_scale - 1.0) > 1e-12:
@@ -676,8 +678,10 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         qs = _sanitize_std(np.asarray(st["qpos_std"], dtype=np.float32).reshape(9))
         am = np.asarray(st["action_mean"], dtype=np.float32).reshape(-1)
         astd = _sanitize_std(np.asarray(st["action_std"], dtype=np.float32).reshape(-1))
-        if am.size not in (9, 10) or astd.size != am.size:
-            raise ValueError(f"action mean/std size must be 9 or 10. got {am.size}, {astd.size}")
+        if am.size not in (9, 10, 11) or astd.size != am.size:
+            raise ValueError(
+                f"action mean/std size must be 9, 10, or 11. got {am.size}, {astd.size}"
+            )
 
         xyz_scale = _infer_xyz_stats_scale(qm, am)
         if abs(xyz_scale - 1.0) > 1e-12:
