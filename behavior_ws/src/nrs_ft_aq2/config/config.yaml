@@ -1,6 +1,6 @@
 # Sensor IP (eCAN)
-AFT80IP: 192.168.0.44 # Robot side
-# AFT80IP: 192.168.0.42 # Workpiece
+# AFT80IP: 192.168.0.44 # Robot side
+AFT80IP: 192.168.0.42 # Workpiece
 
 # Sensor CAN ID
 HandleID: 0x01 # Handle force id used in initializing the sensor
