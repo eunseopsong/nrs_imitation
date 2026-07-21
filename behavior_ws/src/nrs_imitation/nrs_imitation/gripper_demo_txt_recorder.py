@@ -28,6 +28,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from nrs_imitation.pretty_print import block
+from nrs_imitation.recorder_sync import TimedValueBuffer
 from nrs_imitation.stage1_filtering import (
     apply_stage1_filter,
     stage1_config_from_recorder,
@@ -119,6 +120,10 @@ class GripperDemoTxtRecorder(Node):
         self.declare_parameter("record_hz", 125.0)
         self.declare_parameter("require_fresh_sec", 0.2)
         self.declare_parameter("require_gripper_fresh_sec", 0.5)
+        self.declare_parameter("sync_enable", True)
+        self.declare_parameter("sync_delay_sec", 0.01)
+        self.declare_parameter("sync_max_error_sec", 0.05)
+        self.declare_parameter("sync_buffer_sec", 1.0)
 
         # save / viz
         self.declare_parameter("save_path", DEFAULT_SAVE_PATH)
@@ -182,6 +187,10 @@ class GripperDemoTxtRecorder(Node):
         self.dt = 1.0 / max(1e-9, self.record_hz)
         self.require_fresh_sec = float(self.get_parameter("require_fresh_sec").value)
         self.require_gripper_fresh_sec = float(self.get_parameter("require_gripper_fresh_sec").value)
+        self.sync_enable = bool(self.get_parameter("sync_enable").value)
+        self.sync_delay_sec = float(self.get_parameter("sync_delay_sec").value)
+        self.sync_max_error_sec = float(self.get_parameter("sync_max_error_sec").value)
+        self.sync_buffer_sec = float(self.get_parameter("sync_buffer_sec").value)
 
         self.save_path = os.path.expanduser(str(self.get_parameter("save_path").value))
         self.viz_root = os.path.expanduser(str(self.get_parameter("viz_root").value))
@@ -248,6 +257,10 @@ class GripperDemoTxtRecorder(Node):
         self.latest_force_t = 0.0
         self.latest_gripper_position_t = 0.0
         self.latest_gripper_current_t = 0.0
+        self.pose_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.force_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.gripper_position_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.gripper_current_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
 
         self.episode_active = False
         self.finishing_ = False
@@ -268,6 +281,7 @@ class GripperDemoTxtRecorder(Node):
             ("force", self.force_topic),
             ("gripper", f"pos={self.gripper_position_topic}, cur={self.gripper_current_topic}"),
             ("record_hz", self.record_hz),
+            ("sync", f"timer delay={self.sync_delay_sec:.3f}s, max_error={self.sync_max_error_sec:.3f}s"),
             ("filter", f"stage1 retime=x{self.retime_k}, force={self.force_filter_mode}, approach={self.approach_slowdown_enable}, QP={self.qp_guard_enable}"),
             ("columns", "x y z rx ry rz fx fy fz gripper_present_position gripper_present_current_mA"),
             ("command", self.command_topic),
@@ -277,20 +291,32 @@ class GripperDemoTxtRecorder(Node):
         if len(msg.data) < 6:
             return
         x, y, z, rx, ry, rz = msg.data[:6]
-        self.latest_pose6_mm_rad = np.array([1000.0 * x, 1000.0 * y, 1000.0 * z, rx, ry, rz], dtype=np.float64)
-        self.latest_pose_t = time.time()
+        value = np.array([1000.0 * x, 1000.0 * y, 1000.0 * z, rx, ry, rz], dtype=np.float64)
+        stamp = time.time()
+        self.latest_pose6_mm_rad = value
+        self.latest_pose_t = stamp
+        self.pose_sync_buffer.add(stamp, value)
 
     def cb_force(self, msg: Wrench):
-        self.latest_force3_N = np.array([msg.force.x, msg.force.y, msg.force.z], dtype=np.float64)
-        self.latest_force_t = time.time()
+        value = np.array([msg.force.x, msg.force.y, msg.force.z], dtype=np.float64)
+        stamp = time.time()
+        self.latest_force3_N = value
+        self.latest_force_t = stamp
+        self.force_sync_buffer.add(stamp, value)
 
     def cb_gripper_position(self, msg: Int32):
-        self.latest_gripper_position = int(msg.data)
-        self.latest_gripper_position_t = time.time()
+        value = int(msg.data)
+        stamp = time.time()
+        self.latest_gripper_position = value
+        self.latest_gripper_position_t = stamp
+        self.gripper_position_sync_buffer.add(stamp, np.asarray(value, dtype=np.int32))
 
     def cb_gripper_current(self, msg: Float32):
-        self.latest_gripper_current_mA = float(msg.data)
-        self.latest_gripper_current_t = time.time()
+        value = float(msg.data)
+        stamp = time.time()
+        self.latest_gripper_current_mA = value
+        self.latest_gripper_current_t = stamp
+        self.gripper_current_sync_buffer.add(stamp, np.asarray(value, dtype=np.float32))
 
     def cb_command(self, msg: String):
         cmd = str(msg.data).strip().lower()
@@ -331,6 +357,21 @@ class GripperDemoTxtRecorder(Node):
         if (not self.episode_active) or self.finishing_:
             return
         now = time.time()
+        if self.sync_enable:
+            target = now - max(0.0, self.sync_delay_sec)
+            pose_result = self.pose_sync_buffer.sample(target, mode="linear")
+            force_result = self.force_sync_buffer.sample(target, mode="linear")
+            grip_pos_result = self.gripper_position_sync_buffer.sample(target, mode="nearest")
+            grip_cur_result = self.gripper_current_sync_buffer.sample(target, mode="nearest")
+            results = (pose_result, force_result, grip_pos_result, grip_cur_result)
+            if any(result is None for result in results):
+                return
+            if any(result.error_sec > self.sync_max_error_sec for result in results):
+                return
+            self.buf_pose.append(pose_result.value.copy())
+            self.buf_force.append(force_result.value.copy())
+            self.buf_gripper.append(np.array([int(grip_pos_result.value), float(grip_cur_result.value)], dtype=np.float64))
+            return
         if self.latest_pose6_mm_rad is None or (now - self.latest_pose_t) > self.require_fresh_sec:
             return
         if self.latest_force3_N is None or (now - self.latest_force_t) > self.require_fresh_sec:

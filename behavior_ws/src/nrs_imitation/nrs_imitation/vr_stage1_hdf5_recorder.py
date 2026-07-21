@@ -36,6 +36,14 @@ from std_msgs.msg import Float64MultiArray
 from geometry_msgs.msg import Wrench
 
 from nrs_imitation.pretty_print import block
+from nrs_imitation.recorder_sync import TimedValueBuffer, sync_error_summary
+
+
+SYNC_COLUMNS = (
+    "master_time_unix",
+    "pose_source_time_unix", "pose_error_sec", "pose_interpolated",
+    "force_source_time_unix", "force_error_sec", "force_interpolated",
+)
 
 
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
@@ -452,6 +460,10 @@ class VRStage1HDF5Recorder(Node):
         self.declare_parameter("record_hz", 125.0)
         self.declare_parameter("require_fresh_sec", 0.2)
         self.declare_parameter("status_period_sec", 1.0)
+        self.declare_parameter("sync_enable", True)
+        self.declare_parameter("sync_delay_sec", 0.01)
+        self.declare_parameter("sync_max_error_sec", 0.05)
+        self.declare_parameter("sync_buffer_sec", 1.0)
 
         # -------------------------
         # episode rule
@@ -544,6 +556,10 @@ class VRStage1HDF5Recorder(Node):
         self.dt = 1.0 / max(1e-9, self.record_hz)
         self.require_fresh_sec = float(self.get_parameter("require_fresh_sec").value)
         self.status_period_sec = float(self.get_parameter("status_period_sec").value)
+        self.sync_enable = bool(self.get_parameter("sync_enable").value)
+        self.sync_delay_sec = float(self.get_parameter("sync_delay_sec").value)
+        self.sync_max_error_sec = float(self.get_parameter("sync_max_error_sec").value)
+        self.sync_buffer_sec = float(self.get_parameter("sync_buffer_sec").value)
 
         self.auto_trigger_enable = bool(self.get_parameter("auto_trigger_enable").value)
         self.start_abs_fx = float(self.get_parameter("start_abs_fx").value)
@@ -617,6 +633,8 @@ class VRStage1HDF5Recorder(Node):
         self.latest_force3_N: Optional[np.ndarray] = None
         self.latest_pose_t: float = 0.0
         self.latest_force_t: float = 0.0
+        self.pose_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.force_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
 
         self.episode_active = False
         self.finishing_ = False
@@ -624,6 +642,7 @@ class VRStage1HDF5Recorder(Node):
         self.buf_pose: List[np.ndarray] = []
         self.buf_force: List[np.ndarray] = []
         self.buf_time: List[float] = []
+        self.buf_sync: List[np.ndarray] = []
 
         self.stop_requested = False
         self.stop_reason = ""
@@ -645,6 +664,7 @@ class VRStage1HDF5Recorder(Node):
             ("output_dir", self.output_dir),
             ("topics", f"pose={self.pose_topic}, force={self.force_topic}, command={self.command_topic}"),
             ("record", f"hz={self.record_hz}, fresh={self.require_fresh_sec}s"),
+            ("sync", f"timer delay={self.sync_delay_sec:.3f}s, max_error={self.sync_max_error_sec:.3f}s"),
             ("joystick", "start_recording / end_recording"),
             ("auto_trigger", f"{int(self.auto_trigger_enable)} start=|fx|>={self.start_abs_fx}, end=|fy|>={self.stop_abs_fy}"),
             ("episodes", f"target={self.num_episodes}, next={self.episode_count:04d}"),
@@ -712,19 +732,23 @@ class VRStage1HDF5Recorder(Node):
             return
         x, y, z, wx, wy, wz = msg.data[:6]
         pose = np.array([1000.0 * x, 1000.0 * y, 1000.0 * z, wx, wy, wz], dtype=np.float64)
+        stamp = time.time()
         with self.state_lock:
             self.latest_pose6_mm_rad = pose
-            self.latest_pose_t = time.time()
+            self.latest_pose_t = stamp
+            self.pose_sync_buffer.add(stamp, pose)
 
     def cb_force(self, msg: Wrench):
         fx = float(msg.force.x)
         fy = float(msg.force.y)
         fz = float(msg.force.z)
         F = np.array([fx, fy, fz], dtype=np.float64)
+        stamp = time.time()
 
         with self.state_lock:
             self.latest_force3_N = F
-            self.latest_force_t = time.time()
+            self.latest_force_t = stamp
+            self.force_sync_buffer.add(stamp, F)
 
         if self.stop_requested or self.finishing_:
             return
@@ -757,16 +781,31 @@ class VRStage1HDF5Recorder(Node):
 
         now = time.time()
         with self.state_lock:
-            pose = None if self.latest_pose6_mm_rad is None else self.latest_pose6_mm_rad.copy()
-            force = None if self.latest_force3_N is None else self.latest_force3_N.copy()
-            pose_age = now - self.latest_pose_t if self.latest_pose_t > 0 else 1e9
-            force_age = now - self.latest_force_t if self.latest_force_t > 0 else 1e9
+            if self.sync_enable:
+                target = now - max(0.0, self.sync_delay_sec)
+                pose_result = self.pose_sync_buffer.sample(target, mode="linear")
+                force_result = self.force_sync_buffer.sample(target, mode="linear")
+                pose = None if pose_result is None else pose_result.value.copy()
+                force = None if force_result is None else force_result.value.copy()
+                pose_age = 1e9 if pose_result is None else pose_result.error_sec
+                force_age = 1e9 if force_result is None else force_result.error_sec
+            else:
+                target = now
+                pose_result = force_result = None
+                pose = None if self.latest_pose6_mm_rad is None else self.latest_pose6_mm_rad.copy()
+                force = None if self.latest_force3_N is None else self.latest_force3_N.copy()
+                pose_age = now - self.latest_pose_t if self.latest_pose_t > 0 else 1e9
+                force_age = now - self.latest_force_t if self.latest_force_t > 0 else 1e9
 
         missing = []
         if pose is None or pose_age > self.require_fresh_sec:
             missing.append(f"pose(age={pose_age:.3f})")
         if force is None or force_age > self.require_fresh_sec:
             missing.append(f"force(age={force_age:.3f})")
+        if self.sync_enable and pose_age > self.sync_max_error_sec:
+            missing.append(f"pose_sync(error={pose_age:.3f})")
+        if self.sync_enable and force_age > self.sync_max_error_sec:
+            missing.append(f"force_sync(error={force_age:.3f})")
 
         if missing:
             if now - self.last_status_t >= self.status_period_sec:
@@ -776,7 +815,18 @@ class VRStage1HDF5Recorder(Node):
 
         self.buf_pose.append(pose)
         self.buf_force.append(force)
-        self.buf_time.append(float(now))
+        self.buf_time.append(float(target))
+        if self.sync_enable:
+            self.buf_sync.append(np.asarray([
+                target,
+                pose_result.source_time, pose_result.error_sec, float(pose_result.interpolated),
+                force_result.source_time, force_result.error_sec, float(force_result.interpolated),
+            ], dtype=np.float64))
+        else:
+            self.buf_sync.append(np.asarray([
+                now, self.latest_pose_t, pose_age, 0.0,
+                self.latest_force_t, force_age, 0.0,
+            ], dtype=np.float64))
 
         if now - self.last_status_t >= self.status_period_sec:
             self.last_status_t = now
@@ -802,6 +852,7 @@ class VRStage1HDF5Recorder(Node):
         self.buf_pose.clear()
         self.buf_force.clear()
         self.buf_time.clear()
+        self.buf_sync.clear()
 
         self.episode_active = True
         self.get_logger().warn(f"[START] episode_{self.episode_count:04d}.hdf5 reason={reason}")
@@ -933,18 +984,20 @@ class VRStage1HDF5Recorder(Node):
             P_list = self.buf_pose.copy()
             F_list = self.buf_force.copy()
             T_list = self.buf_time.copy()
+            S_list = self.buf_sync.copy()
             self.buf_pose.clear()
             self.buf_force.clear()
             self.buf_time.clear()
+            self.buf_sync.clear()
 
         th = threading.Thread(
             target=self._finish_episode_worker,
-            args=(P_list, F_list, T_list, reason),
+            args=(P_list, F_list, T_list, S_list, reason),
             daemon=True,
         )
         th.start()
 
-    def _finish_episode_worker(self, P_list: List[np.ndarray], F_list: List[np.ndarray], T_list: List[float], reason: str):
+    def _finish_episode_worker(self, P_list: List[np.ndarray], F_list: List[np.ndarray], T_list: List[float], S_list: List[np.ndarray], reason: str):
         try:
             if len(P_list) < max(1, self.min_raw_samples):
                 self.get_logger().warn(
@@ -955,6 +1008,7 @@ class VRStage1HDF5Recorder(Node):
             rawP = np.asarray(P_list, dtype=np.float64)   # (N,6) [mm, rad]
             rawF = np.asarray(F_list, dtype=np.float64)   # (N,3) [N]
             rawT = np.asarray(T_list, dtype=np.float64)
+            raw_sync = np.asarray(S_list, dtype=np.float64).reshape(-1, len(SYNC_COLUMNS))
             rawN = int(rawP.shape[0])
 
             # 1) force process: identical
@@ -1004,6 +1058,7 @@ class VRStage1HDF5Recorder(Node):
                 traj_filtered=traj_filtered,
                 raw_traj=raw_traj,
                 raw_time=rawT,
+                raw_sync=raw_sync,
                 reason=reason,
                 used_meta=used,
             )
@@ -1013,6 +1068,8 @@ class VRStage1HDF5Recorder(Node):
             self.get_logger().info(
                 f"=== EPISODE SAVED (idx={ep_idx:04d}) raw_len={rawN} -> filtered_len={traj_filtered.shape[0]} reason={reason} ==="
             )
+            sync_summary = sync_error_summary(raw_sync, (("pose", 2), ("force", 5)))
+            self.get_logger().info(f"[SYNC ms p50/p95/max] {sync_summary}")
 
             if self.episode_count >= self.num_episodes:
                 self.request_stop(reason="reached_num_episodes")
@@ -1028,6 +1085,7 @@ class VRStage1HDF5Recorder(Node):
         traj_filtered: np.ndarray,
         raw_traj: np.ndarray,
         raw_time: np.ndarray,
+        raw_sync: np.ndarray,
         reason: str,
         used_meta: Dict[str, object],
     ):
@@ -1041,7 +1099,11 @@ class VRStage1HDF5Recorder(Node):
                     raise RuntimeError(f"Episode file already exists: {out_path}")
 
             with h5py.File(out_path, "w") as f:
-                f.attrs["schema_version"] = "stage1_vr_episode_filtered_v1"
+                f.attrs["schema_version"] = "stage1_vr_episode_filtered_sync_v2"
+                f.attrs["sync_clock"] = "subscriber_receive_time_unix"
+                f.attrs["sync_master"] = "timer_delayed"
+                f.attrs["sync_delay_sec"] = float(self.sync_delay_sec)
+                f.attrs["sync_max_error_sec"] = float(self.sync_max_error_sec)
                 f.attrs["saved_unix"] = float(time.time())
                 f.attrs["reason"] = str(reason)
                 f.attrs["raw_len"] = int(raw_traj.shape[0])
@@ -1098,6 +1160,9 @@ class VRStage1HDF5Recorder(Node):
                 f.create_dataset("raw_position", data=raw_traj[:, :6], compression="gzip", compression_opts=4, shuffle=True)
                 f.create_dataset("raw_force", data=raw_traj[:, 6:9], compression="gzip", compression_opts=4, shuffle=True)
                 f.create_dataset("raw_sample_time_unix", data=raw_time, compression="gzip", compression_opts=4, shuffle=True)
+                sync_group = f.create_group("raw_sync")
+                sync_group.attrs["columns"] = ",".join(SYNC_COLUMNS)
+                sync_group.create_dataset("values", data=raw_sync, compression="gzip", compression_opts=4, shuffle=True)
 
                 if self.flush_each_episode:
                     f.flush()

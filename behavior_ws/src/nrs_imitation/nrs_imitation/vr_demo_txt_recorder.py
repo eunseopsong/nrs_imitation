@@ -26,6 +26,7 @@ from std_msgs.msg import Float64MultiArray, String
 from geometry_msgs.msg import Wrench
 
 from nrs_imitation.pretty_print import block
+from nrs_imitation.recorder_sync import TimedValueBuffer
 from nrs_imitation.stage1_filtering import apply_stage1_filter, stage1_config_from_recorder
 
 import matplotlib
@@ -601,6 +602,10 @@ class VrDemoTxtRecorder(Node):
         # timing
         self.declare_parameter("record_hz", 125.0)
         self.declare_parameter("require_fresh_sec", 0.2)
+        self.declare_parameter("sync_enable", True)
+        self.declare_parameter("sync_delay_sec", 0.01)
+        self.declare_parameter("sync_max_error_sec", 0.05)
+        self.declare_parameter("sync_buffer_sec", 1.0)
 
         # episode rule
         self.declare_parameter("start_abs_fx", 10.0)
@@ -694,6 +699,10 @@ class VrDemoTxtRecorder(Node):
         self.record_hz = float(self.get_parameter("record_hz").value)
         self.dt = 1.0 / max(1e-9, self.record_hz)
         self.require_fresh_sec = float(self.get_parameter("require_fresh_sec").value)
+        self.sync_enable = bool(self.get_parameter("sync_enable").value)
+        self.sync_delay_sec = float(self.get_parameter("sync_delay_sec").value)
+        self.sync_max_error_sec = float(self.get_parameter("sync_max_error_sec").value)
+        self.sync_buffer_sec = float(self.get_parameter("sync_buffer_sec").value)
 
         self.save_path = os.path.expanduser(str(self.get_parameter("save_path").value))
         self.viz_root = os.path.expanduser(str(self.get_parameter("viz_root").value))
@@ -771,6 +780,8 @@ class VrDemoTxtRecorder(Node):
         self.latest_force3_N: Optional[np.ndarray] = None
         self.latest_pose_t: float = 0.0
         self.latest_force_t: float = 0.0
+        self.pose_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.force_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
 
         self.episode_active = False
         self.finishing_ = False
@@ -793,6 +804,7 @@ class VrDemoTxtRecorder(Node):
             f"D3=({self.lam_pos_d3}, {self.lam_ang_d3}), QP={self.qp_guard_enable}"
         )
         self.get_logger().info(f"[COMMAND] command_topic={self.command_topic} (start_recording/end_recording)")
+        self.get_logger().info(f"[SYNC] timer master, delay={self.sync_delay_sec:.3f}s, max_error={self.sync_max_error_sec:.3f}s")
         self.get_logger().info("[LEGACY] force threshold start/stop parameters are accepted but not applied.")
         self.get_logger().info("[LEGACY] fz_ema_alpha/force_edge_zero_sec/fz_gate_N parameters are accepted but not applied.")
 
@@ -800,15 +812,21 @@ class VrDemoTxtRecorder(Node):
         if len(msg.data) < 6:
             return
         x, y, z, rx, ry, rz = msg.data[:6]
-        self.latest_pose6_mm_rad = np.array([1000.0 * x, 1000.0 * y, 1000.0 * z, rx, ry, rz], dtype=np.float64)
-        self.latest_pose_t = time.time()
+        value = np.array([1000.0 * x, 1000.0 * y, 1000.0 * z, rx, ry, rz], dtype=np.float64)
+        stamp = time.time()
+        self.latest_pose6_mm_rad = value
+        self.latest_pose_t = stamp
+        self.pose_sync_buffer.add(stamp, value)
 
     def cb_force(self, msg: Wrench):
         fx = float(msg.force.x)
         fy = float(msg.force.y)
         fz = float(msg.force.z)
-        self.latest_force3_N = np.array([fx, fy, fz], dtype=np.float64)
-        self.latest_force_t = time.time()
+        value = np.array([fx, fy, fz], dtype=np.float64)
+        stamp = time.time()
+        self.latest_force3_N = value
+        self.latest_force_t = stamp
+        self.force_sync_buffer.add(stamp, value)
 
     def cb_command(self, msg: String):
         cmd = str(msg.data).strip().lower()
@@ -848,6 +866,17 @@ class VrDemoTxtRecorder(Node):
         if (not self.episode_active) or self.finishing_:
             return
         now = time.time()
+        if self.sync_enable:
+            target = now - max(0.0, self.sync_delay_sec)
+            pose_result = self.pose_sync_buffer.sample(target, mode="linear")
+            force_result = self.force_sync_buffer.sample(target, mode="linear")
+            if pose_result is None or force_result is None:
+                return
+            if pose_result.error_sec > self.sync_max_error_sec or force_result.error_sec > self.sync_max_error_sec:
+                return
+            self.buf_pose.append(pose_result.value.copy())
+            self.buf_force.append(force_result.value.copy())
+            return
         if self.latest_pose6_mm_rad is None or (now - self.latest_pose_t) > self.require_fresh_sec:
             return
         if self.latest_force3_N is None or (now - self.latest_force_t) > self.require_fresh_sec:

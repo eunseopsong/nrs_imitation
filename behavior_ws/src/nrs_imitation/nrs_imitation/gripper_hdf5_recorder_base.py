@@ -58,6 +58,7 @@ from geometry_msgs.msg import Wrench
 from sensor_msgs.msg import Image
 
 from nrs_imitation.pretty_print import block, status
+from nrs_imitation.recorder_sync import TimedValueBuffer, sync_error_summary
 from nrs_imitation.stage1_filtering import (
     apply_stage1_filter,
     stage1_config_from_recorder,
@@ -73,6 +74,15 @@ from nrs_imitation.vr_demo_txt_recorder import (
 REPO_ROOT = os.path.expanduser("~/nrs_imitation")
 DEFAULT_DATASET_ROOT_DIR = os.path.join(REPO_ROOT, "datasets", "gripper")
 VALID_OBS_MODES = ("single_cam", "dual_cam")
+SYNC_COLUMNS = (
+    "master_time_unix",
+    "pose_source_time_unix", "pose_error_sec", "pose_interpolated",
+    "force_source_time_unix", "force_error_sec", "force_interpolated",
+    "cam0_source_time_unix", "cam0_error_sec",
+    "cam1_source_time_unix", "cam1_error_sec",
+    "gripper_position_source_time_unix", "gripper_position_error_sec",
+    "gripper_current_source_time_unix", "gripper_current_error_sec",
+)
 
 
 def infer_obs_mode(enable_global_cam: bool) -> str:
@@ -395,6 +405,10 @@ class GripperHDF5Recorder(Node):
 
         # Sampling / freshness
         declare("sample_hz", 30.0)
+        declare("sync_enable", True)
+        declare("sync_buffer_sec", 1.0)
+        declare("sync_max_error_sec", 0.05)
+        declare("sync_require_new_image", True)
         declare("require_pose_fresh_sec", 0.20)
         declare("require_force_fresh_sec", 0.20)
         declare("require_image_fresh_sec", 0.50)
@@ -519,6 +533,10 @@ class GripperHDF5Recorder(Node):
 
         self.sample_hz = float(self.get_parameter("sample_hz").value)
         self.dt = 1.0 / max(1e-9, self.sample_hz)
+        self.sync_enable = bool(self.get_parameter("sync_enable").value)
+        self.sync_buffer_sec = float(self.get_parameter("sync_buffer_sec").value)
+        self.sync_max_error_sec = float(self.get_parameter("sync_max_error_sec").value)
+        self.sync_require_new_image = bool(self.get_parameter("sync_require_new_image").value)
         self.require_pose_fresh_sec = float(self.get_parameter("require_pose_fresh_sec").value)
         self.require_force_fresh_sec = float(self.get_parameter("require_force_fresh_sec").value)
         self.require_image_fresh_sec = float(self.get_parameter("require_image_fresh_sec").value)
@@ -610,7 +628,7 @@ class GripperHDF5Recorder(Node):
         self.h5.attrs["created_unix"] = float(time.time())
         self.h5.attrs["created_time"] = str(datetime.now().isoformat())
         self.h5.attrs["recorder"] = str(self.recorder_name)
-        self.h5.attrs["schema_version"] = "multimodal_v1"
+        self.h5.attrs["schema_version"] = "multimodal_sync_v3"
         self.h5.attrs["obs_mode"] = str(self.obs_mode)
         self.h5.attrs["recording_mode"] = str(self.recording_mode)
         self.h5.attrs["pose_topic"] = str(self.pose_topic)
@@ -627,6 +645,10 @@ class GripperHDF5Recorder(Node):
         self.h5.attrs["image_specular_attenuate_gain"] = float(self.image_specular_attenuate_gain)
         self.h5.attrs["gripper_position_topic"] = str(self.gripper_position_topic)
         self.h5.attrs["gripper_current_topic"] = str(self.gripper_current_topic)
+        self.h5.attrs["sync_clock"] = "subscriber_receive_time_unix"
+        self.h5.attrs["sync_master"] = "cam0"
+        self.h5.attrs["sync_enable"] = int(self.sync_enable)
+        self.h5.attrs["sync_max_error_sec"] = float(self.sync_max_error_sec)
         self.h5.attrs["trajectory_filter_source"] = "stage1_vr_filtering_pipeline"
         self.h5.attrs["trajectory_filter_reference_hz"] = float(self.filter_reference_hz)
         self.h5.attrs["trajectory_scale_filter_params_with_hz"] = int(bool(self.scale_filter_params_with_hz))
@@ -652,6 +674,12 @@ class GripperHDF5Recorder(Node):
         self.latest_gripper_position_t: float = 0.0
         self.latest_gripper_current_mA: Optional[float] = None
         self.latest_gripper_current_t: float = 0.0
+        self.latest_image_seq: int = 0
+        self.last_sampled_image_seq: int = 0
+        self.pose_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.force_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.gripper_position_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
+        self.gripper_current_sync_buffer = TimedValueBuffer(self.sync_buffer_sec)
 
         self.episode_active = False
         self.finishing = False
@@ -666,6 +694,7 @@ class GripperHDF5Recorder(Node):
         self.GP_buf: List[Optional[int]] = []
         self.GC_buf: List[Optional[float]] = []
         self.sample_time_buf: List[float] = []
+        self.sync_buf: List[np.ndarray] = []
         self.last_status_t = 0.0
         self.last_idle_status_t = 0.0
 
@@ -698,6 +727,7 @@ class GripperHDF5Recorder(Node):
             ("image_preprocess", f"{self.image_preprocess_mode}/{self.image_specular_mask_mode}"),
             ("gripper", f"pos={self.gripper_position_topic}, cur={self.gripper_current_topic}"),
             ("sample_hz", self.sample_hz),
+            ("sync", f"image-master={int(self.sync_enable)}, max_error={self.sync_max_error_sec:.3f}s"),
             ("command", self.command_topic),
         ]))
         self._print_status("READY")
@@ -709,31 +739,40 @@ class GripperHDF5Recorder(Node):
             return
         pose = arr[:6].astype(np.float32).copy()
         pose[:3] *= np.float32(self.pose_xyz_scale)
+        stamp = time.time()
         with self.state_lock:
             self.latest_pose = pose
-            self.latest_pose_t = time.time()
+            self.latest_pose_t = stamp
+            self.pose_sync_buffer.add(stamp, pose)
 
     def _on_force_wrench(self, msg: Wrench):
         f = np.asarray([msg.force.x, msg.force.y, msg.force.z], dtype=np.float32)
+        stamp = time.time()
         with self.state_lock:
             self.latest_force = f
-            self.latest_force_t = time.time()
+            self.latest_force_t = stamp
+            self.force_sync_buffer.add(stamp, f)
 
     def _on_force_array(self, msg: Float64MultiArray):
         arr = np.asarray(msg.data, dtype=np.float32).reshape(-1)
         if arr.size < 3:
             return
+        force = arr[:3].astype(np.float32).copy()
+        stamp = time.time()
         with self.state_lock:
-            self.latest_force = arr[:3].astype(np.float32).copy()
-            self.latest_force_t = time.time()
+            self.latest_force = force
+            self.latest_force_t = stamp
+            self.force_sync_buffer.add(stamp, force)
 
     def _on_image(self, msg: Image):
         im = image_to_rgb_numpy(msg)
         if im is None:
             return
+        stamp = time.time()
         with self.state_lock:
             self.latest_image = im
-            self.latest_image_t = time.time()
+            self.latest_image_t = stamp
+            self.latest_image_seq += 1
 
     def _on_global_image(self, msg: Image):
         im = image_to_rgb_numpy(msg)
@@ -744,14 +783,20 @@ class GripperHDF5Recorder(Node):
             self.latest_global_image_t = time.time()
 
     def _on_gripper_position(self, msg: Int32):
+        stamp = time.time()
+        value = int(msg.data)
         with self.state_lock:
-            self.latest_gripper_position = int(msg.data)
-            self.latest_gripper_position_t = time.time()
+            self.latest_gripper_position = value
+            self.latest_gripper_position_t = stamp
+            self.gripper_position_sync_buffer.add(stamp, np.asarray(value, dtype=np.int32))
 
     def _on_gripper_current(self, msg: Float32):
+        stamp = time.time()
+        value = float(msg.data)
         with self.state_lock:
-            self.latest_gripper_current_mA = float(msg.data)
-            self.latest_gripper_current_t = time.time()
+            self.latest_gripper_current_mA = value
+            self.latest_gripper_current_t = stamp
+            self.gripper_current_sync_buffer.add(stamp, np.asarray(value, dtype=np.float32))
 
     def _on_command(self, msg: String):
         cmd = str(msg.data).strip().lower()
@@ -780,8 +825,10 @@ class GripperHDF5Recorder(Node):
             self.get_logger().warn(f"Episode index {self.current_ep_idx} already exists. Set allow_overwrite_episode:=true to overwrite.")
             return
 
-        for buf in [self.P_buf, self.F_buf, self.I0_buf, self.I1_buf, self.GP_buf, self.GC_buf, self.sample_time_buf]:
+        for buf in [self.P_buf, self.F_buf, self.I0_buf, self.I1_buf, self.GP_buf, self.GC_buf, self.sample_time_buf, self.sync_buf]:
             buf.clear()
+        with self.state_lock:
+            self.last_sampled_image_seq = self.latest_image_seq
         self.episode_active = True
         self.get_logger().warn(f"[EP {self._ep_name(self.current_ep_idx)}] START reason={reason}")
         self._print_status("RECORDING")
@@ -800,7 +847,7 @@ class GripperHDF5Recorder(Node):
             ep_idx,
             list(self.P_buf), list(self.F_buf), list(self.I0_buf), list(self.I1_buf),
             list(self.GP_buf), list(self.GC_buf),
-            list(self.sample_time_buf), reason,
+            list(self.sample_time_buf), list(self.sync_buf), reason,
         )
         self.get_logger().warn(f"[EP {self._ep_name(ep_idx)}] END requested. raw_samples={len(self.P_buf)}, reason={reason}")
         threading.Thread(target=self._finish_episode_worker, args=args, daemon=True).start()
@@ -825,16 +872,39 @@ class GripperHDF5Recorder(Node):
 
         now = time.time()
         with self.state_lock:
-            pose = None if self.latest_pose is None else self.latest_pose.copy()
-            force = None if self.latest_force is None else self.latest_force.copy()
             image = None if self.latest_image is None else self.latest_image.copy()
             global_image = None if self.latest_global_image is None else self.latest_global_image.copy()
-            gripper_position = self.latest_gripper_position
-            gripper_current_mA = self.latest_gripper_current_mA
-            pose_age = now - self.latest_pose_t if self.latest_pose_t > 0 else 1e9
-            force_age = now - self.latest_force_t if self.latest_force_t > 0 else 1e9
+            image_t = float(self.latest_image_t)
+            image_seq = int(self.latest_image_seq)
+            global_t = float(self.latest_global_image_t)
+            if self.sync_enable:
+                pose_result = self.pose_sync_buffer.sample(image_t, mode="linear")
+                force_result = self.force_sync_buffer.sample(image_t, mode="linear")
+                gripper_position_result = self.gripper_position_sync_buffer.sample(image_t, mode="nearest")
+                gripper_current_result = self.gripper_current_sync_buffer.sample(image_t, mode="nearest")
+                pose = None if pose_result is None else pose_result.value.copy()
+                force = None if force_result is None else force_result.value.copy()
+                gripper_position = None if gripper_position_result is None else int(gripper_position_result.value)
+                gripper_current_mA = None if gripper_current_result is None else float(gripper_current_result.value)
+                pose_age = 1e9 if pose_result is None else float(pose_result.error_sec)
+                force_age = 1e9 if force_result is None else float(force_result.error_sec)
+                gripper_position_age = 1e9 if gripper_position_result is None else float(gripper_position_result.error_sec)
+                gripper_current_age = 1e9 if gripper_current_result is None else float(gripper_current_result.error_sec)
+            else:
+                pose_result = force_result = gripper_position_result = gripper_current_result = None
+                pose = None if self.latest_pose is None else self.latest_pose.copy()
+                force = None if self.latest_force is None else self.latest_force.copy()
+                gripper_position = self.latest_gripper_position
+                gripper_current_mA = self.latest_gripper_current_mA
+                pose_age = now - self.latest_pose_t if self.latest_pose_t > 0 else 1e9
+                force_age = now - self.latest_force_t if self.latest_force_t > 0 else 1e9
+                gripper_position_age = now - self.latest_gripper_position_t if self.latest_gripper_position_t > 0 else 1e9
+                gripper_current_age = now - self.latest_gripper_current_t if self.latest_gripper_current_t > 0 else 1e9
             image_age = now - self.latest_image_t if self.latest_image_t > 0 else 1e9
-            global_age = now - self.latest_global_image_t if self.latest_global_image_t > 0 else 1e9
+            global_age = abs(global_t - image_t) if global_t > 0 and image_t > 0 else 1e9
+
+        if self.sync_enable and self.sync_require_new_image and image_seq == self.last_sampled_image_seq:
+            return
 
         missing = []
         if pose is None or pose_age > self.require_pose_fresh_sec:
@@ -845,6 +915,18 @@ class GripperHDF5Recorder(Node):
             missing.append(f"cam0(age={image_age:.3f})")
         if self.enable_global_cam and self.require_global_image and (global_image is None or global_age > self.require_global_image_fresh_sec):
             missing.append(f"cam1/global(age={global_age:.3f})")
+        if gripper_position is None:
+            missing.append("gripper_position(missing)")
+        if gripper_current_mA is None:
+            missing.append("gripper_current(missing)")
+        if self.sync_enable and pose_age > self.sync_max_error_sec:
+            missing.append(f"pose_sync(error={pose_age:.3f})")
+        if self.sync_enable and force_age > self.sync_max_error_sec:
+            missing.append(f"force_sync(error={force_age:.3f})")
+        if self.sync_enable and gripper_position_age > self.sync_max_error_sec:
+            missing.append(f"gripper_position_sync(error={gripper_position_age:.3f})")
+        if self.sync_enable and gripper_current_age > self.sync_max_error_sec:
+            missing.append(f"gripper_current_sync(error={gripper_current_age:.3f})")
 
         if missing:
             if now - self.last_status_t >= max(0.5, self.recording_status_period_sec):
@@ -880,14 +962,39 @@ class GripperHDF5Recorder(Node):
         self.I1_buf.append(global_image if self.enable_global_cam else None)
         self.GP_buf.append(gripper_position)
         self.GC_buf.append(gripper_current_mA)
-        self.sample_time_buf.append(float(now))
+        master_t = image_t if self.sync_enable else now
+        self.sample_time_buf.append(float(master_t))
+        if self.sync_enable:
+            sync_row = np.asarray([
+                master_t,
+                pose_result.source_time, pose_result.error_sec, float(pose_result.interpolated),
+                force_result.source_time, force_result.error_sec, float(force_result.interpolated),
+                image_t, 0.0,
+                global_t if global_t > 0 else np.nan,
+                global_age if global_t > 0 else np.nan,
+                gripper_position_result.source_time, gripper_position_result.error_sec,
+                gripper_current_result.source_time, gripper_current_result.error_sec,
+            ], dtype=np.float64)
+        else:
+            sync_row = np.asarray([
+                now,
+                self.latest_pose_t, pose_age, 0.0,
+                self.latest_force_t, force_age, 0.0,
+                image_t, image_age,
+                global_t if global_t > 0 else np.nan,
+                global_age if global_t > 0 else np.nan,
+                self.latest_gripper_position_t, gripper_position_age,
+                self.latest_gripper_current_t, gripper_current_age,
+            ], dtype=np.float64)
+        self.sync_buf.append(sync_row)
+        self.last_sampled_image_seq = image_seq
 
         if now - self.last_status_t >= self.recording_status_period_sec:
             self.last_status_t = now
             self._print_status("RECORDING")
 
     # save worker
-    def _finish_episode_worker(self, ep_idx, P_list, F_list, I0_list, I1_list, GP_list, GC_list, sample_time_list, reason):
+    def _finish_episode_worker(self, ep_idx, P_list, F_list, I0_list, I1_list, GP_list, GC_list, sample_time_list, sync_list, reason):
         try:
             N = len(P_list)
             if N < max(1, self.min_samples):
@@ -897,6 +1004,7 @@ class GripperHDF5Recorder(Node):
             P = np.asarray(P_list, dtype=np.float32).reshape(N, 6)
             Fraw = np.asarray(F_list, dtype=np.float32).reshape(N, 3)
             raw_sample_times = np.asarray(sample_time_list, dtype=np.float64)
+            raw_sync = np.asarray(sync_list, dtype=np.float64).reshape(N, len(SYNC_COLUMNS))
 
             images0 = stack_images_repeat_last(I0_list, logger=self.get_logger(), tag="IMAGE/cam0")
             if images0 is None:
@@ -928,6 +1036,7 @@ class GripperHDF5Recorder(Node):
             )
             gripper_position_out = take_nearest_by_source_index(gripper_position, filter_result.source_index)
             gripper_current_mA_out = take_nearest_by_source_index(gripper_current_mA, filter_result.source_index)
+            sync_out = take_nearest_by_source_index(raw_sync, filter_result.source_index)
             self._save_first_episode_filter_plots(ep_idx, P, Fraw, P_out, F_out)
 
             self._save_episode_to_hdf5(
@@ -939,6 +1048,8 @@ class GripperHDF5Recorder(Node):
                 raw_gripper_position=gripper_position,
                 raw_gripper_current_mA=gripper_current_mA,
                 raw_sample_times=raw_sample_times,
+                sync=sync_out,
+                raw_sync=raw_sync,
                 source_index=filter_result.source_index,
                 filter_meta=filter_result.meta,
             )
@@ -955,6 +1066,7 @@ class GripperHDF5Recorder(Node):
                 ("cam1", None if images1_out is None else images1_out.shape),
                 ("grip_position", gripper_position_out.shape),
                 ("grip_current", gripper_current_mA_out.shape),
+                ("sync_ms(p50/p95/max)", sync_error_summary(raw_sync, (("pose", 2), ("force", 5), ("cam1", 10), ("grip_pos", 12), ("grip_cur", 14)))),
                 ("reason", reason),
             ]))
             self._print_status("SAVED")
@@ -1000,6 +1112,8 @@ class GripperHDF5Recorder(Node):
         raw_gripper_position=None,
         raw_gripper_current_mA=None,
         raw_sample_times=None,
+        sync=None,
+        raw_sync=None,
         source_index=None,
         filter_meta=None,
     ):
@@ -1031,7 +1145,10 @@ class GripperHDF5Recorder(Node):
                 g.attrs["cam1_topic"] = str(self.global_image_topic)
                 g.attrs["gripper_position_topic"] = str(self.gripper_position_topic)
                 g.attrs["gripper_current_topic"] = str(self.gripper_current_topic)
-                g.attrs["schema_version"] = "multimodal_stage1_filtered_v2"
+                g.attrs["schema_version"] = "multimodal_stage1_filtered_sync_v3"
+                g.attrs["sync_clock"] = "subscriber_receive_time_unix"
+                g.attrs["sync_master"] = "cam0" if self.sync_enable else "timer"
+                g.attrs["sync_max_error_sec"] = float(self.sync_max_error_sec)
                 if filter_meta:
                     for key, value in filter_meta.items():
                         if isinstance(value, (str, int, float, np.integer, np.floating)):
@@ -1048,6 +1165,14 @@ class GripperHDF5Recorder(Node):
                     g.create_dataset("raw_ft", data=np.asarray(raw_ft, dtype=np.float32), compression="gzip", compression_opts=4, shuffle=True)
                 if raw_sample_times is not None:
                     g.create_dataset("raw_sample_time_unix", data=np.asarray(raw_sample_times, dtype=np.float64), compression="gzip", compression_opts=4, shuffle=True)
+                if sync is not None:
+                    g_sync = g.create_group("sync")
+                    g_sync.attrs["columns"] = ",".join(SYNC_COLUMNS)
+                    g_sync.create_dataset("values", data=np.asarray(sync, dtype=np.float64), compression="gzip", compression_opts=4, shuffle=True)
+                if raw_sync is not None:
+                    g_raw_sync = g.create_group("raw_sync")
+                    g_raw_sync.attrs["columns"] = ",".join(SYNC_COLUMNS)
+                    g_raw_sync.create_dataset("values", data=np.asarray(raw_sync, dtype=np.float64), compression="gzip", compression_opts=4, shuffle=True)
 
                 g_img = g.create_group("images")
                 g_img.create_dataset(self.image_dataset_name, data=images0.astype(np.uint8), **self._compression_kwargs())
