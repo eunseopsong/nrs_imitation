@@ -246,6 +246,67 @@ condition을 망가뜨리는 현상을 줄일 수 있다.
 | `train_all_obs_modes` | false | 지원되는 observation mode를 순서대로 모두 학습한다. |
 | `shared_timestamp` | true | 여러 observation mode를 연속 학습할 때 동일한 timestamp 이름을 사용한다. |
 
+#### DataLoader worker와 prefetch가 학습 속도에 미치는 영향
+
+이 프로젝트의 sample 하나를 준비하려면 HDF5 file을 열고, 현재 시점의 RGB
+frame과 수치 데이터를 읽고, image/tensor 변환과 normalization을 수행해야 한다.
+`num_workers=0`이면 이 작업과 GPU 학습이 다음처럼 대부분 직렬로 진행된다.
+
+```text
+CPU: batch 읽기·변환 ────────────── 다음 batch 읽기·변환 ──────────────
+GPU:                 forward/backward                 forward/backward
+                     ↑ CPU가 끝날 때까지 대기         ↑ 다시 대기
+```
+
+GPU 계산이 빠르더라도 CPU가 HDF5와 image batch를 준비하는 동안 GPU가 쉬기 때문에
+전체 속도는 model 연산이 아니라 data input pipeline에 의해 제한될 수 있다.
+
+`num_workers=2`, `prefetch_factor=2`에서는 worker 두 개가 main training process와
+별도로 sample을 읽는다. Worker 하나당 최대 2개 batch를 미리 준비하므로 정상
+상태에서는 다음 batch들이 queue에 대기하고, 현재 batch의 GPU 연산과 다음 batch의
+CPU 준비가 겹쳐진다.
+
+```text
+Worker 0: batch 1 준비 ─ batch 3 준비 ─ batch 5 준비 ─ ...
+Worker 1: batch 2 준비 ─ batch 4 준비 ─ batch 6 준비 ─ ...
+GPU:              batch 1 학습 ─ batch 2 학습 ─ batch 3 학습 ─ ...
+                  ↑ 준비된 batch를 기다림 없이 소비
+```
+
+각 옵션의 역할은 서로 다르다.
+
+- `num_workers=2`: HDF5 read와 image 변환을 두 CPU process에서 병렬 처리한다.
+- `prefetch_factor=2`: 각 worker가 현재 요청보다 앞선 batch를 미리 준비한다. 현재
+  설정에서는 이론적으로 worker queue에 최대 `2 workers × 2 batches`가 준비될 수
+  있다.
+- `pin_memory=true`: 준비된 CPU tensor를 page-locked memory로 옮겨
+  `.to(device, non_blocking=True)` CUDA 전송이 CPU 작업과 더 잘 겹치게 한다.
+- `persistent_workers=true`: epoch가 끝나도 worker를 종료하지 않아 다음 epoch마다
+  process와 Dataset worker를 다시 만드는 초기화 비용을 제거한다. 따라서 첫
+  epoch보다 이후 epoch에서 이점이 더 안정적으로 나타난다.
+
+20260721 Gripper 재학습에서는 train sample 수가 2,250개, batch size가 8로
+동일하여 epoch당 282 batch가 유지됐는데도 처리량이 약 `4.6 batch/s`로 상승하고
+epoch 시간이 약 64초로 감소했다. 즉 sample을 생략해서 빨라진 것이 아니라 같은
+batch를 더 빠르게 공급한 것이다. `chunk_size 200 → 160`으로 U-Net 시간축이
+20% 짧아진 효과도 함께 존재하지만, 관측된 약 2배의 처리량 차이는 worker,
+prefetch, pinned memory에 의한 GPU 대기 감소가 크게 기여한 것으로 판단한다.
+
+다음 현상이 보이면 data loading 병목일 가능성이 높다.
+
+- GPU utilization이 높은 값으로 유지되지 않고 주기적으로 0% 근처까지 떨어짐
+- GPU memory는 할당돼 있지만 batch 진행 속도가 느림
+- `num_workers=0`에서 CPU 사용은 낮고 batch 사이에 긴 공백이 있음
+- Model 크기를 조금 줄여도 epoch 시간이 거의 개선되지 않음
+
+반대로 worker 수를 무조건 늘리는 것은 좋지 않다. Worker마다 HDF5 handle, image
+tensor와 prefetched batch를 가지므로 RAM 사용량이 증가한다. Storage가 하나의
+느린 disk라면 worker가 너무 많을 때 random read 경쟁으로 오히려 느려질 수 있고,
+HDF5/multiprocessing 환경에 따라 worker 오류가 발생할 수도 있다. 권장 tuning
+순서는 `num_workers=0 → 2 → 4`이며, 각 설정에서 동일한 batch 수의 `it/s`, GPU
+utilization과 RAM 사용량을 비교한다. 현재 single-camera HDF5 dataset에서는
+`num_workers=2`, `prefetch_factor=2`를 보수적인 기본값으로 사용한다.
+
 DataLoader 관련 값을 바꿔도 network 구조나 최종 policy 수식은 바뀌지 않는다.
 다만 storage가 느리거나 RAM이 부족하면 worker/prefetch를 너무 크게 했을 때 오히려
 느려질 수 있다. HDF5 오류나 메모리 부족이 발생하면 먼저 `num_workers=0`,
@@ -327,3 +388,264 @@ stopping을 판단한다. Validation dataset의 시작 index는 비교 일관성
 각 기능은 명령행에서 `--lr_scheduler none`, `--grad_clip_norm 0`,
 `--early_stopping_patience 0`, `--no_resample_each_epoch`,
 `--no_pin_memory`, `--no_persistent_workers`로 개별 비활성화할 수 있다.
+
+## Future Work — Gripper history observation과 temporal encoder
+
+> **상태:** 아이디어 및 권장 구현 방향만 기록한 것이며, 20260721 현재 코드에는
+> 적용하지 않았다. 적용 시에는 기존 checkpoint와 별도로 새 모델을 학습하고
+> MLP-only baseline과 비교해야 한다.
+
+### 문제 정의
+
+현재 Gripper Flow policy는 gripper observation으로 한 시점의
+`present_position`과 `present_current_mA`만 사용한다. 두 scalar는 각각 독립
+MLP를 거친 뒤 하나의 gripper feature로 합쳐진다. 미래 action에서는 gripper
+position과 current를 함께 예측하지만, observation encoder는 직전의 변화 방향을
+알 수 없다.
+
+단일 시점의 같은 position/current 값은 다음처럼 서로 다른 상황에서 나타날 수
+있다.
+
+- 물체에 닿지 않은 채 손가락이 닫히는 중
+- 물체에 처음 닿아 current가 증가하기 시작한 상태
+- 물체를 정상적으로 잡고 position/current가 유지되는 상태
+- 완전히 닫혔지만 물체를 잡지 못한 상태
+- 파지한 물체가 미끄러지면서 position/current가 변하는 상태
+- 높은 goal current, 기구부 마찰 또는 stall 때문에 current가 상승한 상태
+
+Action chunk는 미래 sequence를 모델링하지만 과거 observation을 복원하지는
+않는다. 따라서 최근 position/current 변화를 causal history로 제공하는 것은
+현재 gripper 상태의 부분 관측성을 직접 줄이는 접근이다.
+
+### 연구 사례와의 관계
+
+- [Diffusion Policy](https://diffusion-policy.cs.columbia.edu/diffusion_policy_2023.pdf)는
+  단일 observation보다 짧은 observation history를 사용하는 것이 유리할 수
+  있음을 보였고, 대부분의 실험에서 2 step을 좋은 절충값으로 보고했다. 동시에
+  긴 history가 항상 더 좋은 것은 아니라는 결과도 제시한다.
+- [Octo](https://octo-models.github.io/)는 image와 proprioception을 포함하는
+  observation history를 Transformer가 처리할 수 있도록 설계됐다.
+- [Bi-ACT](https://ras.papercept.net/images/temp/AIM/files/0129.pdf)는 joint angle,
+  velocity, torque를 함께 입력하고 미래 position/velocity/torque chunk를
+  예측한다. 또한 단위가 다른 각 신호를 개별 정규화해 입력 편향을 줄인다.
+- NYU·UC Berkeley의
+  [Feel the Force](https://hrcm-workshop.github.io/2025/abstracts/adeniji_abstract9.pdf)는
+  gripper state와 연속 force history를 별도 token으로 encoding하고 미래
+  gripper state와 force를 함께 예측한다. 현재 아이디어와 가장 가까운 공개
+  사례지만, motor current가 아니라 tactile force를 사용하고 Transformer 및
+  저수준 force controller를 사용한다는 차이가 있다.
+- [ALOHA/ACT](https://arxiv.org/abs/2304.13705)는 현재 joint position과 image만으로
+  action chunk를 예측해 높은 성공률을 보였다. 즉 history encoder가 모든 gripper
+  IL 시스템에 필수인 것은 아니며, demonstration과 저수준 controller가 충분하면
+  현재 상태만으로도 동작할 수 있다.
+
+공개 연구를 종합하면 **position/load 계열 신호를 함께 사용하는 것**과
+**필요할 때 짧은 observation history를 추가하는 것**은 모두 타당하다. 다만
+Joint GRU 자체가 유일한 표준은 아니며, observation stacking, MLP token,
+Transformer 또는 명시적인 velocity 입력으로 같은 문제를 풀기도 한다. 현재
+dataset 규모와 기존 GRU 구현을 고려하면 작은 Joint GRU가 가장 단순한 첫
+실험이다.
+
+### 권장 architecture
+
+기존 현재값 MLP를 제거하지 않고, history branch를 병렬로 추가하는 hybrid
+구조를 권장한다.
+
+```text
+현재 normalized position/current ── 기존 Gripper MLP ── current feature ─┐
+                                                                          ├─ fusion
+최근 normalized position/current ── Joint GRU ───────── history feature ─┘
+                                                                              │
+                                                                              ▼
+                                                                  gripper feature 64
+                                                                              │
+                    robot state/image/force/marker feature와 함께 global fusion
+```
+
+현재값 branch는 절대적인 개방 폭과 부하를 명확하게 전달한다. History branch는
+닫힘 방향, 접촉 시점, current 상승·유지·감소와 같은 동적 관계를 요약한다.
+GRU 마지막 hidden state만 사용하고, 두 branch를 fusion MLP로 합쳐 최종
+`gripper_feature_dim=64`를 유지하면 downstream global fusion의 입력 크기와
+변경 범위를 최소화할 수 있다.
+
+첫 구현의 history 입력은 다음 두 값으로 제한한다.
+
+```text
+gripper_history[t] = [normalized_present_position,
+                      normalized_present_current]
+```
+
+후속 실험에서는 필요할 때만 아래 값을 추가한다.
+
+```text
+Δposition, Δcurrent,
+previous_goal_position, previous_goal_current
+```
+
+특히 `present_current_mA`는 실제 파지력이 아니라 motor torque/load의 proxy다.
+접촉뿐 아니라 이동 속도, 마찰, stall 및 명령한 goal current의 영향을 받으므로,
+두 값만으로 접촉 원인을 구분하지 못한다면 **이전 executed command history**를
+추가하는 것이 단순히 GRU hidden dimension을 키우는 것보다 우선이다.
+
+### 적용 전에 먼저 수정할 사항
+
+현재 `source/data/dataset.py`에서는 gripper current observation을 dataset
+min/max로 정규화하지만 gripper position observation은 raw 값으로 encoder에
+전달한다. History encoder를 추가하기 전에 다음을 먼저 수정하고 MLP-only
+baseline을 다시 학습해야 한다.
+
+```text
+present_position → gripper_position_min/max로 정규화
+present_current  → gripper_current_min/max로 정규화 유지
+```
+
+Position과 current의 scale이 다르면 한 modality가 fusion을 지배할 수 있고,
+GRU가 시간 관계보다 절대 scale 차이를 먼저 학습할 수 있다. 기존 action은 이미
+전체 action min/max로 정규화되므로 observation 쪽 position 처리도 일관되게
+맞추는 것이 우선이다.
+
+이 정규화 변경 자체도 기존 checkpoint의 입력 분포를 바꾸므로 old checkpoint에
+그대로 적용하면 안 된다. 새 checkpoint를 학습하고, `dataset_stats.pkl`에는
+position/current min/max와 정규화 mode를 명시적으로 보존해야 한다.
+
+### 권장 초기 파라미터
+
+긴 history부터 적용하지 말고 30 Hz dataset에서 0.2초와 0.5초를 먼저 비교한다.
+
+```text
+use_gripper_history = true
+gripper_history_sec = 0.5
+gripper_history_len = 15       # round(30 Hz × 0.5 s)
+gripper_history_input_dim = 2  # position + present current
+gripper_history_hidden_dim = 32
+gripper_history_num_layers = 1
+gripper_history_dropout = 0.0
+gripper_feature_dim = 64       # 기존 downstream interface 유지
+```
+
+권장 ablation 순서는 다음과 같다.
+
+| 실험 | Position 정규화 | History | 목적 |
+|---|---|---:|---|
+| A | 기존 raw | 없음 | 과거 checkpoint의 참고 결과 |
+| B | 적용 | 없음 | 정규화 효과만 분리한 새 MLP baseline |
+| C | 적용 | 6 step, 0.2초 | 매우 짧은 motor/contact transient 확인 |
+| D | 적용 | 15 step, 0.5초 | 첫 권장 Joint GRU 설정 |
+| E | 적용 | 30 step, 1.0초 | D가 유효할 때만 긴 context 효과 확인 |
+
+이전에 force history를 과도하게 늘렸을 때 성능이 악화된 경험과 공개 연구의 짧은
+observation horizon 결과를 고려하면, 처음부터 `L=30` 또는 그 이상을 기본값으로
+두는 것은 권장하지 않는다.
+
+### 권장 패치 순서
+
+#### 1. Dataset과 normalization
+
+대상: `source/data/dataset.py`
+
+1. 현재 gripper position에도 `gripper_position_min/max` 정규화를 적용한다.
+2. `_force_history()`와 같은 causal helper로 `_gripper_history()`를 추가한다.
+3. 출력 shape을 `(L, 2)`로 고정하고 episode 시작부는 가장 오래된 관측값을
+   앞쪽에 반복해 padding한다.
+4. Train과 inference가 같은 channel 순서와 normalization을 사용하도록
+   `dataset_stats.pkl`에 history schema를 저장한다.
+5. Validation history도 미래 값을 포함하지 않도록 현재 시점까지만 구성한다.
+
+#### 2. Gripper encoder
+
+대상: `source/models/gri_encoder.py`, `source/models/gri_flow_core.py`
+
+1. 기존 `GripperObservationEncoder`의 current-state MLP branch는 유지한다.
+2. `nn.GRU(input_size=2, hidden_size=32, num_layers=1)` history branch를 추가한다.
+3. `[current_feature, history_hidden]`을 concatenate한다.
+4. `Linear + LayerNorm + Mish` fusion으로 다시 64차원 gripper feature를 만든다.
+5. `use_gripper_history=false`일 때는 기존 구조와 동작할 수 있게 분기한다.
+6. History가 활성화됐는데 tensor가 누락된 경우 current 한 점으로 조용히
+   fallback하지 말고 오류를 내어 train/inference wiring 문제를 드러낸다.
+
+#### 3. 학습 entrypoint와 checkpoint metadata
+
+대상: `scripts/flow/train_flow_gripper.py`
+
+다음 CLI/config 항목을 추가한다.
+
+```text
+--use_gripper_history / --no_gripper_history
+--gripper_history_sec
+--gripper_history_len
+--gripper_history_hidden_dim
+--gripper_history_num_layers
+--gripper_history_dropout
+```
+
+`gripper_history_len`은 별도 Hz를 중복 정의하기보다 기존 `dataset_hz`로 계산하는
+것을 우선 권장한다. Policy config와 dataset stats에 활성화 여부, 최종 length,
+channel schema 및 encoder dimension을 모두 저장한다.
+
+기존 checkpoint는 history GRU weight가 없으므로 새 구조와 직접 호환되지 않는다.
+Inference가 checkpoint config를 읽어 old MLP-only 모델과 new history 모델을
+정확히 구분하도록 하고, 구조가 다른데 `strict=False`로 조용히 실행되는 것은
+막아야 한다.
+
+#### 4. Inference observation buffer
+
+대상: `behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py`
+
+1. `present_position`과 `present_current_mA`를 동일 timestamp 기준의 pair로 만든다.
+2. 30 Hz 기준 causal ring buffer에 normalized pair를 누적한다.
+3. Buffer가 아직 차지 않은 시작 구간은 첫 valid pair를 반복해 채운다.
+4. 매 inference 요청에서 최신 시점까지의 정확히 `L`개 sample만 모델에 전달한다.
+5. Checkpoint의 `dataset_hz`, history length, channel 순서와 runtime 구성이
+   다르면 시작 단계에서 명확한 오류를 낸다.
+6. Topic dropout, sample age, buffer fill ratio를 debug log로 확인할 수 있게 한다.
+
+Recorder에서 이미 동기화된 30 Hz row를 만드는 것과 별개로, online inference도
+position/current pair의 timestamp 차이가 과도하지 않은지 확인해야 한다. 단순히
+callback 도착 순서대로 서로 다른 시점의 최신값을 묶으면 training history와 다른
+입력 분포가 생길 수 있다.
+
+### 평가 방법
+
+Validation loss만으로 파지 개선 여부를 결정하지 않는다. 대부분의 episode가
+접근·이동 구간이면 전체 loss가 낮아져도 짧은 파지 transition은 개선되지 않을 수
+있다. 동일 dataset split, seed 및 나머지 hyperparameter를 고정하고 다음 지표를
+따로 기록한다.
+
+- 물체 근처까지 정상 접근한 비율
+- Gripper closing을 시작한 비율
+- 손가락이 물체에 걸린 실제 파지 성공률
+- 파지 후 물체를 작업면에서 들어 올린 성공률
+- 파지 중 position/current 유지와 slip 발생 횟수
+- 빈손 완전 닫힘과 정상 파지를 구분한 비율
+- Closing 시작부터 current 상승, 파지, lift 시작까지 걸린 시간
+
+각 설정당 동일한 초기 조건에서 최소 10회, 가능하면 20회 real rollout을 수행한다.
+동시에 아래 시계열을 저장하면 실패 원인을 구분하기 쉽다.
+
+```text
+present_position
+present_current
+executed goal position/current
+predicted gripper position/current action chunk
+robot TCP Z
+```
+
+### 예상 위험과 중단 기준
+
+- 50 episode에서 파지 transition sample이 적다면 GRU가 일반 이동 구간만 학습할
+  수 있다. 이 경우 encoder 크기보다 event 주변 sample coverage를 먼저 확인한다.
+- Current는 tactile force가 아니므로 물체 종류, 마찰 및 motor 온도 변화에 따라
+  같은 힘에서도 값이 달라질 수 있다.
+- History가 길수록 좋은 것이 아니며, 오래된 closing 정보가 현재 상태 판단을
+  흐릴 수 있다.
+- Joint GRU를 추가해도 실제 command와 measured current 관계가 없으면 접촉과
+  높은 goal current를 구분하기 어려울 수 있다.
+- B 대비 C/D의 real grasp/lift 성공률이 개선되지 않으면 hidden dimension이나
+  layer를 바로 키우지 말고 먼저 history 정렬, normalization, transition sample
+  수와 previous command 필요성을 점검한다.
+
+첫 패치의 범위는 **정규화 + causal history observation + small Joint GRU**로
+제한한다. 명시적인 grasp phase, contact rule 또는 저수준 force controller는 이
+실험에 섞지 않는다. 그래야 성능 변화가 history encoder 때문인지 분리해서 판단할
+수 있다. 이후 필요하다면 Feel the Force처럼 policy가 desired force를 예측하고
+별도 closed-loop controller가 이를 추종하는 구조를 독립적인 후속 연구로 검토한다.
