@@ -51,6 +51,7 @@ Shapes:
 from __future__ import annotations
 
 import json
+import multiprocessing as mp
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -457,6 +458,7 @@ class ImitationEpisodeDataset(Dataset):
         include_gripper: bool = False,
         use_stain_mask: bool = False,
         stain_mask_key: str = "observations/images/stain_mask",
+        resample_each_epoch: bool = False,
     ):
         super().__init__()
         self.episode_paths = list(episode_paths)
@@ -475,6 +477,10 @@ class ImitationEpisodeDataset(Dataset):
         self.include_gripper = bool(include_gripper)
         self.use_stain_mask = bool(use_stain_mask)
         self.stain_mask_key = str(stain_mask_key or "observations/images/stain_mask")
+        self.resample_each_epoch = bool(resample_each_epoch)
+        # A shared value lets persistent DataLoader workers observe epoch
+        # changes made by the training process.
+        self._epoch_shared = mp.Value("q", 0, lock=True)
 
         self.return_marker = self.obs_mode in ("dual_cam_marker", "single_cam_marker")
         self.index = []
@@ -485,10 +491,18 @@ class ImitationEpisodeDataset(Dataset):
     def __len__(self) -> int:
         return len(self.index)
 
+    def set_epoch(self, epoch: int) -> None:
+        """Select the deterministic start-point bank used for this epoch."""
+        with self._epoch_shared.get_lock():
+            self._epoch_shared.value = int(epoch)
+
     def _choose_start(self, T: int, global_idx: int) -> int:
         if T <= 1:
             return 0
-        rng = np.random.default_rng(self.seed + 1000003 * int(global_idx))
+        epoch = int(self._epoch_shared.value) if self.resample_each_epoch else 0
+        rng = np.random.default_rng(
+            self.seed + 1000003 * int(global_idx) + 9176 * epoch
+        )
         max_start = max(0, T - 1)
         return int(rng.integers(0, max_start + 1))
 
@@ -616,6 +630,7 @@ def make_loaders(
     use_stain_mask: bool = False,
     stain_mask_key: str = "observations/images/stain_mask",
     stain_mask_threshold: float = 0.5,
+    resample_each_epoch: bool = False,
 ):
     paths = _episode_files(dataset_dir, num_episodes=num_episodes)
     n = len(paths)
@@ -661,8 +676,20 @@ def make_loaders(
         use_stain_mask=use_stain_mask,
         stain_mask_key=stain_mask_key,
     )
-    train_ds = ImitationEpisodeDataset(train_paths, seq_len=seq_len_train, seed=seed, **common)
-    val_ds = ImitationEpisodeDataset(val_paths, seq_len=seq_len_val, seed=seed + 12345, **common)
+    train_ds = ImitationEpisodeDataset(
+        train_paths,
+        seq_len=seq_len_train,
+        seed=seed,
+        resample_each_epoch=resample_each_epoch,
+        **common,
+    )
+    val_ds = ImitationEpisodeDataset(
+        val_paths,
+        seq_len=seq_len_val,
+        seed=seed + 12345,
+        resample_each_epoch=False,
+        **common,
+    )
 
     loader_kwargs = dict(
         num_workers=int(num_workers),
@@ -689,5 +716,6 @@ def make_loaders(
         "use_stain_mask": bool(use_stain_mask),
         "stain_mask_key": str(stain_mask_key or "observations/images/stain_mask"),
         "stain_mask_threshold": float(stain_mask_threshold),
+        "resample_each_epoch": bool(resample_each_epoch),
     }
     return train_loader, val_loader, stats, meta

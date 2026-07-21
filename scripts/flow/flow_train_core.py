@@ -27,6 +27,11 @@ from tqdm import tqdm
 
 from data.loader import load_data
 from models.flow_core import build_flow_rgb_policy_and_optimizer
+from train_runtime import (
+    build_epoch_scheduler,
+    resolve_temporal_parameters,
+    set_train_dataset_epoch,
+)
 
 CHECKPOINTS_FLOW_ROOT = Path(_PROJECT_ROOT) / "checkpoints" / "flow" / "polishing"
 
@@ -52,15 +57,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--weight_decay", type=float, default=1e-6)
+    parser.add_argument("--weight_decay", type=float, default=1e-5)
     parser.add_argument("--beta1", type=float, default=0.95)
     parser.add_argument("--beta2", type=float, default=0.999)
 
-    parser.add_argument("--chunk_size", type=int, default=200)
+    parser.add_argument("--dataset_hz", type=float, default=30.0)
+    parser.add_argument("--chunk_size", type=int, default=128)
+    parser.add_argument("--chunk_sec", type=float, default=4.27)
     parser.add_argument("--train_seq_len", type=int, default=None)
     parser.add_argument("--val_seq_len", type=int, default=None)
     parser.add_argument("--samples_per_episode", type=int, default=50)
-    parser.add_argument("--save_every", type=int, default=100)
+    parser.add_argument("--save_every", type=int, default=50)
 
     parser.add_argument("--state_dim", type=int, default=9)
     parser.add_argument("--action_dim", type=int, default=9)
@@ -68,7 +75,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--use_force_history", dest="use_force_history", action="store_true", default=True)
     parser.add_argument("--no_force_history", dest="use_force_history", action="store_false")
-    parser.add_argument("--force_history_len", type=int, default=10)
+    parser.add_argument("--force_history_len", type=int, default=30)
+    parser.add_argument("--force_history_sec", type=float, default=1.0)
     parser.add_argument("--force_encoder_hidden_dim", type=int, default=64)
     parser.add_argument("--force_encoder_num_layers", type=int, default=1)
     parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
@@ -87,6 +95,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--flow_loss_type", type=str, default="mse", choices=["mse", "l1"])
     parser.add_argument("--flow_infer_steps", type=int, default=10)
 
+    parser.add_argument("--lr_scheduler", type=str, default="cosine", choices=["none", "cosine"])
+    parser.add_argument("--warmup_epochs", type=int, default=10)
+    parser.add_argument("--min_lr", type=float, default=1e-6)
+    parser.add_argument("--grad_clip_norm", type=float, default=1.0)
+    parser.add_argument("--early_stopping_patience", type=int, default=30)
+    parser.add_argument("--resample_each_epoch", dest="resample_each_epoch", action="store_true", default=True)
+    parser.add_argument("--no_resample_each_epoch", dest="resample_each_epoch", action="store_false")
+
     parser.add_argument("--use_stain_mask", dest="use_stain_mask", action="store_true", default=True)
     parser.add_argument("--no_stain_mask", dest="use_stain_mask", action="store_false")
     parser.add_argument("--stain_mask_key", type=str, default="observations/images/stain_mask")
@@ -95,14 +111,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--stain_mask_threshold", type=float, default=0.5)
     parser.add_argument("--debug_stain_pooling", action="store_true", default=False)
 
-    parser.add_argument("--num_workers", type=int, default=0)
-    parser.add_argument("--pin_memory", action="store_true")
-    parser.add_argument("--persistent_workers", action="store_true")
+    parser.add_argument("--num_workers", type=int, default=2)
+    parser.add_argument("--pin_memory", dest="pin_memory", action="store_true", default=True)
+    parser.add_argument("--no_pin_memory", dest="pin_memory", action="store_false")
+    parser.add_argument("--persistent_workers", dest="persistent_workers", action="store_true", default=True)
+    parser.add_argument("--no_persistent_workers", dest="persistent_workers", action="store_false")
     parser.add_argument("--prefetch_factor", type=int, default=2)
     parser.add_argument(
         "--debug_batches",
         type=int,
-        default=3,
+        default=0,
         help="Number of initial train batches to print per epoch. Use -1 to print every train batch.",
     )
     return parser
@@ -238,6 +256,9 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "pretrained_backbone": not args.no_pretrained,
         "use_force_history": args.use_force_history,
         "force_history_len": args.force_history_len,
+        "force_history_sec": args.force_history_sec,
+        "dataset_hz": args.dataset_hz,
+        "chunk_sec": args.chunk_sec,
         "force_encoder_hidden_dim": args.force_encoder_hidden_dim,
         "force_encoder_num_layers": args.force_encoder_num_layers,
         "force_encoder_dropout": args.force_encoder_dropout,
@@ -485,15 +506,18 @@ def validate(policy, val_loader, device, use_stain_mask: bool = False):
     return _mean_dict(outs)
 
 
-def save_checkpoint(path: str, epoch: int, policy, optimizer, train_summary, val_summary, config):
-    torch.save({
+def save_checkpoint(path: str, epoch: int, policy, optimizer, train_summary, val_summary, config, scheduler=None):
+    payload = {
         "epoch": int(epoch),
         "model_state_dict": policy.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
         "train_summary": train_summary,
         "val_summary": val_summary,
         "config": config,
-    }, path)
+    }
+    if scheduler is not None:
+        payload["scheduler_state_dict"] = scheduler.state_dict()
+    torch.save(payload, path)
 
 
 def train_flow(train_loader, val_loader, config):
@@ -502,7 +526,9 @@ def train_flow(train_loader, val_loader, config):
     num_epochs = int(config["num_epochs"])
     ckpt_dir = str(config["ckpt_dir"])
     save_every = int(config.get("save_every", 0))
-    debug_batches = int(config.get("debug_batches", 3))
+    debug_batches = int(config.get("debug_batches", 0))
+    grad_clip_norm = float(config.get("grad_clip_norm", 0.0))
+    early_stopping_patience = int(config.get("early_stopping_patience", 0))
     policy_config = config["policy_config"]
     use_stain_mask = bool(policy_config.get("use_stain_mask", False))
 
@@ -511,26 +537,31 @@ def train_flow(train_loader, val_loader, config):
 
     policy, optimizer = build_flow_rgb_policy_and_optimizer(policy_config)
     policy = policy.to(device)
+    scheduler = build_epoch_scheduler(
+        optimizer=optimizer,
+        scheduler_name=config.get("lr_scheduler", "none"),
+        num_epochs=num_epochs,
+        warmup_epochs=int(config.get("warmup_epochs", 0)),
+        min_lr=float(config.get("min_lr", 0.0)),
+        base_lr=float(policy_config.get("lr", 1e-4)),
+    )
 
     n_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
     print(f"[MODEL] params = {n_params / 1e6:.2f}M")
 
     best_val = float("inf")
     best_epoch = -1
+    epochs_without_improvement = 0
     history = {"train": [], "val": []}
+    last_epoch = -1
+    last_train_summary = {}
+    last_val_summary = {}
 
     pbar = tqdm(range(num_epochs))
     for epoch in pbar:
-        print(f"Epoch {epoch}")
-        val_summary = validate(policy, val_loader, device, use_stain_mask=use_stain_mask)
-        print("Val: " + " | ".join([f"{k}:{v:.6f}" for k, v in val_summary.items()]))
-
-        val_loss = float(val_summary.get("loss", val_summary.get("flow", float("inf"))))
-        if val_loss < best_val:
-            best_val = val_loss
-            best_epoch = epoch
-            save_checkpoint(os.path.join(ckpt_dir, "policy_best.ckpt"), epoch, policy, optimizer, {}, val_summary, config)
-
+        set_train_dataset_epoch(train_loader, epoch)
+        current_lr = float(optimizer.param_groups[0]["lr"])
+        print(f"Epoch {epoch} | lr={current_lr:.8g}")
         policy.train()
         train_outs = []
         train_iter = tqdm(train_loader, desc=f"Train {epoch}", leave=False)
@@ -552,6 +583,8 @@ def train_flow(train_loader, val_loader, config):
             )
             loss = out["loss"]
             loss.backward()
+            if grad_clip_norm > 0.0:
+                torch.nn.utils.clip_grad_norm_(policy.parameters(), grad_clip_norm)
             optimizer.step()
             scalars = _scalar_dict(out)
             train_outs.append(scalars)
@@ -563,16 +596,69 @@ def train_flow(train_loader, val_loader, config):
                     _tensor_debug_line("stain_mask", stain_mask)
 
         train_summary = _mean_dict(train_outs)
+        train_summary["lr"] = current_lr
+        val_summary = validate(policy, val_loader, device, use_stain_mask=use_stain_mask)
+        print("Val: " + " | ".join([f"{k}:{v:.6f}" for k, v in val_summary.items()]))
+        val_loss = float(val_summary.get("loss", val_summary.get("flow", float("inf"))))
+
         history["train"].append(train_summary)
         history["val"].append(val_summary)
+        last_epoch = epoch
+        last_train_summary = train_summary
+        last_val_summary = val_summary
 
-        if save_every > 0 and (epoch % save_every == 0):
-            save_checkpoint(os.path.join(ckpt_dir, f"policy_epoch_{epoch}_seed_{seed}.ckpt"), epoch, policy, optimizer, train_summary, val_summary, config)
+        if val_loss < best_val:
+            best_val = val_loss
+            best_epoch = epoch
+            epochs_without_improvement = 0
+            save_checkpoint(
+                os.path.join(ckpt_dir, "policy_best.ckpt"),
+                epoch,
+                policy,
+                optimizer,
+                train_summary,
+                val_summary,
+                config,
+                scheduler=scheduler,
+            )
+        else:
+            epochs_without_improvement += 1
+
+        if save_every > 0 and ((epoch + 1) % save_every == 0):
+            save_checkpoint(
+                os.path.join(ckpt_dir, f"policy_epoch_{epoch + 1}_seed_{seed}.ckpt"),
+                epoch,
+                policy,
+                optimizer,
+                train_summary,
+                val_summary,
+                config,
+                scheduler=scheduler,
+            )
+
+        if scheduler is not None:
+            scheduler.step()
 
         pbar.set_postfix(train_loss=train_summary.get("loss", 0.0), val_loss=val_loss)
 
+        if early_stopping_patience > 0 and epochs_without_improvement >= early_stopping_patience:
+            print(
+                f"[EARLY STOP] no validation improvement for "
+                f"{early_stopping_patience} epochs; best_epoch={best_epoch}"
+            )
+            break
+
     last_path = os.path.join(ckpt_dir, "policy_last.ckpt")
-    save_checkpoint(last_path, num_epochs - 1, policy, optimizer, history["train"][-1], history["val"][-1], config)
+    save_checkpoint(
+        last_path,
+        last_epoch,
+        policy,
+        optimizer,
+        last_train_summary,
+        last_val_summary,
+        config,
+        scheduler=scheduler,
+    )
 
     print("[INFO] Training finished.")
     print(f"[INFO] Best epoch     = {best_epoch}")
@@ -586,6 +672,7 @@ def train_flow(train_loader, val_loader, config):
 # =============================================================================
 
 def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
+    resolve_temporal_parameters(args)
     dataset_dir = resolve_dataset_dir(args.dataset_dir)
     num_episodes = _count_episodes(dataset_dir)
     if args.num_episodes and args.num_episodes > 0:
@@ -610,7 +697,12 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     print(f"[INFO] norm_mode          = {args.norm_mode}")
     print(f"[INFO] batch_size         = {args.batch_size}")
     print(f"[INFO] chunk_size         = {args.chunk_size}")
-    print(f"[INFO] force_history      = {args.use_force_history}, L={args.force_history_len}")
+    print(f"[INFO] dataset_hz         = {args.dataset_hz}")
+    print(f"[INFO] chunk_sec          = {args.chunk_sec} -> L={args.chunk_size}")
+    print(
+        f"[INFO] force_history      = {args.use_force_history}, "
+        f"sec={args.force_history_sec}, L={args.force_history_len}"
+    )
     print(f"[INFO] use_stain_mask     = {bool(args.use_stain_mask)}")
     if args.use_stain_mask:
         print(
@@ -689,6 +781,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         use_stain_mask=args.use_stain_mask,
         stain_mask_key=args.stain_mask_key,
         stain_mask_threshold=args.stain_mask_threshold,
+        resample_each_epoch=args.resample_each_epoch,
     )
     print(f"[INFO] data meta: {meta}")
 
@@ -697,6 +790,11 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         stats.update(demo_start_stats)
     stats["policy_config"] = dict(policy_config)
     stats["data_meta"] = dict(meta)
+    stats["dataset_hz"] = float(args.dataset_hz)
+    stats["force_history_sec"] = float(args.force_history_sec)
+    stats["force_history_len"] = int(args.force_history_len)
+    stats["chunk_sec"] = float(args.chunk_sec)
+    stats["chunk_size"] = int(args.chunk_size)
 
     stats_path = os.path.join(ckpt_dir, "dataset_stats.pkl")
     with open(stats_path, "wb") as f:
@@ -710,6 +808,12 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         "ckpt_dir": ckpt_dir,
         "save_every": args.save_every,
         "debug_batches": args.debug_batches,
+        "lr_scheduler": args.lr_scheduler,
+        "warmup_epochs": args.warmup_epochs,
+        "min_lr": args.min_lr,
+        "grad_clip_norm": args.grad_clip_norm,
+        "early_stopping_patience": args.early_stopping_patience,
+        "resample_each_epoch": args.resample_each_epoch,
         "policy_class": "FLOW",
         "obs_mode": obs_mode,
         "policy_config": policy_config,
