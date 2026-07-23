@@ -341,10 +341,10 @@ ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ```text
 RB            start_recording
 LB            end_recording
-A             gripper close, -653 tick
-B             gripper open, 733 tick
-D-pad left    close by 50 tick
-D-pad right   open by 50 tick
+Start         gripper close, -653 tick
+Back          gripper open, 733 tick
+RT            close by 50 tick
+LT            open by 50 tick
 ```
 
 Joystick 없이 topic으로 제어할 수도 있다.

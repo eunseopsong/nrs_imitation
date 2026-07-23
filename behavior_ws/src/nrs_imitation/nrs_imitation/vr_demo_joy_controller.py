@@ -20,9 +20,10 @@ This node publishes:
 Default Logitech F710 / Xbox-like mapping:
   RB       buttons[5]  -> start_recording
   LB       buttons[4]  -> end_recording
-  A        buttons[0]  -> gripper close
-  B        buttons[1]  -> gripper open
-  D-pad left/right     -> gripper close/open by one step
+  Start    buttons[7]  -> gripper close
+  Back     buttons[6]  -> gripper open
+  RT       axes[5]     -> gripper close by one step
+  LT       axes[2]     -> gripper open by one step
 """
 
 import time
@@ -51,14 +52,20 @@ class VRDemoJoyController(Node):
 
         self.declare_parameter("button_start", 5)
         self.declare_parameter("button_end", 4)
-        self.declare_parameter("button_gripper_close", 0)
-        self.declare_parameter("button_gripper_open", 1)
+        self.declare_parameter("button_gripper_close", 7)
+        self.declare_parameter("button_gripper_open", 6)
 
         self.declare_parameter("gripper_close_tick", -653)
         self.declare_parameter("gripper_open_tick", 733)
         self.declare_parameter("gripper_step_tick", 50)
 
-        self.declare_parameter("dpad_axis", 6)
+        self.declare_parameter("fine_close_axis", 5)
+        self.declare_parameter("fine_open_axis", 2)
+        self.declare_parameter("fine_trigger_threshold", 0.50)
+        self.declare_parameter("fine_repeat_sec", 0.15)
+
+        # Legacy optional D-pad control. Negative axis disables it.
+        self.declare_parameter("dpad_axis", -1)
         self.declare_parameter("dpad_threshold", 0.50)
         self.declare_parameter("dpad_invert", False)
         self.declare_parameter("dpad_repeat_sec", 0.15)
@@ -89,6 +96,16 @@ class VRDemoJoyController(Node):
             int(self.get_parameter("gripper_step_tick").value),
         )
 
+        self.fine_close_axis = int(self.get_parameter("fine_close_axis").value)
+        self.fine_open_axis = int(self.get_parameter("fine_open_axis").value)
+        self.fine_trigger_threshold = abs(
+            float(self.get_parameter("fine_trigger_threshold").value)
+        )
+        self.fine_repeat_sec = max(
+            0.0,
+            float(self.get_parameter("fine_repeat_sec").value),
+        )
+
         self.dpad_axis = int(self.get_parameter("dpad_axis").value)
         self.dpad_threshold = abs(float(self.get_parameter("dpad_threshold").value))
         self.dpad_invert = bool(self.get_parameter("dpad_invert").value)
@@ -101,8 +118,11 @@ class VRDemoJoyController(Node):
 
         self.prev_buttons: Optional[List[int]] = None
         self.prev_dpad_sign = 0
+        self.prev_fine_close_pressed = False
+        self.prev_fine_open_pressed = False
         self.last_recorder_button_time = 0.0
         self.last_gripper_button_time = 0.0
+        self.last_fine_step_time = 0.0
         self.last_dpad_time = 0.0
         self.latest_gripper_position: Optional[int] = None
         self.gripper_target_tick: Optional[int] = None
@@ -128,11 +148,18 @@ class VRDemoJoyController(Node):
             ("gripper_position", self.gripper_present_position_topic),
             ("RB", f"button[{self.button_start}] -> start_recording"),
             ("LB", f"button[{self.button_end}] -> end_recording"),
-            ("A", f"button[{self.button_gripper_close}] -> close={self.gripper_close_tick}"),
-            ("B", f"button[{self.button_gripper_open}] -> open={self.gripper_open_tick}"),
             (
-                "D-pad L/R",
-                f"axis[{self.dpad_axis}] -> close/open step={self.gripper_step_tick}",
+                "Start",
+                f"button[{self.button_gripper_close}] -> close={self.gripper_close_tick}",
+            ),
+            (
+                "Back",
+                f"button[{self.button_gripper_open}] -> open={self.gripper_open_tick}",
+            ),
+            (
+                "RT/LT",
+                f"axis[{self.fine_close_axis}]/axis[{self.fine_open_axis}] "
+                f"-> close/open step={self.gripper_step_tick}",
             ),
         ]))
 
@@ -176,6 +203,12 @@ class VRDemoJoyController(Node):
         if value < -self.dpad_threshold:
             return -1
         return 0
+
+    def _trigger_pressed(self, axes: List[float], axis_idx: int) -> bool:
+        """Return true when an F710 trigger axis is pressed toward -1."""
+        if axis_idx < 0 or axis_idx >= len(axes):
+            return False
+        return float(axes[axis_idx]) <= -self.fine_trigger_threshold
 
     @staticmethod
     def _step_toward(current: int, target: int, step: int) -> int:
@@ -257,6 +290,48 @@ class VRDemoJoyController(Node):
         self.publish_gripper_command(tick, action)
         self.last_dpad_time = now
 
+    def _handle_gripper_fine_triggers(self, axes: List[float], now: float):
+        close_pressed = self._trigger_pressed(axes, self.fine_close_axis)
+        open_pressed = self._trigger_pressed(axes, self.fine_open_axis)
+
+        close_rising = close_pressed and not self.prev_fine_close_pressed
+        open_rising = open_pressed and not self.prev_fine_open_pressed
+        repeat_ready = now - self.last_fine_step_time >= self.fine_repeat_sec
+
+        self.prev_fine_close_pressed = close_pressed
+        self.prev_fine_open_pressed = open_pressed
+
+        # Simultaneous RT/LT is ambiguous, so do not move the gripper.
+        if close_pressed and open_pressed:
+            return
+
+        direction = 0
+        if close_pressed and (close_rising or repeat_ready):
+            direction = 1
+        elif open_pressed and (open_rising or repeat_ready):
+            direction = -1
+
+        if direction == 0:
+            return
+
+        base_tick = self._gripper_step_base()
+        if base_tick is None:
+            self.get_logger().warning(
+                "[JOY GRIPPER] RT/LT command ignored: waiting for present position"
+            )
+            self.last_fine_step_time = now
+            return
+
+        endpoint = (
+            self.gripper_close_tick
+            if direction > 0
+            else self.gripper_open_tick
+        )
+        action = "step_close" if direction > 0 else "step_open"
+        tick = self._step_toward(base_tick, endpoint, self.gripper_step_tick)
+        self.publish_gripper_command(tick, action)
+        self.last_fine_step_time = now
+
     def joy_callback(self, msg: Joy):
         curr_buttons = list(msg.buttons)
         axes = list(msg.axes)
@@ -264,12 +339,21 @@ class VRDemoJoyController(Node):
         if self.prev_buttons is None:
             self.prev_buttons = curr_buttons
             self.prev_dpad_sign = self._dpad_sign(axes)
+            self.prev_fine_close_pressed = self._trigger_pressed(
+                axes,
+                self.fine_close_axis,
+            )
+            self.prev_fine_open_pressed = self._trigger_pressed(
+                axes,
+                self.fine_open_axis,
+            )
             return
 
         now = time.time()
 
         self._handle_recorder_buttons(curr_buttons, self.prev_buttons, now)
         self._handle_gripper_buttons(curr_buttons, self.prev_buttons, now)
+        self._handle_gripper_fine_triggers(axes, now)
         self._handle_gripper_dpad(axes, now)
 
         self.prev_buttons = curr_buttons

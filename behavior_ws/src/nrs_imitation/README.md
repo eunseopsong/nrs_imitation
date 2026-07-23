@@ -122,8 +122,10 @@ ros2 launch nrs_imitation vr_demo_joy_controller.launch.py
 ```text
 RB: recorder start_recording
 LB: recorder end_recording
-A : gripper close (/gripper/command = -653)
-B : gripper open  (/gripper/command = 733)
+Start: gripper close (/gripper/command = -653)
+Back : gripper open  (/gripper/command = 733)
+RT   : gripper close by 50 tick
+LT   : gripper open by 50 tick
 ```
 
 ## 2. Imitation Form 변환

@@ -22,6 +22,10 @@ def generate_launch_description():
     gripper_close_tick = LaunchConfiguration("gripper_close_tick")
     gripper_open_tick = LaunchConfiguration("gripper_open_tick")
     gripper_step_tick = LaunchConfiguration("gripper_step_tick")
+    fine_close_axis = LaunchConfiguration("fine_close_axis")
+    fine_open_axis = LaunchConfiguration("fine_open_axis")
+    fine_trigger_threshold = LaunchConfiguration("fine_trigger_threshold")
+    fine_repeat_sec = LaunchConfiguration("fine_repeat_sec")
     dpad_axis = LaunchConfiguration("dpad_axis")
     dpad_threshold = LaunchConfiguration("dpad_threshold")
     dpad_invert = LaunchConfiguration("dpad_invert")
@@ -40,12 +44,16 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument("button_start", default_value="5"),
         DeclareLaunchArgument("button_end", default_value="4"),
-        DeclareLaunchArgument("button_gripper_close", default_value="0"),
-        DeclareLaunchArgument("button_gripper_open", default_value="1"),
+        DeclareLaunchArgument("button_gripper_close", default_value="7"),
+        DeclareLaunchArgument("button_gripper_open", default_value="6"),
         DeclareLaunchArgument("gripper_close_tick", default_value="-653"),
         DeclareLaunchArgument("gripper_open_tick", default_value="733"),
         DeclareLaunchArgument("gripper_step_tick", default_value="50"),
-        DeclareLaunchArgument("dpad_axis", default_value="6"),
+        DeclareLaunchArgument("fine_close_axis", default_value="5"),
+        DeclareLaunchArgument("fine_open_axis", default_value="2"),
+        DeclareLaunchArgument("fine_trigger_threshold", default_value="0.50"),
+        DeclareLaunchArgument("fine_repeat_sec", default_value="0.15"),
+        DeclareLaunchArgument("dpad_axis", default_value="-1"),
         DeclareLaunchArgument("dpad_threshold", default_value="0.50"),
         DeclareLaunchArgument("dpad_invert", default_value="false"),
         DeclareLaunchArgument("dpad_repeat_sec", default_value="0.15"),
@@ -99,6 +107,22 @@ def generate_launch_description():
                 "gripper_step_tick": ParameterValue(
                     gripper_step_tick,
                     value_type=int,
+                ),
+                "fine_close_axis": ParameterValue(
+                    fine_close_axis,
+                    value_type=int,
+                ),
+                "fine_open_axis": ParameterValue(
+                    fine_open_axis,
+                    value_type=int,
+                ),
+                "fine_trigger_threshold": ParameterValue(
+                    fine_trigger_threshold,
+                    value_type=float,
+                ),
+                "fine_repeat_sec": ParameterValue(
+                    fine_repeat_sec,
+                    value_type=float,
                 ),
                 "dpad_axis": ParameterValue(dpad_axis, value_type=int),
                 "dpad_threshold": ParameterValue(dpad_threshold, value_type=float),
