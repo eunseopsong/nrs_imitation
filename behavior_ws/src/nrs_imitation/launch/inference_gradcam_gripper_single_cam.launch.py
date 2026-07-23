@@ -73,7 +73,7 @@ def generate_launch_description():
         DeclareLaunchArgument("gripper_command_topic", default_value="/gripper/command"),
         DeclareLaunchArgument("gripper_goal_current_topic", default_value="/gripper/goal_current_mA"),
         DeclareLaunchArgument("control_hz", default_value="125.0"),
-        DeclareLaunchArgument("infer_hz", default_value="5.0"),
+        DeclareLaunchArgument("infer_hz", default_value="10.0"),
         DeclareLaunchArgument("use_force_history", default_value="true"),
         DeclareLaunchArgument("force_history_len", default_value="30"),
         DeclareLaunchArgument("use_gripper_history", default_value="true"),
