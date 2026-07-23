@@ -167,8 +167,9 @@ class FlowRGBObservationEncoder(nn.Module):
     image         : (B, K, 3, H, W)
     force_history : optional (B, L, 3)
     marker        : optional (B, marker_dim)
-    gripper_position : (B, 1)
+    gripper_position : (B, 1), normalized
     gripper_current  : (B, 1), normalized
+    gripper_history  : optional (B, Lg, 2), normalized [position,current]
     """
 
     def __init__(self, cfg: dict):
@@ -178,6 +179,7 @@ class FlowRGBObservationEncoder(nn.Module):
         self.camera_names = list(cfg.get("camera_names", ["cam0"]))
         self.num_cameras = max(1, len(self.camera_names))
         self.use_force_history = bool(cfg.get("use_force_history", True))
+        self.use_gripper_history = bool(cfg.get("use_gripper_history", False))
         self.use_marker = bool(cfg.get("use_marker", self.obs_mode in ("dual_cam_marker", "single_cam_marker")))
 
         state_dim = int(cfg.get("state_dim", 9))
@@ -197,6 +199,11 @@ class FlowRGBObservationEncoder(nn.Module):
             hidden_dim=gripper_hidden_dim,
             output_dim=gripper_feature_dim,
             activation="mish",
+            use_gripper_history=self.use_gripper_history,
+            history_input_dim=int(cfg.get("gripper_history_input_dim", 2)),
+            history_hidden_dim=int(cfg.get("gripper_history_hidden_dim", 32)),
+            history_num_layers=int(cfg.get("gripper_history_num_layers", 1)),
+            history_dropout=float(cfg.get("gripper_history_dropout", 0.0)),
         )
 
         if self.use_force_history:
@@ -254,6 +261,7 @@ class FlowRGBObservationEncoder(nn.Module):
         marker: Optional[torch.Tensor] = None,
         gripper_position: Optional[torch.Tensor] = None,
         gripper_current: Optional[torch.Tensor] = None,
+        gripper_history: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if qpos.dim() == 3:
             qpos = qpos[:, 0, :]
@@ -271,7 +279,11 @@ class FlowRGBObservationEncoder(nn.Module):
         q_feat = self.qpos_encoder(qpos)
         if gripper_position is None or gripper_current is None:
             raise RuntimeError("gripper_position and gripper_current are required for FlowRGBObservationEncoder")
-        gripper_feat = self.gripper_encoder(gripper_position, gripper_current)
+        gripper_feat = self.gripper_encoder(
+            gripper_position,
+            gripper_current,
+            gripper_history=gripper_history,
+        )
 
         img_flat = image.reshape(B * K, C, H, W)
         img_feat = self.image_backbone(img_flat)
@@ -433,6 +445,7 @@ class FlowRGBPolicy(nn.Module):
         marker: Optional[torch.Tensor] = None,
         gripper_position: Optional[torch.Tensor] = None,
         gripper_current: Optional[torch.Tensor] = None,
+        gripper_history: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         return self.obs_encoder(
             qpos=qpos,
@@ -441,6 +454,7 @@ class FlowRGBPolicy(nn.Module):
             marker=marker,
             gripper_position=gripper_position,
             gripper_current=gripper_current,
+            gripper_history=gripper_history,
         )
 
     def predict_velocity(
@@ -453,6 +467,7 @@ class FlowRGBPolicy(nn.Module):
         marker: Optional[torch.Tensor] = None,
         gripper_position: Optional[torch.Tensor] = None,
         gripper_current: Optional[torch.Tensor] = None,
+        gripper_history: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         cond = self._condition(
             qpos=qpos,
@@ -461,6 +476,7 @@ class FlowRGBPolicy(nn.Module):
             marker=marker,
             gripper_position=gripper_position,
             gripper_current=gripper_current,
+            gripper_history=gripper_history,
         )
         return self.velocity_net(sample=z_t, t=t, global_cond=cond)
 
@@ -480,6 +496,7 @@ class FlowRGBPolicy(nn.Module):
         marker: Optional[torch.Tensor] = None,
         gripper_position: Optional[torch.Tensor] = None,
         gripper_current: Optional[torch.Tensor] = None,
+        gripper_history: Optional[torch.Tensor] = None,
     ):
         if actions is not None:
             assert is_pad is not None, "is_pad is required for training"
@@ -500,6 +517,7 @@ class FlowRGBPolicy(nn.Module):
                 marker,
                 gripper_position,
                 gripper_current,
+                gripper_history,
             )
             loss = self._masked_loss(pred_v, target_v, is_pad)
             return {"flow": loss, "loss": loss}
@@ -511,6 +529,7 @@ class FlowRGBPolicy(nn.Module):
             marker=marker,
             gripper_position=gripper_position,
             gripper_current=gripper_current,
+            gripper_history=gripper_history,
         )
 
     @torch.no_grad()
@@ -522,6 +541,7 @@ class FlowRGBPolicy(nn.Module):
         marker: Optional[torch.Tensor] = None,
         gripper_position: Optional[torch.Tensor] = None,
         gripper_current: Optional[torch.Tensor] = None,
+        gripper_history: Optional[torch.Tensor] = None,
         num_steps: Optional[int] = None,
     ) -> torch.Tensor:
         steps = max(1, int(num_steps or self.flow_infer_steps))
@@ -539,6 +559,7 @@ class FlowRGBPolicy(nn.Module):
                 marker,
                 gripper_position,
                 gripper_current,
+                gripper_history,
             )
             z = z + dt * v
         return z

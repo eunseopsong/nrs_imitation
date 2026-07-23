@@ -25,6 +25,14 @@ def generate_launch_description():
     gripper_goal_current_topic = LaunchConfiguration("gripper_goal_current_topic")
     control_hz = LaunchConfiguration("control_hz")
     infer_hz = LaunchConfiguration("infer_hz")
+    use_force_history = LaunchConfiguration("use_force_history")
+    force_history_len = LaunchConfiguration("force_history_len")
+    use_gripper_history = LaunchConfiguration("use_gripper_history")
+    gripper_history_len = LaunchConfiguration("gripper_history_len")
+    gripper_history_hz = LaunchConfiguration("gripper_history_hz")
+    gripper_history_sync_slop_sec = LaunchConfiguration("gripper_history_sync_slop_sec")
+    gripper_history_max_age_sec = LaunchConfiguration("gripper_history_max_age_sec")
+    gripper_history_debug_every_n = LaunchConfiguration("gripper_history_debug_every_n")
     use_temporal_agg = LaunchConfiguration("use_temporal_agg")
     temporal_agg_mode = LaunchConfiguration("temporal_agg_mode")
     temporal_agg_tau_steps = LaunchConfiguration("temporal_agg_tau_steps")
@@ -66,6 +74,14 @@ def generate_launch_description():
         DeclareLaunchArgument("gripper_goal_current_topic", default_value="/gripper/goal_current_mA"),
         DeclareLaunchArgument("control_hz", default_value="125.0"),
         DeclareLaunchArgument("infer_hz", default_value="5.0"),
+        DeclareLaunchArgument("use_force_history", default_value="true"),
+        DeclareLaunchArgument("force_history_len", default_value="30"),
+        DeclareLaunchArgument("use_gripper_history", default_value="true"),
+        DeclareLaunchArgument("gripper_history_len", default_value="15"),
+        DeclareLaunchArgument("gripper_history_hz", default_value="30.0"),
+        DeclareLaunchArgument("gripper_history_sync_slop_sec", default_value="0.020"),
+        DeclareLaunchArgument("gripper_history_max_age_sec", default_value="0.20"),
+        DeclareLaunchArgument("gripper_history_debug_every_n", default_value="30"),
         DeclareLaunchArgument("use_temporal_agg", default_value="true"),
         DeclareLaunchArgument("temporal_agg_mode", default_value="exp"),
         DeclareLaunchArgument("temporal_agg_tau_steps", default_value="20.0"),
@@ -115,6 +131,14 @@ def generate_launch_description():
                 "gripper_goal_current_topic": gripper_goal_current_topic,
                 "control_hz": ParameterValue(control_hz, value_type=float),
                 "infer_hz": ParameterValue(infer_hz, value_type=float),
+                "use_force_history": ParameterValue(use_force_history, value_type=bool),
+                "force_history_len": ParameterValue(force_history_len, value_type=int),
+                "use_gripper_history": ParameterValue(use_gripper_history, value_type=bool),
+                "gripper_history_len": ParameterValue(gripper_history_len, value_type=int),
+                "gripper_history_hz": ParameterValue(gripper_history_hz, value_type=float),
+                "gripper_history_sync_slop_sec": ParameterValue(gripper_history_sync_slop_sec, value_type=float),
+                "gripper_history_max_age_sec": ParameterValue(gripper_history_max_age_sec, value_type=float),
+                "gripper_history_debug_every_n": ParameterValue(gripper_history_debug_every_n, value_type=int),
                 "use_temporal_agg": ParameterValue(use_temporal_agg, value_type=bool),
                 "temporal_agg_mode": temporal_agg_mode,
                 "temporal_agg_tau_steps": ParameterValue(temporal_agg_tau_steps, value_type=float),

@@ -19,6 +19,14 @@ def resolve_temporal_parameters(args) -> None:
     if force_history_sec > 0.0:
         args.force_history_len = max(1, int(round(dataset_hz * force_history_sec)))
 
+    if hasattr(args, "gripper_history_sec") and hasattr(args, "gripper_history_len"):
+        gripper_history_sec = float(args.gripper_history_sec)
+        if gripper_history_sec > 0.0:
+            args.gripper_history_len = max(
+                1,
+                int(round(dataset_hz * gripper_history_sec)),
+            )
+
     chunk_sec = float(args.chunk_sec)
     if chunk_sec > 0.0:
         args.chunk_size = max(4, int(round(dataset_hz * chunk_sec)))

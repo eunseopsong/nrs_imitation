@@ -47,7 +47,7 @@ import pickle
 import threading
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional, Deque, List
+from typing import Optional, Deque, List, Tuple
 from enum import Enum
 
 import numpy as np
@@ -496,6 +496,9 @@ class StatsPack:
     act_a: np.ndarray    # min or mean
     act_b: np.ndarray    # max or std
     xyz_scale: float = 1.0
+    gripper_mode: str = "minmax_01"
+    gripper_position_a: Optional[np.ndarray] = None
+    gripper_position_b: Optional[np.ndarray] = None
     gripper_current_a: Optional[np.ndarray] = None
     gripper_current_b: Optional[np.ndarray] = None
 
@@ -652,6 +655,16 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         if amode == "minmax":
             amode = "minmax_01"
 
+        gripper_mode = _canonical_norm_mode(st.get("gripper_norm_mode", qmode))
+        gpmin = None
+        gpmax = None
+        if "gripper_position_min" in st and "gripper_position_max" in st:
+            gpmin, gpmax = _sanitize_range_minmax(
+                np.asarray(st["gripper_position_min"], dtype=np.float32).reshape(1),
+                np.asarray(st["gripper_position_max"], dtype=np.float32).reshape(1),
+                expected_size=1,
+            )
+
         gcmin = None
         gcmax = None
         if "gripper_current_min" in st and "gripper_current_max" in st:
@@ -669,6 +682,9 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
             act_a=amin,
             act_b=amax,
             xyz_scale=xyz_scale,
+            gripper_mode=gripper_mode,
+            gripper_position_a=gpmin,
+            gripper_position_b=gpmax,
             gripper_current_a=gcmin,
             gripper_current_b=gcmax,
         )
@@ -740,18 +756,74 @@ def _normalize_force_history(force_hist: torch.Tensor, stats: StatsPack) -> torc
     return (force_hist - fmean) / torch.clamp(fstd, min=1e-6)
 
 
+def _normalize_gripper_scalar(
+    value: torch.Tensor,
+    value_a: Optional[np.ndarray],
+    value_b: Optional[np.ndarray],
+    mode: str,
+    stats_name: str,
+) -> torch.Tensor:
+    if value_a is None or value_b is None:
+        raise RuntimeError(f"dataset_stats.pkl missing {stats_name}_min/{stats_name}_max")
+    va = torch.tensor(value_a, dtype=torch.float32, device=value.device).view(1, 1)
+    vb = torch.tensor(value_b, dtype=torch.float32, device=value.device).view(1, 1)
+    den = torch.clamp(vb - va, min=1e-6)
+    value01 = (value - va) / den
+    if mode == "minmax_m11":
+        return torch.clamp(2.0 * value01 - 1.0, -1.0, 1.0)
+    if mode == "zscore":
+        return (value - va) / den
+    return torch.clamp(value01, 0.0, 1.0)
+
+
+def _normalize_gripper_position(position: torch.Tensor, stats: StatsPack) -> torch.Tensor:
+    return _normalize_gripper_scalar(
+        position,
+        stats.gripper_position_a,
+        stats.gripper_position_b,
+        stats.gripper_mode,
+        "gripper_position",
+    )
+
+
 def _normalize_gripper_current(current: torch.Tensor, stats: StatsPack) -> torch.Tensor:
-    if stats.gripper_current_a is None or stats.gripper_current_b is None:
-        raise RuntimeError("dataset_stats.pkl missing gripper_current_min/gripper_current_max")
-    ca = torch.tensor(stats.gripper_current_a, dtype=torch.float32, device=current.device).view(1, 1)
-    cb = torch.tensor(stats.gripper_current_b, dtype=torch.float32, device=current.device).view(1, 1)
-    den = torch.clamp(cb - ca, min=1e-6)
-    c01 = (current - ca) / den
-    if stats.qpos_mode == "minmax_m11":
-        return torch.clamp(2.0 * c01 - 1.0, -1.0, 1.0)
-    if stats.qpos_mode == "zscore":
-        return (current - ca) / den
-    return torch.clamp(c01, 0.0, 1.0)
+    return _normalize_gripper_scalar(
+        current,
+        stats.gripper_current_a,
+        stats.gripper_current_b,
+        stats.gripper_mode,
+        "gripper_current",
+    )
+
+
+def _normalize_gripper_history(history: torch.Tensor, stats: StatsPack) -> torch.Tensor:
+    if history.dim() != 3 or history.shape[-1] != 2:
+        raise RuntimeError(
+            f"gripper_history must be (B,L,2), got {tuple(history.shape)}"
+        )
+    if (
+        stats.gripper_position_a is None
+        or stats.gripper_position_b is None
+        or stats.gripper_current_a is None
+        or stats.gripper_current_b is None
+    ):
+        raise RuntimeError(
+            "gripper history requires position/current min/max in dataset_stats.pkl"
+        )
+    value_min = torch.tensor(
+        [stats.gripper_position_a[0], stats.gripper_current_a[0]],
+        dtype=torch.float32,
+        device=history.device,
+    ).view(1, 1, 2)
+    value_max = torch.tensor(
+        [stats.gripper_position_b[0], stats.gripper_current_b[0]],
+        dtype=torch.float32,
+        device=history.device,
+    ).view(1, 1, 2)
+    value01 = (history - value_min) / torch.clamp(value_max - value_min, min=1e-6)
+    if stats.gripper_mode == "minmax_m11":
+        return torch.clamp(2.0 * value01 - 1.0, -1.0, 1.0)
+    return torch.clamp(value01, 0.0, 1.0)
 
 
 def _denorm_action_seq(seq: torch.Tensor, stats: StatsPack) -> torch.Tensor:
@@ -907,6 +979,35 @@ def _try_load_state_dict_compat(target: torch.nn.Module, state_dict: dict):
         return missing, unexpected
 
     return best_missing, best_unexpected
+
+
+def _load_state_dict_strict_compat(target: torch.nn.Module, state_dict: dict) -> str:
+    """Load an exact architecture while tolerating known wrapper prefixes."""
+    candidates = [
+        ("orig", state_dict),
+        ("strip_model.", _strip_prefix_from_state_dict(state_dict, ["model."])),
+        ("strip_module.", _strip_prefix_from_state_dict(state_dict, ["module."])),
+        ("strip_policy.", _strip_prefix_from_state_dict(state_dict, ["policy."])),
+        (
+            "strip_model+module",
+            _strip_prefix_from_state_dict(state_dict, ["module.", "model."]),
+        ),
+        (
+            "strip_policy+module",
+            _strip_prefix_from_state_dict(state_dict, ["module.", "policy."]),
+        ),
+    ]
+    errors = []
+    for name, candidate in candidates:
+        try:
+            target.load_state_dict(candidate, strict=True)
+            return name
+        except RuntimeError as exc:
+            errors.append(f"{name}: {exc}")
+    raise RuntimeError(
+        "checkpoint architecture does not exactly match the constructed policy; "
+        "refusing strict=False fallback. " + " | ".join(errors[:2])
+    )
 
 
 # ============================================================
@@ -1111,6 +1212,12 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("use_gripper", False)
         self.declare_parameter("gripper_position_topic", "/gripper/present_position")
         self.declare_parameter("gripper_current_topic", "/gripper/present_current_mA")
+        self.declare_parameter("use_gripper_history", False)
+        self.declare_parameter("gripper_history_len", 15)
+        self.declare_parameter("gripper_history_hz", 30.0)
+        self.declare_parameter("gripper_history_sync_slop_sec", 0.020)
+        self.declare_parameter("gripper_history_max_age_sec", 0.20)
+        self.declare_parameter("gripper_history_debug_every_n", 30)
         self.declare_parameter("gripper_command_topic", "/gripper/command")
         self.declare_parameter("gripper_goal_current_topic", "/gripper/goal_current_mA")
         self.declare_parameter("gripper_command_min_tick", -653)
@@ -1391,6 +1498,24 @@ class NodeCmdMotionInfer(Node):
         self.use_gripper = bool(self.get_parameter("use_gripper").value)
         self.gripper_position_topic = str(self.get_parameter("gripper_position_topic").value)
         self.gripper_current_topic = str(self.get_parameter("gripper_current_topic").value)
+        self.use_gripper_history = bool(self.get_parameter("use_gripper_history").value)
+        self.gripper_history_len = max(1, int(self.get_parameter("gripper_history_len").value))
+        self.gripper_history_hz = max(
+            1e-6,
+            float(self.get_parameter("gripper_history_hz").value),
+        )
+        self.gripper_history_sync_slop_sec = max(
+            0.0,
+            float(self.get_parameter("gripper_history_sync_slop_sec").value),
+        )
+        self.gripper_history_max_age_sec = max(
+            0.0,
+            float(self.get_parameter("gripper_history_max_age_sec").value),
+        )
+        self.gripper_history_debug_every_n = max(
+            1,
+            int(self.get_parameter("gripper_history_debug_every_n").value),
+        )
         self.gripper_command_topic = str(self.get_parameter("gripper_command_topic").value)
         self.gripper_goal_current_topic = str(self.get_parameter("gripper_goal_current_topic").value)
         self.gripper_command_min_tick = int(self.get_parameter("gripper_command_min_tick").value)
@@ -1414,6 +1539,8 @@ class NodeCmdMotionInfer(Node):
         )
         if self.use_gripper and self.policy_class != "FLOW":
             raise RuntimeError("use_gripper=True currently requires policy_class=FLOW")
+        if self.use_gripper_history and not self.use_gripper:
+            raise RuntimeError("use_gripper_history=True requires use_gripper=True")
         if self.force_msg_type not in ("array", "wrench"):
             raise RuntimeError(f"force_msg_type must be array or wrench, got: {self.force_msg_type}")
 
@@ -1497,6 +1624,23 @@ class NodeCmdMotionInfer(Node):
                 self.stats.gripper_current_a is None or self.stats.gripper_current_b is None
             ):
                 raise RuntimeError("use_gripper=True requires gripper_current_min/max in dataset_stats.pkl")
+            if self.use_gripper and (
+                self.stats.gripper_position_a is None or self.stats.gripper_position_b is None
+            ):
+                self.get_logger().warn(
+                    "[STATS] dataset_stats.pkl has no gripper_position_min/max; "
+                    "using raw gripper position for legacy checkpoint compatibility. "
+                    "New checkpoints must include normalized gripper position stats."
+                )
+            elif self.use_gripper:
+                self.get_logger().info(
+                    "[STATS] gripper observations normalized with "
+                    f"mode={self.stats.gripper_mode}, "
+                    f"position_range=[{float(self.stats.gripper_position_a[0]):.3f},"
+                    f"{float(self.stats.gripper_position_b[0]):.3f}], "
+                    f"current_range=[{float(self.stats.gripper_current_a[0]):.3f},"
+                    f"{float(self.stats.gripper_current_b[0]):.3f}]"
+                )
 
         # demo-start pose for optional initial alignment
         self.demo_start_pose6: Optional[np.ndarray] = None
@@ -1534,6 +1678,14 @@ class NodeCmdMotionInfer(Node):
         self._force: Optional[np.ndarray] = None
         self._gripper_position: Optional[int] = None
         self._gripper_current_mA: Optional[float] = None
+        self._gripper_position_pending: Deque[Tuple[float, float]] = deque(maxlen=20)
+        self._gripper_current_pending: Deque[Tuple[float, float]] = deque(maxlen=20)
+        self._gripper_hist: Deque[np.ndarray] = deque(maxlen=self.gripper_history_len)
+        self._gripper_last_pair_t: Optional[float] = None
+        self._gripper_pair_count = 0
+        self._gripper_pair_drop_count = 0
+        self._gripper_last_pair_skew_sec = 0.0
+        self._gripper_pair_period_ema: Optional[float] = None
         self._img_cam0: Optional[np.ndarray] = None
         self._img_cam1: Optional[np.ndarray] = None
         self._stain_mask: Optional[np.ndarray] = None
@@ -1689,6 +1841,10 @@ class NodeCmdMotionInfer(Node):
             f"  policy_class={self.policy_class} phase_mode={self.phase_mode}\n"
             f"  control_hz={self.control_hz} infer_hz={self.infer_hz}\n"
             f"  use_force_history={int(self.use_force_history)} force_history_len={self.force_history_len}\n"
+            f"  gripper_history(enable={int(self.use_gripper_history)}, "
+            f"hz={self.gripper_history_hz:.3f}, len={self.gripper_history_len}, "
+            f"sync_slop={self.gripper_history_sync_slop_sec:.3f}s, "
+            f"max_age={self.gripper_history_max_age_sec:.3f}s)\n"
             f"  diffusion_infer_steps={self.diffusion_infer_steps}\n"
             f"  tau_sec={self.tau_sec} startup_ramp_sec={self.startup_ramp_sec}\n"
             f"  step_caps(pos_mm={self.step_cap_pos_mm}, ang_rad={self.step_cap_ang_rad}, fz={self.step_cap_fz})\n"
@@ -1741,6 +1897,22 @@ class NodeCmdMotionInfer(Node):
             hist = np.concatenate([pad, hist], axis=0)
 
         return hist.astype(np.float32)
+
+    def _build_live_gripper_history(
+        self,
+        hist_list: List[np.ndarray],
+        current_pair: np.ndarray,
+    ) -> np.ndarray:
+        """Return the newest L synchronized pairs with left-edge repetition."""
+        length = max(1, self.gripper_history_len)
+        if hist_list:
+            history = np.stack(hist_list, axis=0).astype(np.float32)[-length:]
+        else:
+            history = np.asarray(current_pair, dtype=np.float32).reshape(1, 2)
+        if history.shape[0] < length:
+            pad = np.repeat(history[0:1], length - history.shape[0], axis=0)
+            history = np.concatenate([pad, history], axis=0)
+        return history.astype(np.float32)
 
     # ------------------------------------------------------------
     # Grad-CAM debug helpers
@@ -1847,6 +2019,7 @@ class NodeCmdMotionInfer(Node):
         stain_mask_gc: Optional[torch.Tensor],
         gripper_position_gc: Optional[torch.Tensor],
         gripper_current_gc: Optional[torch.Tensor],
+        gripper_history_gc: Optional[torch.Tensor],
     ) -> torch.Tensor:
         if self.policy_class == "FLOW":
             if self.use_gripper:
@@ -1857,6 +2030,7 @@ class NodeCmdMotionInfer(Node):
                         force_history=fh_gc,
                         gripper_position=gripper_position_gc,
                         gripper_current=gripper_current_gc,
+                        gripper_history=gripper_history_gc,
                     )
 
                 if hasattr(self.policy, "predict_velocity"):
@@ -1876,6 +2050,7 @@ class NodeCmdMotionInfer(Node):
                             force_history=fh_gc,
                             gripper_position=gripper_position_gc,
                             gripper_current=gripper_current_gc,
+                            gripper_history=gripper_history_gc,
                         )
                         z = z + dt * v
                     return z
@@ -1932,6 +2107,7 @@ class NodeCmdMotionInfer(Node):
         stain_mask_t: Optional[torch.Tensor],
         gripper_position_t: Optional[torch.Tensor] = None,
         gripper_current_t: Optional[torch.Tensor] = None,
+        gripper_history_t: Optional[torch.Tensor] = None,
     ) -> bool:
         if not self.gradcam_enable:
             return False
@@ -1962,6 +2138,7 @@ class NodeCmdMotionInfer(Node):
             stain_mask_gc = None if stain_mask_t is None else stain_mask_t.detach().clone()
             gp_gc = None if gripper_position_t is None else gripper_position_t.detach().clone()
             gc_gc = None if gripper_current_t is None else gripper_current_t.detach().clone()
+            gh_gc = None if gripper_history_t is None else gripper_history_t.detach().clone()
 
             with torch.enable_grad():
                 out = self._gradcam_policy_forward(
@@ -1971,6 +2148,7 @@ class NodeCmdMotionInfer(Node):
                     stain_mask_gc=stain_mask_gc,
                     gripper_position_gc=gp_gc,
                     gripper_current_gc=gc_gc,
+                    gripper_history_gc=gh_gc,
                 )
                 seq = _fix_policy_output_seq(out, self.chunk_size, self.policy_class, action_dim=self.action_dim)
                 if self.denorm_action_enabled and self.stats is not None:
@@ -2157,9 +2335,107 @@ class NodeCmdMotionInfer(Node):
             try:
                 stats_obj = _pickle_load_compat(os.path.join(self.ckpt_dir, "dataset_stats.pkl"))
                 ckpt_policy_cfg = dict(stats_obj.get("policy_config", {}))
-            except Exception:
-                ckpt_policy_cfg = {}
+            except Exception as exc:
+                raise RuntimeError(f"failed to load gripper checkpoint metadata: {exc}")
+
+            ckpt_use_force_history = bool(
+                ckpt_policy_cfg.get("use_force_history", False)
+            )
+            if ckpt_use_force_history != self.use_force_history:
+                raise RuntimeError(
+                    "use_force_history mismatch: "
+                    f"checkpoint={ckpt_use_force_history}, "
+                    f"inference_arg={self.use_force_history}"
+                )
+            if ckpt_use_force_history:
+                ckpt_force_history_len = int(
+                    ckpt_policy_cfg.get("force_history_len", 0)
+                )
+                if ckpt_force_history_len != self.force_history_len:
+                    raise RuntimeError(
+                        "force_history_len mismatch: "
+                        f"checkpoint={ckpt_force_history_len}, "
+                        f"inference_arg={self.force_history_len}"
+                    )
+
+            ckpt_use_gripper_history = bool(
+                ckpt_policy_cfg.get(
+                    "use_gripper_history",
+                    stats_obj.get("use_gripper_history", False),
+                )
+            )
+            if ckpt_use_gripper_history != self.use_gripper_history:
+                raise RuntimeError(
+                    "use_gripper_history mismatch: "
+                    f"checkpoint={ckpt_use_gripper_history}, "
+                    f"inference_arg={self.use_gripper_history}. "
+                    "Use the checkpoint's exact observation schema."
+                )
+            if ckpt_use_gripper_history:
+                ckpt_history_len = int(
+                    ckpt_policy_cfg.get(
+                        "gripper_history_len",
+                        stats_obj.get("gripper_history_len", 0),
+                    )
+                )
+                if ckpt_history_len != self.gripper_history_len:
+                    raise RuntimeError(
+                        "gripper_history_len mismatch: "
+                        f"checkpoint={ckpt_history_len}, "
+                        f"inference_arg={self.gripper_history_len}"
+                    )
+                ckpt_history_hz = float(
+                    stats_obj.get(
+                        "dataset_hz",
+                        ckpt_policy_cfg.get("dataset_hz", 0.0),
+                    )
+                )
+                if ckpt_history_hz <= 0.0 or not math.isclose(
+                    ckpt_history_hz,
+                    self.gripper_history_hz,
+                    rel_tol=0.0,
+                    abs_tol=1e-6,
+                ):
+                    raise RuntimeError(
+                        "gripper history Hz mismatch: "
+                        f"checkpoint_dataset_hz={ckpt_history_hz}, "
+                        f"inference_arg={self.gripper_history_hz}"
+                    )
+                expected_channels = ["present_position", "present_current_mA"]
+                checkpoint_channels = list(
+                    stats_obj.get("gripper_history_channels", [])
+                )
+                if checkpoint_channels != expected_channels:
+                    raise RuntimeError(
+                        "gripper history channel schema mismatch: "
+                        f"checkpoint={checkpoint_channels}, expected={expected_channels}"
+                    )
+                if (
+                    self.stats is None
+                    or self.stats.gripper_position_a is None
+                    or self.stats.gripper_position_b is None
+                ):
+                    raise RuntimeError(
+                        "history checkpoint requires normalized gripper position stats"
+                    )
+
             for key in (
+                "num_queries",
+                "state_dim",
+                "action_dim",
+                "force_dim",
+                "use_force_history",
+                "force_history_len",
+                "force_encoder_hidden_dim",
+                "force_encoder_num_layers",
+                "force_encoder_dropout",
+                "use_gripper_history",
+                "gripper_history_len",
+                "gripper_history_sec",
+                "gripper_history_input_dim",
+                "gripper_history_hidden_dim",
+                "gripper_history_num_layers",
+                "gripper_history_dropout",
                 "gripper_encoder_hidden_dim",
                 "gripper_feature_dim",
                 "flow_marker_feature_dim",
@@ -2174,6 +2450,8 @@ class NodeCmdMotionInfer(Node):
             ):
                 if key in ckpt_policy_cfg:
                     args_override[key] = ckpt_policy_cfg[key]
+            if "num_queries" in ckpt_policy_cfg:
+                self.chunk_size = int(ckpt_policy_cfg["num_queries"])
             args_override["action_dim"] = 11
             args_override["pretrained_backbone"] = False
 
@@ -2218,7 +2496,12 @@ class NodeCmdMotionInfer(Node):
         else:
             state_dict = ckpt_obj
 
-        missing, unexpected = _try_load_state_dict_compat(policy, state_dict)
+        if self.use_gripper:
+            loaded_transform = _load_state_dict_strict_compat(policy, state_dict)
+            missing, unexpected = [], []
+        else:
+            loaded_transform = "best-effort"
+            missing, unexpected = _try_load_state_dict_compat(policy, state_dict)
 
         if (len(missing) + len(unexpected) > 0) and hasattr(policy, "model"):
             missing2, unexpected2 = _try_load_state_dict_compat(policy.model, state_dict)
@@ -2226,7 +2509,8 @@ class NodeCmdMotionInfer(Node):
                 missing, unexpected = missing2, unexpected2
 
         self.get_logger().info(
-            f"[INFO] Loaded ckpt from {ckpt_path}. missing={len(missing)}, unexpected={len(unexpected)}"
+            f"[INFO] Loaded ckpt from {ckpt_path}. transform={loaded_transform}, "
+            f"missing={len(missing)}, unexpected={len(unexpected)}"
         )
         if len(missing) > 0:
             self.get_logger().warn(f"[INFO] missing sample: {list(missing)[:10]}")
@@ -2234,7 +2518,9 @@ class NodeCmdMotionInfer(Node):
             self.get_logger().warn(f"[INFO] unexpected sample: {list(unexpected)[:10]}")
         self.get_logger().info(
             f"[INFO] policy_class={policy_class}, obs_mode={self.obs_mode}, camera_names={self.camera_names}, "
-            f"use_force_history={self.use_force_history}, force_history_len={self.force_history_len}"
+            f"use_force_history={self.use_force_history}, force_history_len={self.force_history_len}, "
+            f"use_gripper_history={self.use_gripper_history}, "
+            f"gripper_history_len={self.gripper_history_len}"
         )
         return policy
 
@@ -2260,13 +2546,70 @@ class NodeCmdMotionInfer(Node):
             self._force = arr.copy()
             self._force_hist.append(arr.copy())
 
+    def _match_gripper_pairs_locked(self) -> None:
+        """Approximate-time synchronize headerless position/current messages."""
+        while self._gripper_position_pending and self._gripper_current_pending:
+            position_t, position = self._gripper_position_pending[0]
+            current_t, current = self._gripper_current_pending[0]
+            skew = float(position_t - current_t)
+            if abs(skew) <= self.gripper_history_sync_slop_sec:
+                self._gripper_position_pending.popleft()
+                self._gripper_current_pending.popleft()
+                pair_t = max(position_t, current_t)
+                self._gripper_hist.append(
+                    np.asarray([position, current], dtype=np.float32)
+                )
+                if self._gripper_last_pair_t is not None:
+                    pair_period = pair_t - self._gripper_last_pair_t
+                    if pair_period > 1e-6:
+                        if self._gripper_pair_period_ema is None:
+                            self._gripper_pair_period_ema = pair_period
+                        else:
+                            self._gripper_pair_period_ema = (
+                                0.9 * self._gripper_pair_period_ema
+                                + 0.1 * pair_period
+                            )
+                self._gripper_last_pair_t = pair_t
+                self._gripper_last_pair_skew_sec = abs(skew)
+                self._gripper_pair_count += 1
+                if self._gripper_pair_count % self.gripper_history_debug_every_n == 0:
+                    fill = len(self._gripper_hist) / float(max(1, self.gripper_history_len))
+                    observed_hz = (
+                        0.0
+                        if self._gripper_pair_period_ema is None
+                        else 1.0 / max(1e-6, self._gripper_pair_period_ema)
+                    )
+                    self.get_logger().info(
+                        "[GRIPPER-HISTORY] "
+                        f"pairs={self._gripper_pair_count}, "
+                        f"fill={len(self._gripper_hist)}/{self.gripper_history_len} "
+                        f"({fill:.0%}), skew_ms={1000.0 * abs(skew):.2f}, "
+                        f"observed_hz={observed_hz:.2f}, "
+                        f"target_hz={self.gripper_history_hz:.2f}, "
+                        f"drops={self._gripper_pair_drop_count}"
+                    )
+            elif position_t < current_t:
+                self._gripper_position_pending.popleft()
+                self._gripper_pair_drop_count += 1
+            else:
+                self._gripper_current_pending.popleft()
+                self._gripper_pair_drop_count += 1
+
     def _on_gripper_position(self, msg: Int32):
         with self._lock:
             self._gripper_position = int(msg.data)
+            self._gripper_position_pending.append(
+                (_monotonic(), float(msg.data))
+            )
+            self._match_gripper_pairs_locked()
 
     def _on_gripper_current(self, msg: Float32):
         with self._lock:
             self._gripper_current_mA = float(msg.data)
+            self._gripper_current_pending.append(
+                (_monotonic(), float(msg.data))
+            )
+            self._match_gripper_pairs_locked()
 
     def _preprocess_live_image(self, rgb: np.ndarray) -> np.ndarray:
         """
@@ -2473,6 +2816,11 @@ class NodeCmdMotionInfer(Node):
             force = None if self._force is None else self._force.copy()
             gripper_position = self._gripper_position
             gripper_current_mA = self._gripper_current_mA
+            gripper_hist_list = list(self._gripper_hist)
+            gripper_last_pair_t = self._gripper_last_pair_t
+            if self.use_gripper_history and gripper_hist_list:
+                gripper_position = float(gripper_hist_list[-1][0])
+                gripper_current_mA = float(gripper_hist_list[-1][1])
             cam0 = None if self._img_cam0 is None else self._img_cam0.copy()
             cam1 = None if self._img_cam1 is None else self._img_cam1.copy()
             stain_mask_np = None if self._stain_mask is None else self._stain_mask.copy()
@@ -2482,7 +2830,23 @@ class NodeCmdMotionInfer(Node):
         stain_missing = self.use_stain_mask and stain_mask_np is None
         gripper_position_ok = gripper_position is not None
         gripper_current_ok = gripper_current_mA is not None
-        gripper_missing = self.use_gripper and (not gripper_position_ok or not gripper_current_ok)
+        gripper_history_missing = self.use_gripper_history and not gripper_hist_list
+        gripper_history_age = (
+            float("inf")
+            if gripper_last_pair_t is None
+            else max(0.0, _monotonic() - gripper_last_pair_t)
+        )
+        gripper_history_stale = (
+            self.use_gripper_history
+            and self.gripper_history_max_age_sec > 0.0
+            and gripper_history_age > self.gripper_history_max_age_sec
+        )
+        gripper_missing = self.use_gripper and (
+            not gripper_position_ok
+            or not gripper_current_ok
+            or gripper_history_missing
+            or gripper_history_stale
+        )
         if pose6 is None or force is None or cam0 is None or cam1_missing or stain_missing or gripper_missing:
             now_dbg = _monotonic()
             if now_dbg - self._infer_wait_last_log >= 1.0:
@@ -2493,7 +2857,10 @@ class NodeCmdMotionInfer(Node):
                     f"cam0={cam0 is not None}, cam1={cam1 is not None if self.use_global_image else 'disabled'}, "
                     f"stain_mask={stain_mask_np is not None if self.use_stain_mask else 'disabled'}, "
                     f"gripper={not gripper_missing if self.use_gripper else 'disabled'}"
-                    f"(pos={gripper_position_ok}, current={gripper_current_ok}). "
+                    f"(pos={gripper_position_ok}, current={gripper_current_ok}, "
+                    f"history={len(gripper_hist_list)}/{self.gripper_history_len}, "
+                    f"age_ms={1000.0 * gripper_history_age:.1f}, "
+                    f"stale={gripper_history_stale}). "
                     "No policy plan will be generated until all are available."
                 )
             return
@@ -2538,6 +2905,7 @@ class NodeCmdMotionInfer(Node):
                 )
             gripper_position_t = None
             gripper_current_t = None
+            gripper_history_t = None
             if self.use_gripper:
                 gripper_position_t = torch.tensor(
                     [[float(gripper_position)]],
@@ -2551,7 +2919,29 @@ class NodeCmdMotionInfer(Node):
                 )
                 if self.stats is None:
                     raise RuntimeError("use_gripper=True requires dataset_stats.pkl")
+                if (
+                    self.stats.gripper_position_a is not None
+                    and self.stats.gripper_position_b is not None
+                ):
+                    gripper_position_t = _normalize_gripper_position(gripper_position_t, self.stats)
                 gripper_current_t = _normalize_gripper_current(gripper_current_t, self.stats)
+                if self.use_gripper_history:
+                    current_pair = np.asarray(
+                        [float(gripper_position), float(gripper_current_mA)],
+                        dtype=np.float32,
+                    )
+                    gripper_history_np = self._build_live_gripper_history(
+                        gripper_hist_list,
+                        current_pair,
+                    )
+                    gripper_history_t = torch.from_numpy(gripper_history_np).unsqueeze(0).to(
+                        self.device,
+                        dtype=torch.float32,
+                    )
+                    gripper_history_t = _normalize_gripper_history(
+                        gripper_history_t,
+                        self.stats,
+                    )
         except Exception as e:
             self.get_logger().error(f"[INFER] image stack failed: {e}")
             return
@@ -2565,6 +2955,7 @@ class NodeCmdMotionInfer(Node):
                         force_history=force_hist_t,
                         gripper_position=gripper_position_t,
                         gripper_current=gripper_current_t,
+                        gripper_history=gripper_history_t,
                     )
                 elif self.use_force_history:
                     out = self.policy(q_t, img_t, force_history=force_hist_t, stain_mask=stain_mask_t)
@@ -2605,6 +2996,7 @@ class NodeCmdMotionInfer(Node):
             stain_mask_t=stain_mask_t,
             gripper_position_t=gripper_position_t,
             gripper_current_t=gripper_current_t,
+            gripper_history_t=gripper_history_t,
         )
 
         if self._infer_plan_count <= 3 or (self._infer_plan_count % 20 == 0):

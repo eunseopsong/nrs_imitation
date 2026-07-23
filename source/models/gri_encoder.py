@@ -95,6 +95,44 @@ def prepare_gripper_scalar(x: torch.Tensor, name: str) -> torch.Tensor:
     return x.float()
 
 
+def prepare_gripper_history(
+    gripper_history: Optional[torch.Tensor],
+    batch_size: int,
+    input_dim: int = 2,
+) -> torch.Tensor:
+    """Validate causal gripper history as (B,T,[position,current])."""
+    if gripper_history is None:
+        raise ValueError(
+            "use_gripper_history=True requires gripper_history; "
+            "a current-state fallback would change the trained observation schema"
+        )
+    if gripper_history.dim() == 4:
+        if gripper_history.size(1) != 1:
+            raise ValueError(
+                "gripper_history 4D case expects (B,1,T,D), "
+                f"got {tuple(gripper_history.shape)}"
+            )
+        gripper_history = gripper_history[:, 0]
+    if gripper_history.dim() == 2 and int(batch_size) == 1:
+        gripper_history = gripper_history.unsqueeze(0)
+    if gripper_history.dim() != 3:
+        raise ValueError(
+            f"gripper_history must be (B,T,D), got {tuple(gripper_history.shape)}"
+        )
+    if gripper_history.size(0) != int(batch_size):
+        raise ValueError(
+            f"gripper_history batch mismatch: {gripper_history.size(0)} vs {batch_size}"
+        )
+    if gripper_history.size(1) <= 0:
+        raise ValueError("gripper_history must contain at least one timestep")
+    if gripper_history.size(-1) != int(input_dim):
+        raise ValueError(
+            f"gripper_history feature dim must be {input_dim}, "
+            f"got {gripper_history.size(-1)}"
+        )
+    return gripper_history.float()
+
+
 def _make_activation(name: str) -> nn.Module:
     name = str(name).lower()
     if name == "relu":
@@ -345,6 +383,55 @@ class GripperStateFusionEncoder(nn.Module):
         return self.network(fused)
 
 
+class GripperHistoryGRUEncoder(nn.Module):
+    """Encode normalized [present_position, present_current_mA] history."""
+
+    def __init__(
+        self,
+        input_dim: int = 2,
+        hidden_dim: int = 32,
+        num_layers: int = 1,
+        dropout: float = 0.0,
+    ):
+        super().__init__()
+        self.input_dim = int(input_dim)
+        self.hidden_dim = int(hidden_dim)
+        self.gru = nn.GRU(
+            input_size=self.input_dim,
+            hidden_size=self.hidden_dim,
+            num_layers=int(num_layers),
+            dropout=float(dropout) if int(num_layers) > 1 else 0.0,
+            batch_first=True,
+        )
+
+    def forward(self, gripper_history: torch.Tensor) -> torch.Tensor:
+        _, hidden = self.gru(gripper_history)
+        return hidden[-1]
+
+
+class GripperCurrentHistoryFusionEncoder(nn.Module):
+    def __init__(
+        self,
+        current_feature_dim: int = 64,
+        history_feature_dim: int = 32,
+        output_dim: int = 64,
+        activation: str = "mish",
+    ):
+        super().__init__()
+        self.network = nn.Sequential(
+            nn.Linear(current_feature_dim + history_feature_dim, output_dim),
+            nn.LayerNorm(output_dim),
+            _make_activation(activation),
+        )
+
+    def forward(
+        self,
+        current_feature: torch.Tensor,
+        history_feature: torch.Tensor,
+    ) -> torch.Tensor:
+        return self.network(torch.cat([current_feature, history_feature], dim=-1))
+
+
 class GripperObservationEncoder(nn.Module):
     """
     input:
@@ -359,8 +446,15 @@ class GripperObservationEncoder(nn.Module):
         hidden_dim: int = 32,
         output_dim: int = 64,
         activation: str = "mish",
+        use_gripper_history: bool = False,
+        history_input_dim: int = 2,
+        history_hidden_dim: int = 32,
+        history_num_layers: int = 1,
+        history_dropout: float = 0.0,
     ):
         super().__init__()
+        self.use_gripper_history = bool(use_gripper_history)
+        self.history_input_dim = int(history_input_dim)
         self.position_encoder = GripperPositionEncoder(
             hidden_dim=hidden_dim,
             output_dim=output_dim,
@@ -377,15 +471,42 @@ class GripperObservationEncoder(nn.Module):
             output_dim=output_dim,
             activation=activation,
         )
+        if self.use_gripper_history:
+            self.history_encoder = GripperHistoryGRUEncoder(
+                input_dim=self.history_input_dim,
+                hidden_dim=history_hidden_dim,
+                num_layers=history_num_layers,
+                dropout=history_dropout,
+            )
+            self.history_fusion_encoder = GripperCurrentHistoryFusionEncoder(
+                current_feature_dim=output_dim,
+                history_feature_dim=history_hidden_dim,
+                output_dim=output_dim,
+                activation=activation,
+            )
+        else:
+            self.history_encoder = None
+            self.history_fusion_encoder = None
 
     def forward(
         self,
         gripper_position: torch.Tensor,
         gripper_current: torch.Tensor,
+        gripper_history: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         position_embedding = self.position_encoder(gripper_position)
         current_embedding = self.current_encoder(gripper_current)
-        return self.fusion_encoder(position_embedding, current_embedding)
+        current_feature = self.fusion_encoder(position_embedding, current_embedding)
+        if not self.use_gripper_history:
+            return current_feature
+
+        history = prepare_gripper_history(
+            gripper_history,
+            batch_size=current_feature.size(0),
+            input_dim=self.history_input_dim,
+        )
+        history_feature = self.history_encoder(history)
+        return self.history_fusion_encoder(current_feature, history_feature)
 
 
 class ImageObservationEncoder(nn.Module):

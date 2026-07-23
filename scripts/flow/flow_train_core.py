@@ -99,7 +99,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup_epochs", type=int, default=10)
     parser.add_argument("--min_lr", type=float, default=1e-6)
     parser.add_argument("--grad_clip_norm", type=float, default=1.0)
-    parser.add_argument("--early_stopping_patience", type=int, default=30)
+    parser.add_argument("--early_stopping_patience", type=int, default=0)
     parser.add_argument("--resample_each_epoch", dest="resample_each_epoch", action="store_true", default=True)
     parser.add_argument("--no_resample_each_epoch", dest="resample_each_epoch", action="store_false")
 

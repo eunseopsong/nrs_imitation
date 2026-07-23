@@ -212,6 +212,13 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "force_encoder_hidden_dim": args.force_encoder_hidden_dim,
         "force_encoder_num_layers": args.force_encoder_num_layers,
         "force_encoder_dropout": args.force_encoder_dropout,
+        "use_gripper_history": args.use_gripper_history,
+        "gripper_history_len": args.gripper_history_len,
+        "gripper_history_sec": args.gripper_history_sec,
+        "gripper_history_input_dim": 2,
+        "gripper_history_hidden_dim": args.gripper_history_hidden_dim,
+        "gripper_history_num_layers": args.gripper_history_num_layers,
+        "gripper_history_dropout": args.gripper_history_dropout,
         "flow_obs_hidden_dim": args.flow_obs_hidden_dim,
         "flow_image_feature_dim": args.flow_image_feature_dim,
         "flow_marker_feature_dim": args.flow_marker_feature_dim,
@@ -274,7 +281,18 @@ def _print_stats_debug(stats: Dict[str, object], obs_mode: str, camera_names: Se
     print(f"[DBG] marker_norm_mode= {stats.get('marker_norm_mode')}")
     print(f"[DBG] marker_dim      = {stats.get('marker_dim')}")
 
-    for key in ["qpos_min", "qpos_max", "action_min", "action_max", "marker_min", "marker_max", "gripper_current_min", "gripper_current_max"]:
+    for key in [
+        "qpos_min",
+        "qpos_max",
+        "action_min",
+        "action_max",
+        "marker_min",
+        "marker_max",
+        "gripper_position_min",
+        "gripper_position_max",
+        "gripper_current_min",
+        "gripper_current_max",
+    ]:
         if key in stats:
             a = np.asarray(stats[key], dtype=np.float32).reshape(-1)
             head = np.array2string(a[: min(6, a.size)], precision=4, separator=", ")
@@ -286,14 +304,30 @@ def _print_stats_debug(stats: Dict[str, object], obs_mode: str, camera_names: Se
     print("[DBG]   qpos/action    : [-1, 1] when norm_mode=minmax_m11")
     print("[DBG]   force_history  : [-1, 1] when norm_mode=minmax_m11")
     print("[DBG]   marker         : [-1, 1] when marker_norm_mode=minmax_m11")
+    print("[DBG]   gripper state  : [-1, 1] when gripper_norm_mode=minmax_m11")
     print("-" * 80 + "\n")
 
 
-def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
+def _debug_one_batch(
+    train_loader,
+    obs_mode: str,
+    camera_names: Sequence[str],
+    use_gripper_history: bool = False,
+):
     print("\n" + "-" * 80)
     print("[DBG] First train batch check")
     batch = next(iter(train_loader))
-    image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current = _unpack_batch(batch, torch.device("cpu"))
+    (
+        image,
+        qpos,
+        action,
+        is_pad,
+        force_history,
+        marker,
+        gripper_position,
+        gripper_current,
+        gripper_history,
+    ) = _unpack_batch(batch, torch.device("cpu"), use_gripper_history)
 
     _tensor_debug_line("image", image)
     _tensor_debug_line("qpos", qpos)
@@ -303,6 +337,7 @@ def _debug_one_batch(train_loader, obs_mode: str, camera_names: Sequence[str]):
     _tensor_debug_line("marker", marker)
     _tensor_debug_line("gripper_position", gripper_position)
     _tensor_debug_line("gripper_current", gripper_current)
+    _tensor_debug_line("gripper_history", gripper_history)
 
     expected_k = len(list(camera_names))
     actual_k = int(image.shape[1]) if torch.is_tensor(image) and image.dim() >= 2 else -1
@@ -395,8 +430,38 @@ def collect_demo_start_pose_stats(dataset_dir: str, num_episodes: int = 0) -> Di
 # Training helpers
 # =============================================================================
 
-def _unpack_batch(batch, device: torch.device):
-    if len(batch) == 7:
+def _unpack_batch(batch, device: torch.device, use_gripper_history: bool = False):
+    gripper_history = None
+    if use_gripper_history:
+        if len(batch) == 8:
+            (
+                image,
+                qpos,
+                action,
+                is_pad,
+                force_history,
+                gripper_position,
+                gripper_current,
+                gripper_history,
+            ) = batch
+            marker = None
+        elif len(batch) == 9:
+            (
+                image,
+                qpos,
+                action,
+                is_pad,
+                force_history,
+                marker,
+                gripper_position,
+                gripper_current,
+                gripper_history,
+            ) = batch
+        else:
+            raise RuntimeError(
+                f"use_gripper_history=True expected batch length 8 or 9, got {len(batch)}"
+            )
+    elif len(batch) == 7:
         image, qpos, action, is_pad, force_history, gripper_position, gripper_current = batch
         marker = None
     elif len(batch) == 8:
@@ -413,7 +478,19 @@ def _unpack_batch(batch, device: torch.device):
         marker = marker.to(device, non_blocking=True)
     gripper_position = gripper_position.to(device, non_blocking=True)
     gripper_current = gripper_current.to(device, non_blocking=True)
-    return image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current
+    if gripper_history is not None:
+        gripper_history = gripper_history.to(device, non_blocking=True)
+    return (
+        image,
+        qpos,
+        action,
+        is_pad,
+        force_history,
+        marker,
+        gripper_position,
+        gripper_current,
+        gripper_history,
+    )
 
 
 def _scalar_dict(loss_dict: Dict[str, torch.Tensor]) -> Dict[str, float]:
@@ -428,12 +505,22 @@ def _mean_dict(items: List[Dict[str, float]]) -> Dict[str, float]:
 
 
 @torch.no_grad()
-def validate(policy, val_loader, device):
+def validate(policy, val_loader, device, use_gripper_history: bool = False):
     policy.eval()
     outs = []
     val_iter = tqdm(val_loader, desc="Val", leave=False)
     for batch in val_iter:
-        image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current = _unpack_batch(batch, device)
+        (
+            image,
+            qpos,
+            action,
+            is_pad,
+            force_history,
+            marker,
+            gripper_position,
+            gripper_current,
+            gripper_history,
+        ) = _unpack_batch(batch, device, use_gripper_history)
         out = policy(
             qpos,
             image,
@@ -443,6 +530,7 @@ def validate(policy, val_loader, device):
             marker=marker,
             gripper_position=gripper_position,
             gripper_current=gripper_current,
+            gripper_history=gripper_history,
         )
         scalars = _scalar_dict(out)
         outs.append(scalars)
@@ -475,6 +563,7 @@ def train_flow_gripper(train_loader, val_loader, config):
     grad_clip_norm = float(config.get("grad_clip_norm", 0.0))
     early_stopping_patience = int(config.get("early_stopping_patience", 0))
     policy_config = config["policy_config"]
+    use_gripper_history = bool(policy_config.get("use_gripper_history", False))
 
     os.makedirs(ckpt_dir, exist_ok=True)
     set_seed(seed)
@@ -510,7 +599,17 @@ def train_flow_gripper(train_loader, val_loader, config):
         train_outs = []
         train_iter = tqdm(train_loader, desc=f"Train {epoch}", leave=False)
         for bi, batch in enumerate(train_iter):
-            image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current = _unpack_batch(batch, device)
+            (
+                image,
+                qpos,
+                action,
+                is_pad,
+                force_history,
+                marker,
+                gripper_position,
+                gripper_current,
+                gripper_history,
+            ) = _unpack_batch(batch, device, use_gripper_history)
             optimizer.zero_grad(set_to_none=True)
             out = policy(
                 qpos,
@@ -521,6 +620,7 @@ def train_flow_gripper(train_loader, val_loader, config):
                 marker=marker,
                 gripper_position=gripper_position,
                 gripper_current=gripper_current,
+                gripper_history=gripper_history,
             )
             loss = out["loss"]
             loss.backward()
@@ -536,7 +636,12 @@ def train_flow_gripper(train_loader, val_loader, config):
 
         train_summary = _mean_dict(train_outs)
         train_summary["lr"] = current_lr
-        val_summary = validate(policy, val_loader, device)
+        val_summary = validate(
+            policy,
+            val_loader,
+            device,
+            use_gripper_history=use_gripper_history,
+        )
         print("Val: " + " | ".join([f"{k}:{v:.6f}" for k, v in val_summary.items()]))
         val_loss = float(val_summary.get("loss", val_summary.get("flow", float("inf"))))
 
@@ -624,6 +729,12 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         f"[INFO] force_history      = {args.use_force_history}, "
         f"L={args.force_history_len} ({args.force_history_len / args.dataset_hz:.3f}s)"
     )
+    print(
+        f"[INFO] gripper_history    = {args.use_gripper_history}, "
+        f"L={args.gripper_history_len if args.use_gripper_history else 0} "
+        f"({args.gripper_history_len / args.dataset_hz:.3f}s), "
+        "channels=['present_position', 'present_current_mA']"
+    )
 
     policy_config = default_policy_config(args, obs_mode, camera_names)
 
@@ -642,16 +753,32 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         if not os.path.exists(stats_path):
             raise FileNotFoundError(f"dataset_stats.pkl not found: {stats_path}")
 
-        policy, _ = build_flow_rgb_policy_and_optimizer(policy_config)
-        policy = policy.to(device)
         ckpt = torch.load(best_ckpt, map_location=device)
-        sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
-        missing, unexpected = policy.load_state_dict(sd, strict=False)
-        policy.eval()
-        print(f"[EVAL] ckpt_dir={ckpt_dir}")
-        print(f"[EVAL] load_state_dict: missing={len(missing)}, unexpected={len(unexpected)}")
         with open(stats_path, "rb") as f:
             stats = pickle.load(f)
+        checkpoint_policy_config = {}
+        if isinstance(ckpt, dict):
+            checkpoint_policy_config = dict(
+                ckpt.get("config", {}).get("policy_config", {})
+            )
+        if not checkpoint_policy_config:
+            checkpoint_policy_config = dict(stats.get("policy_config", {}))
+        if not checkpoint_policy_config:
+            checkpoint_policy_config = policy_config
+        checkpoint_policy_config["pretrained_backbone"] = False
+
+        policy, _ = build_flow_rgb_policy_and_optimizer(checkpoint_policy_config)
+        policy = policy.to(device)
+        sd = ckpt["model_state_dict"] if isinstance(ckpt, dict) and "model_state_dict" in ckpt else ckpt
+        policy.load_state_dict(sd, strict=True)
+        policy.eval()
+        print(f"[EVAL] ckpt_dir={ckpt_dir}")
+        print("[EVAL] load_state_dict: strict=True, missing=0, unexpected=0")
+        print(
+            "[EVAL] gripper_history: "
+            f"use={bool(checkpoint_policy_config.get('use_gripper_history', False))}, "
+            f"len={int(checkpoint_policy_config.get('gripper_history_len', 0))}"
+        )
         print(f"[EVAL] stats loaded: obs_mode={stats.get('obs_mode')}, camera_names={stats.get('camera_names')}")
         print("\n✅ FLOW model ready for inference wrapper.\n")
         return
@@ -686,6 +813,8 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         marker_norm_mode=args.norm_mode,
         marker_dim=args.marker_dim,
         include_gripper=True,
+        use_gripper_history=args.use_gripper_history,
+        gripper_history_len=args.gripper_history_len,
     )
     print(f"[INFO] data meta: {meta}")
 
@@ -697,6 +826,11 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     stats["dataset_hz"] = float(args.dataset_hz)
     stats["force_history_sec"] = float(args.force_history_sec)
     stats["force_history_len"] = int(args.force_history_len)
+    stats["use_gripper_history"] = bool(args.use_gripper_history)
+    stats["gripper_history_sec"] = float(args.gripper_history_sec)
+    stats["gripper_history_len"] = int(args.gripper_history_len) if args.use_gripper_history else 0
+    stats["gripper_history_channels"] = ["present_position", "present_current_mA"]
+    stats["gripper_history_input_dim"] = 2
     stats["chunk_sec"] = float(args.chunk_sec)
     stats["chunk_size"] = int(args.chunk_size)
 
@@ -770,6 +904,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force_encoder_num_layers", type=int, default=1)
     parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
 
+    parser.add_argument(
+        "--use_gripper_history",
+        dest="use_gripper_history",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no_gripper_history",
+        dest="use_gripper_history",
+        action="store_false",
+    )
+    parser.set_defaults(use_gripper_history=True)
+    parser.add_argument("--gripper_history_len", type=int, default=15)
+    parser.add_argument("--gripper_history_sec", type=float, default=0.5)
+    parser.add_argument("--gripper_history_hidden_dim", type=int, default=32)
+    parser.add_argument("--gripper_history_num_layers", type=int, default=1)
+    parser.add_argument("--gripper_history_dropout", type=float, default=0.0)
+
     parser.add_argument("--no_pretrained", action="store_true", default=False)
     parser.add_argument("--flow_obs_hidden_dim", type=int, default=256)
     parser.add_argument("--flow_image_feature_dim", type=int, default=512)
@@ -790,7 +941,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup_epochs", type=int, default=10)
     parser.add_argument("--min_lr", type=float, default=1e-6)
     parser.add_argument("--grad_clip_norm", type=float, default=1.0)
-    parser.add_argument("--early_stopping_patience", type=int, default=30)
+    parser.add_argument("--early_stopping_patience", type=int, default=0)
     parser.add_argument("--resample_each_epoch", dest="resample_each_epoch", action="store_true")
     parser.add_argument("--no_resample_each_epoch", dest="resample_each_epoch", action="store_false")
     parser.set_defaults(resample_each_epoch=True)

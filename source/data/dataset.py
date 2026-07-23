@@ -32,9 +32,11 @@ Return tuple:
   default with marker:
     image, qpos, action, is_pad, force_history, marker
   include_gripper=True without marker:
-    image, qpos, action, is_pad, force_history, gripper_position, gripper_current
+    image, qpos, action, is_pad, force_history, gripper_position, gripper_current,
+    optional gripper_history
   include_gripper=True with marker:
-    image, qpos, action, is_pad, force_history, marker, gripper_position, gripper_current
+    image, qpos, action, is_pad, force_history, marker, gripper_position,
+    gripper_current, optional gripper_history
 
 Shapes:
   image         : (K,3,H,W), float32 in [0,1]
@@ -44,8 +46,9 @@ Shapes:
   is_pad        : (seq_len,), bool
   force_history : (L,3), normalized, if requested
   marker        : (M,), normalized, only if obs_mode is a marker mode
-  gripper_position : (1,), float32, raw position value cast from int when include_gripper=True
+  gripper_position : (1,), float32, normalized when include_gripper=True
   gripper_current  : (1,), float32, normalized when include_gripper=True
+  gripper_history  : (Lg,2), normalized causal [position,current] history when requested
 """
 
 from __future__ import annotations
@@ -343,6 +346,29 @@ def _force_history(force: np.ndarray, start: int, L: int) -> np.ndarray:
     return hist.astype(np.float32)
 
 
+def _gripper_history(
+    gripper_position: np.ndarray,
+    gripper_current: np.ndarray,
+    start: int,
+    length: int,
+) -> np.ndarray:
+    """Return causal [present_position, present_current_mA] history."""
+    length = max(1, int(length))
+    position = np.asarray(gripper_position, dtype=np.float32).reshape(-1)
+    current = np.asarray(gripper_current, dtype=np.float32).reshape(-1)
+    total = min(position.shape[0], current.shape[0])
+    if total <= 0:
+        raise ValueError("gripper history requires at least one position/current sample")
+
+    start = int(np.clip(start, 0, total - 1))
+    lo = max(0, start - length + 1)
+    history = np.stack([position[lo:start + 1], current[lo:start + 1]], axis=-1)
+    if history.shape[0] < length:
+        pad = np.repeat(history[0:1], length - history.shape[0], axis=0)
+        history = np.concatenate([pad, history], axis=0)
+    return history.astype(np.float32)
+
+
 def _sanitize_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6) -> Tuple[np.ndarray, np.ndarray]:
     vmin = np.asarray(vmin, dtype=np.float32)
     vmax = np.asarray(vmax, dtype=np.float32)
@@ -373,6 +399,7 @@ def compute_dataset_stats(
     qpos_all = []
     action_all = []
     marker_all = []
+    gripper_position_all = []
     gripper_current_all = []
 
     for p in episode_paths:
@@ -403,7 +430,8 @@ def compute_dataset_stats(
             qpos_all.append(qpos)
             action_all.append(action)
             marker_all.append(marker)
-            if include_gripper and gripper_current is not None:
+            if include_gripper and gripper_position is not None and gripper_current is not None:
+                gripper_position_all.append(gripper_position.reshape(-1, 1).astype(np.float32))
                 gripper_current_all.append(gripper_current.reshape(-1, 1).astype(np.float32))
 
     q = np.concatenate(qpos_all, axis=0)
@@ -427,11 +455,16 @@ def compute_dataset_stats(
         "include_gripper": bool(include_gripper),
         "num_total_timesteps": int(q.shape[0]),
     }
-    if include_gripper and gripper_current_all:
+    if include_gripper and gripper_position_all and gripper_current_all:
+        gp = np.concatenate(gripper_position_all, axis=0)
         gc = np.concatenate(gripper_current_all, axis=0)
+        gpmin, gpmax = _sanitize_minmax(gp.min(axis=0), gp.max(axis=0))
         gcmin, gcmax = _sanitize_minmax(gc.min(axis=0), gc.max(axis=0))
+        stats["gripper_position_min"] = gpmin.astype(np.float32)
+        stats["gripper_position_max"] = gpmax.astype(np.float32)
         stats["gripper_current_min"] = gcmin.astype(np.float32)
         stats["gripper_current_max"] = gcmax.astype(np.float32)
+        stats["gripper_norm_mode"] = qpos_norm_mode
     return stats
 
 
@@ -456,6 +489,8 @@ class ImitationEpisodeDataset(Dataset):
         action_norm_mode: str = "minmax_m11",
         marker_norm_mode: str = "minmax_m11",
         include_gripper: bool = False,
+        use_gripper_history: bool = False,
+        gripper_history_len: int = 15,
         use_stain_mask: bool = False,
         stain_mask_key: str = "observations/images/stain_mask",
         resample_each_epoch: bool = False,
@@ -475,9 +510,27 @@ class ImitationEpisodeDataset(Dataset):
         self.action_norm_mode = str(action_norm_mode)
         self.marker_norm_mode = str(marker_norm_mode)
         self.include_gripper = bool(include_gripper)
+        self.use_gripper_history = bool(use_gripper_history)
+        self.gripper_history_len = max(1, int(gripper_history_len))
+        if self.use_gripper_history and not self.include_gripper:
+            raise ValueError("use_gripper_history=True requires include_gripper=True")
         self.use_stain_mask = bool(use_stain_mask)
         self.stain_mask_key = str(stain_mask_key or "observations/images/stain_mask")
         self.resample_each_epoch = bool(resample_each_epoch)
+        if self.include_gripper:
+            required_gripper_stats = (
+                "gripper_position_min",
+                "gripper_position_max",
+                "gripper_current_min",
+                "gripper_current_max",
+            )
+            missing = [key for key in required_gripper_stats if key not in self.stats]
+            if missing:
+                raise ValueError(
+                    "include_gripper=True requires normalized gripper observation stats; "
+                    f"missing keys={missing}"
+                )
+        self.gripper_norm_mode = str(self.stats.get("gripper_norm_mode", self.qpos_norm_mode))
         # A shared value lets persistent DataLoader workers observe epoch
         # changes made by the training process.
         self._epoch_shared = mp.Value("q", 0, lock=True)
@@ -578,23 +631,60 @@ class ImitationEpisodeDataset(Dataset):
         if self.include_gripper:
             gripper_position_raw = np.asarray([gripper_position[start]], dtype=np.float32)
             gripper_current_raw = np.asarray([gripper_current[start]], dtype=np.float32)
+            gripper_position_norm = normalize_minmax(
+                gripper_position_raw,
+                self.stats["gripper_position_min"],
+                self.stats["gripper_position_max"],
+                self.gripper_norm_mode,
+            )
             gripper_current_norm = normalize_minmax(
                 gripper_current_raw,
                 self.stats["gripper_current_min"],
                 self.stats["gripper_current_max"],
-                self.qpos_norm_mode,
+                self.gripper_norm_mode,
             )
-            gripper_position_t = torch.from_numpy(gripper_position_raw).float()
+            gripper_position_t = torch.from_numpy(gripper_position_norm).float()
             gripper_current_t = torch.from_numpy(gripper_current_norm).float()
+            if self.use_gripper_history:
+                gripper_history_raw = _gripper_history(
+                    gripper_position,
+                    gripper_current,
+                    start,
+                    self.gripper_history_len,
+                )
+                gripper_history_min = np.asarray(
+                    [self.stats["gripper_position_min"][0], self.stats["gripper_current_min"][0]],
+                    dtype=np.float32,
+                )
+                gripper_history_max = np.asarray(
+                    [self.stats["gripper_position_max"][0], self.stats["gripper_current_max"][0]],
+                    dtype=np.float32,
+                )
+                gripper_history_norm = normalize_minmax(
+                    gripper_history_raw,
+                    gripper_history_min,
+                    gripper_history_max,
+                    self.gripper_norm_mode,
+                )
+                gripper_history_t = torch.from_numpy(gripper_history_norm).float()
+            else:
+                gripper_history_t = None
         else:
             gripper_position_t = None
             gripper_current_t = None
+            gripper_history_t = None
 
         extra = (stain_mask.float(),) if self.use_stain_mask else ()
         if self.include_gripper and self.return_marker:
-            return (image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t, gripper_position_t, gripper_current_t) + extra
+            base = (image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t, gripper_position_t, gripper_current_t)
+            if self.use_gripper_history:
+                base += (gripper_history_t,)
+            return base + extra
         if self.include_gripper:
-            return (image_t, qpos_t, action_t, is_pad_t, fh_t, gripper_position_t, gripper_current_t) + extra
+            base = (image_t, qpos_t, action_t, is_pad_t, fh_t, gripper_position_t, gripper_current_t)
+            if self.use_gripper_history:
+                base += (gripper_history_t,)
+            return base + extra
         if self.return_marker:
             return (image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t) + extra
         return (image_t, qpos_t, action_t, is_pad_t, fh_t) + extra
@@ -627,11 +717,18 @@ def make_loaders(
     marker_norm_mode: str = "minmax_m11",
     marker_dim: int = 7,
     include_gripper: bool = False,
+    use_gripper_history: bool = False,
+    gripper_history_len: int = 15,
     use_stain_mask: bool = False,
     stain_mask_key: str = "observations/images/stain_mask",
     stain_mask_threshold: float = 0.5,
     resample_each_epoch: bool = False,
 ):
+    use_gripper_history = bool(use_gripper_history)
+    gripper_history_len = max(1, int(gripper_history_len))
+    if use_gripper_history and not include_gripper:
+        raise ValueError("use_gripper_history=True requires include_gripper=True")
+
     paths = _episode_files(dataset_dir, num_episodes=num_episodes)
     n = len(paths)
     if n == 1:
@@ -660,6 +757,9 @@ def make_loaders(
     stats["use_stain_mask"] = bool(use_stain_mask)
     stats["stain_mask_key"] = str(stain_mask_key or "observations/images/stain_mask")
     stats["stain_mask_threshold"] = float(stain_mask_threshold)
+    stats["use_gripper_history"] = bool(use_gripper_history)
+    stats["gripper_history_len"] = int(gripper_history_len) if use_gripper_history else 0
+    stats["gripper_history_channels"] = ["present_position", "present_current_mA"]
 
     common = dict(
         stats=stats,
@@ -673,6 +773,8 @@ def make_loaders(
         action_norm_mode=action_norm_mode,
         marker_norm_mode=marker_norm_mode,
         include_gripper=include_gripper,
+        use_gripper_history=use_gripper_history,
+        gripper_history_len=gripper_history_len,
         use_stain_mask=use_stain_mask,
         stain_mask_key=stain_mask_key,
     )
@@ -712,6 +814,9 @@ def make_loaders(
         "obs_mode": obs_mode,
         "marker_dim": int(marker_dim),
         "include_gripper": bool(include_gripper),
+        "use_gripper_history": bool(use_gripper_history),
+        "gripper_history_len": int(gripper_history_len) if use_gripper_history else 0,
+        "gripper_history_channels": ["present_position", "present_current_mA"],
         "action_dim": int(stats["action_min"].shape[0]),
         "use_stain_mask": bool(use_stain_mask),
         "stain_mask_key": str(stain_mask_key or "observations/images/stain_mask"),
