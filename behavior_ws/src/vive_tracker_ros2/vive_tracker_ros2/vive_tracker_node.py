@@ -431,6 +431,12 @@ class ViveTracker(Node):
             self.get_logger().warn(f"[T_CE] reload failed: {exc}")
             self._t_ce_yaml_mtime_ns = mtime_ns
 
+    def _runtime_T_CE(self) -> np.ndarray:
+        # YAML stores T_CE z as positive; runtime keeps the legacy -0.197 m final offset.
+        T_CE = self.T_CE.copy()
+        T_CE[2, 3] = -(T_CE[2, 3] + 0.051)
+        return T_CE
+
     def _load_z_residual(self, node):
         disabled = {"enabled": False}
         if not isinstance(node, dict) or not bool(node.get("enabled", False)):
@@ -694,7 +700,7 @@ class ViveTracker(Node):
 
             # Final constant offset. Keep this last so T_CE shifts the final published pose.
             if self.apply_T_CE_extra:
-                M_cal = M_cal @ self.T_CE
+                M_cal = M_cal @ self._runtime_T_CE()
 
             # pose로
             raw_pose = matrix_to_pose(raw_M)

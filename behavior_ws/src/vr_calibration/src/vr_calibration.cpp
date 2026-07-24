@@ -214,7 +214,7 @@ public:
       ament_index_cpp::get_package_share_directory("vive_tracker_ros2");
     const std::string txt_dir = vr_calibration_share + "/txt";
 
-    waypoint_file_ = txt_dir + "/for_vr_calibration_point_v5.txt";
+    waypoint_file_ = txt_dir + "/for_vr_calibration_point_v6.txt";
     ee_path_ = txt_dir + "/ur10_ee.txt";
     vr_path_ = txt_dir + "/ur10_vr.txt";
     const char* home_env = std::getenv("HOME");
