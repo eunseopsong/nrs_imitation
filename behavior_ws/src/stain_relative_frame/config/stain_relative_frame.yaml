@@ -1,0 +1,60 @@
+# stain_relative_frame -- every threshold the gates in [0]-[4] are judged on.
+# Edit here, not in the code; each report records the values it ran with.
+
+# ---- step [3] master flag -------------------------------------------------
+# False -> the converter emits a numerically identical dataset (old path).
+use_relative_position: false
+
+# ---- topics ---------------------------------------------------------------
+image_topic: /realsense/vr/color/image_raw
+pose_topic: /ur10skku/currentP           # Float64MultiArray [x,y,z,rx,ry,rz], mm + rad
+arm_service: /singleArm_cmd/single_arm_command
+
+# ---- artifacts ------------------------------------------------------------
+# Leave artifact_dir unset to default to <repo>/checkpoints/stain_relative_frame.
+# artifact_dir: /home/eunseop/nrs_imitation/checkpoints/stain_relative_frame
+homography_file: homography.json
+clean_reference_file: clean_reference.npz
+home_pose_report_file: home_pose_repeatability.json
+stain_origin_report_file: stain_origin_stability.json
+validation_report_file: validation_gate.json
+
+# ---- [0] home pose repeatability gate -------------------------------------
+home_repeat_trials: 10
+home_pose_xy_std_tol_mm: 1.0             # per-axis std over the trials
+home_pose_rot_std_tol_deg: 0.5
+home_settle_sec: 1.5
+home_pose_samples: 40                    # pose samples averaged per settled trial
+ptp_velocity_mm_s: 20.0
+
+# ---- [0] clean reference --------------------------------------------------
+clean_reference_frames: 40
+
+# ---- [1] homography gate --------------------------------------------------
+homography_num_points: 8
+homography_fit_points: 6                 # the other 2 are held out
+homography_reproj_tol_mm: 2.0
+homography_ransac_thresh_px: 3.0
+undistort: false                         # the retry path when the gate fails
+# camera_matrix: [[fx, 0, cx], [0, fy, cy], [0, 0, 1]]
+# dist_coeffs: [k1, k2, p1, p2, k3]
+
+# ---- [2] stain detection --------------------------------------------------
+stain_diff_thresh: 25                    # |home frame - clean reference| gray levels
+stain_blur_sigma: 2.0
+stain_min_area: 20                       # px, drops speckle
+stain_morph_kernel: 3
+stain_max_components: 5                  # more than this -> frame recorded as failed
+stain_stability_frames: 30               # the spread measurement, not the production path
+stain_origin_std_tol_mm: 3.0
+
+# ---- [4] validation gate --------------------------------------------------
+val_test_fraction: 0.2                   # 8:2 by episode, stratified
+val_seed: 0
+val_repeats: 20
+val_chance_margin: 0.10                  # accuracy above chance + this -> BLOCKED
+val_shuffle_repeats: 20
+
+# ---- provenance -----------------------------------------------------------
+# Recorded into clean_reference.npz. Fill this in for every capture session.
+lighting_note: ""
