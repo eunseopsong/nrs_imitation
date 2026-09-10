@@ -62,6 +62,7 @@ class StainRelativeConfig:
     home_pose_report_file: str = "home_pose_repeatability.json"
     stain_origin_report_file: str = "stain_origin_stability.json"
     validation_report_file: str = "validation_gate.json"
+    ptp_test_report_file: str = "ptp_relative_test.json"
 
     # ---- [0] home pose repeatability gate --------------------------------
     home_repeat_trials: int = 10
@@ -92,6 +93,16 @@ class StainRelativeConfig:
     stain_max_components: int = 5
     stain_stability_frames: int = 30
     stain_origin_std_tol_mm: float = 3.0
+
+    # ---- [2] reference-free dark-blob detection (Option A) --------------
+    # Used when homography.json is method=depth_extrinsic: the defect is a
+    # black strip on the bright plate, so detection thresholds dark pixels in
+    # a plate ROI minus the co-mounted tool. No clean reference, so lighting
+    # drift between sessions does not matter. Defaults match stain_origin_offline.
+    stain_dark_thresh: int = 60
+    stain_dark_min_area: int = 40
+    stain_plate_roi: List[int] = field(default_factory=lambda: [120, 20, 340, 200])
+    stain_tool_box: List[int] = field(default_factory=lambda: [228, 90, 300, 240])
 
     # ---- [4] validation gate --------------------------------------------
     val_test_fraction: float = 0.2

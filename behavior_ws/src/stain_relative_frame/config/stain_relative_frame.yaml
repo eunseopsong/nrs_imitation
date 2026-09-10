@@ -48,6 +48,13 @@ stain_max_components: 5                  # more than this -> frame recorded as f
 stain_stability_frames: 30               # the spread measurement, not the production path
 stain_origin_std_tol_mm: 3.0
 
+# ---- [2] reference-free dark-blob detection (Option A) -------------------
+# Used when homography.json is method=depth_extrinsic (per-frame homography).
+stain_dark_thresh: 60                    # gray levels; below this -> "dark"
+stain_dark_min_area: 40                  # px, drops speckle
+stain_plate_roi: [120, 20, 340, 200]     # u0 v0 u1 v1 -- where the plate is
+stain_tool_box: [228, 90, 300, 240]      # u0 v0 u1 v1 -- the co-mounted tool, masked out
+
 # ---- [4] validation gate --------------------------------------------------
 val_test_fraction: 0.2                   # 8:2 by episode, stratified
 val_seed: 0

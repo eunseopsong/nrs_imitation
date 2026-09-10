@@ -123,6 +123,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--flow_cond_predict_scale", action="store_true", default=False)
     parser.add_argument("--flow_train_eps", type=float, default=1e-4)
     parser.add_argument("--flow_loss_type", type=str, default="mse", choices=["mse", "l1"])
+    parser.add_argument("--qpos_dropout_prob", type=float, default=0.0)
+    # Shortcut-breaking augmentation: swap qpos (pre-contact chunk starts
+    # only) with a start pose sampled from an episode of the OPPOSITE
+    # stain_direction_deg. Image + true action target are left untouched,
+    # so the loss can only still be minimized by reading direction off the
+    # image. Requires episodes tagged with stain_direction_deg.
+    parser.add_argument("--qpos_swap_prob", type=float, default=0.0)
     parser.add_argument("--flow_infer_steps", type=int, default=10)
 
     parser.add_argument("--lr_scheduler", type=str, default="cosine", choices=["none", "cosine"])
@@ -321,6 +328,10 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "flow_infer_steps": args.flow_infer_steps,
         "flow_train_eps": args.flow_train_eps,
         "flow_loss_type": args.flow_loss_type,
+        # qpos dropout is applied phase-aware in the dataset (only for
+        # not-yet-in-contact chunk starts), not uniformly in the model --
+        # see load_data(qpos_dropout_prob=...) below. Leave the model's own
+        # (uniform, phase-blind) dropout at 0 so it doesn't double-apply.
         "norm_mode": args.norm_mode,
         "use_tcp_roi": bool(args.use_tcp_roi),
         "tcp_roi_reference_width": int(args.tcp_roi_reference_width),
@@ -529,6 +540,47 @@ def collect_demo_start_pose_stats(dataset_dir: str, num_episodes: int = 0) -> Di
         + np.array2string(arithmetic_mean_pose, precision=4, separator=", ")
     )
     return out
+
+
+# Keys written by stain_relative_frame/dataset_relativize.py into the converted
+# dataset's dataset_stats.pkl. The training stats are recomputed from scratch
+# (compute_dataset_stats), so without this carry-forward they would be lost and
+# the inference node could not tell a stain-relative checkpoint from an
+# absolute-frame one. Names must stay in sync with
+# stain_relative_frame.relative_frame.{USE_RELATIVE_ATTR,TRANSFORM_VERSION_ATTR}.
+RELATIVE_FRAME_STAT_KEYS = (
+    "use_relative_position",
+    "relative_transform_version",
+    "rotation_aligned",
+    "stain_origin_report",
+    "source_dataset_dir",
+    "observation_force_xy_zeroed",
+)
+
+
+def carry_forward_relative_frame_stats(stats: Dict[str, object], dataset_dir: str) -> None:
+    """Copy the stain-relative-frame markers from the dataset's own
+    dataset_stats.pkl into the checkpoint stats, in place.
+
+    No-op for a normal (absolute-frame) dataset, which carries none of these
+    keys. Never overwrites a key the training pipeline set itself.
+    """
+    src = Path(dataset_dir).expanduser() / "dataset_stats.pkl"
+    if not src.is_file():
+        return
+    try:
+        with open(src, "rb") as f:
+            ds_stats = pickle.load(f)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[WARN] could not read {src} for relative-frame carry-forward: {exc}")
+        return
+    copied = {}
+    for key in RELATIVE_FRAME_STAT_KEYS:
+        if key in ds_stats and key not in stats:
+            stats[key] = ds_stats[key]
+            copied[key] = ds_stats[key]
+    if copied:
+        print(f"[INFO] carried forward relative-frame stats from dataset: {copied}")
 
 
 # =============================================================================
@@ -892,6 +944,8 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         phase_weight_free=args.phase_weight_free,
         phase_weight_precontact=args.phase_weight_precontact,
         phase_weight_contact=args.phase_weight_contact,
+        qpos_dropout_prob=args.qpos_dropout_prob,
+        qpos_swap_prob=args.qpos_swap_prob,
     )
     if args.phase_resample_enable:
         print(
@@ -913,6 +967,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     stats["force_history_len"] = int(args.force_history_len)
     stats["chunk_sec"] = float(args.chunk_sec)
     stats["chunk_size"] = int(args.chunk_size)
+    carry_forward_relative_frame_stats(stats, dataset_dir)
 
     stats_path = os.path.join(ckpt_dir, "dataset_stats.pkl")
     with open(stats_path, "wb") as f:

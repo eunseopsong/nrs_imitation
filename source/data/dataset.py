@@ -502,6 +502,8 @@ class ImitationEpisodeDataset(Dataset):
         phase_weight_free: float = 1.0,
         phase_weight_precontact: float = 5.0,
         phase_weight_contact: float = 1.0,
+        qpos_dropout_prob: float = 0.0,
+        qpos_swap_prob: float = 0.0,
     ):
         super().__init__()
         self.episode_paths = list(episode_paths)
@@ -537,6 +539,48 @@ class ImitationEpisodeDataset(Dataset):
         self.phase_weights_by_label = (
             float(phase_weight_free), float(phase_weight_precontact), float(phase_weight_contact)
         )
+        # Phase-aware qpos dropout: only zero qpos (post-normalization) for
+        # chunk-start points that are NOT yet in contact (free/pre-contact).
+        # Once contact/wiping has begun, the visual stain cue fades, and
+        # qpos becomes the only record of the already-committed trajectory
+        # -- dropping it there as well would remove the one remaining signal
+        # instead of fighting a shortcut. Reuses phase_contact_on_thr.
+        self.qpos_dropout_prob = float(qpos_dropout_prob)
+        if not (0.0 <= self.qpos_dropout_prob < 1.0):
+            raise ValueError(f"qpos_dropout_prob must be in [0,1), got {self.qpos_dropout_prob}")
+
+        # Position/direction shortcut-breaking augmentation: for chunk-start
+        # points not yet in contact, swap the (post-normalization) qpos for
+        # a start pose drawn from an episode of the OPPOSITE
+        # stain_direction_deg -- image and the true action target stay
+        # untouched. This makes qpos an unreliable predictor of direction by
+        # construction, so the only way to still lower the loss is to read
+        # direction off the image. Requires episodes tagged with
+        # stain_direction_deg (see build scripts); silently disabled
+        # (falls back to no-op) if that attribute isn't present.
+        self.qpos_swap_prob = float(qpos_swap_prob)
+        if not (0.0 <= self.qpos_swap_prob < 1.0):
+            raise ValueError(f"qpos_swap_prob must be in [0,1), got {self.qpos_swap_prob}")
+        self._direction_labels: List[Optional[int]] = [None] * len(self.episode_paths)
+        self._qpos_pool_by_direction: Dict[int, np.ndarray] = {}
+        if self.qpos_swap_prob > 0.0:
+            pools: Dict[int, list] = {}
+            for i, path in enumerate(self.episode_paths):
+                with h5py.File(str(path), "r") as f:
+                    direction = f.attrs.get("stain_direction_deg", None)
+                    if direction is None:
+                        continue
+                    pos0 = np.asarray(f["observations/position"][0, :6], dtype=np.float32)
+                    force0 = np.asarray(f["observations/force"][0, :3], dtype=np.float32)
+                direction = int(direction)
+                self._direction_labels[i] = direction
+                pools.setdefault(direction, []).append(np.concatenate([pos0, force0]))
+            self._qpos_pool_by_direction = {k: np.stack(v, axis=0) for k, v in pools.items()}
+            if len(self._qpos_pool_by_direction) < 2:
+                raise ValueError(
+                    "qpos_swap_prob > 0 requires episodes tagged with at least 2 distinct "
+                    f"stain_direction_deg values, found {sorted(self._qpos_pool_by_direction)}"
+                )
         if self.include_gripper:
             required_gripper_stats = (
                 "gripper_position_min",
@@ -677,6 +721,31 @@ class ImitationEpisodeDataset(Dataset):
 
         image_t = image.float()
         qpos_t = torch.from_numpy(qpos).float()
+        if self.qpos_dropout_prob > 0.0:
+            fz_at_start = float(force[start, 2]) if force.shape[1] >= 3 else 0.0
+            in_contact_at_start = fz_at_start >= self.phase_contact_on_thr
+            if not in_contact_at_start:
+                epoch = int(self._epoch_shared.value) if self.resample_each_epoch else 0
+                rng = np.random.default_rng(self.seed + 7919 * int(idx) + 104729 * epoch)
+                if rng.random() < self.qpos_dropout_prob:
+                    qpos_t = torch.zeros_like(qpos_t)
+        if self.qpos_swap_prob > 0.0 and self._direction_labels[ep_i] is not None:
+            fz_at_start = float(force[start, 2]) if force.shape[1] >= 3 else 0.0
+            in_contact_at_start = fz_at_start >= self.phase_contact_on_thr
+            if not in_contact_at_start:
+                epoch = int(self._epoch_shared.value) if self.resample_each_epoch else 0
+                rng = np.random.default_rng(self.seed + 5040101 * int(idx) + 998244353 * epoch)
+                if rng.random() < self.qpos_swap_prob:
+                    my_direction = self._direction_labels[ep_i]
+                    other_dirs = [d for d in self._qpos_pool_by_direction if d != my_direction]
+                    if other_dirs:
+                        swap_dir = other_dirs[int(rng.integers(0, len(other_dirs)))]
+                        pool = self._qpos_pool_by_direction[swap_dir]
+                        swapped_raw = pool[int(rng.integers(0, pool.shape[0]))]
+                        swapped_norm = normalize_minmax(
+                            swapped_raw, self.stats["qpos_min"], self.stats["qpos_max"], self.qpos_norm_mode
+                        )
+                        qpos_t = torch.from_numpy(swapped_norm).float()
         action_t = torch.from_numpy(action_norm).float()
         is_pad_t = torch.from_numpy(is_pad).bool()
         fh_t = torch.from_numpy(fh_norm).float()
@@ -784,6 +853,8 @@ def make_loaders(
     phase_weight_free: float = 1.0,
     phase_weight_precontact: float = 5.0,
     phase_weight_contact: float = 1.0,
+    qpos_dropout_prob: float = 0.0,
+    qpos_swap_prob: float = 0.0,
 ):
     use_gripper_history = bool(use_gripper_history)
     gripper_history_len = max(1, int(gripper_history_len))
@@ -852,6 +923,8 @@ def make_loaders(
         seed=seed,
         resample_each_epoch=resample_each_epoch,
         phase_resample_enable=phase_resample_enable,
+        qpos_dropout_prob=qpos_dropout_prob,
+        qpos_swap_prob=qpos_swap_prob,
         **common,
     )
     val_ds = ImitationEpisodeDataset(
@@ -860,6 +933,8 @@ def make_loaders(
         seed=seed + 12345,
         resample_each_epoch=False,
         phase_resample_enable=False,
+        qpos_dropout_prob=0.0,
+        qpos_swap_prob=0.0,
         **common,
     )
 

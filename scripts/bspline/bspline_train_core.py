@@ -143,6 +143,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bspline_degree", type=int, default=3)
     parser.add_argument("--bspline_hidden_dim", type=int, default=256)
     parser.add_argument("--bspline_loss_type", type=str, default="mse", choices=["mse", "l1"])
+    # Modality dropout: zeroes qpos for this fraction of training samples so
+    # the model can't shortcut on position alone and has to use the image.
+    parser.add_argument("--qpos_dropout_prob", type=float, default=0.0)
 
     parser.add_argument("--lr_scheduler", type=str, default="cosine", choices=["none", "cosine"])
     parser.add_argument("--warmup_epochs", type=int, default=10)
@@ -214,6 +217,10 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "bspline_degree": args.bspline_degree,
         "bspline_hidden_dim": args.bspline_hidden_dim,
         "bspline_loss_type": args.bspline_loss_type,
+        # qpos dropout is applied phase-aware in the dataset (only for
+        # not-yet-in-contact chunk starts), not uniformly in the model --
+        # see load_data(qpos_dropout_prob=...) below. Leave the model's own
+        # (uniform, phase-blind) dropout at 0 so it doesn't double-apply.
         "norm_mode": args.norm_mode,
         "use_tcp_roi": bool(args.use_tcp_roi),
         "tcp_roi_reference_width": int(args.tcp_roi_reference_width),
@@ -491,6 +498,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         phase_weight_free=args.phase_weight_free,
         phase_weight_precontact=args.phase_weight_precontact,
         phase_weight_contact=args.phase_weight_contact,
+        qpos_dropout_prob=args.qpos_dropout_prob,
     )
     if args.phase_resample_enable:
         print(
@@ -512,6 +520,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     stats["force_history_len"] = int(args.force_history_len)
     stats["chunk_sec"] = float(args.chunk_sec)
     stats["chunk_size"] = int(args.chunk_size)
+    _flow.carry_forward_relative_frame_stats(stats, dataset_dir)
 
     stats_path = os.path.join(ckpt_dir, "dataset_stats.pkl")
     with open(stats_path, "wb") as f:

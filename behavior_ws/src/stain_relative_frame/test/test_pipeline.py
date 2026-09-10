@@ -111,6 +111,59 @@ def test_failed_homography_is_refused_downstream(tmp_path):
         load_homography(p)
 
 
+# ------------------------------------------------ per-frame homography (live tools)
+
+_DEPTH_META = {
+    "method": "depth_extrinsic",
+    "K_fxfycxcy": [300.0, 300.0, 210.0, 120.0],
+    "R_cb": np.eye(3).tolist(),
+    "t_cb_base_mm": [400.0, 300.0, 350.0],
+    "home_pose6": [400.0, 300.0, 220.0, 0.0, 0.0, 0.0],
+    "z0_mm": 160.0,
+}
+
+
+def test_extrinsic_rides_the_tool_on_pure_translation():
+    """Eye-in-hand: a TCP translation with no rotation moves the camera by the
+    same vector and leaves its orientation alone -- the assumption the whole
+    per-frame homography scheme rests on."""
+    from stain_relative_frame.homography import extrinsic_at_pose
+
+    R0 = np.eye(3)
+    t0 = np.array([400.0, 300.0, 350.0])
+    home = [400.0, 300.0, 220.0, 0.0, 0.0, 0.0]
+    moved = [415.0, 292.0, 220.0, 0.0, 0.0, 0.0]
+    R_i, t_i = extrinsic_at_pose(R0, t0, home, moved)
+    assert np.allclose(R_i, R0)
+    assert np.allclose(t_i, t0 + np.array([15.0, -8.0, 0.0]))
+
+
+def test_per_frame_homography_is_the_documented_composition():
+    from stain_relative_frame.homography import (
+        extrinsic_at_pose, per_frame_homography, plane_homography,
+    )
+
+    pose = [412.0, 293.0, 220.0, 0.0, 0.0, 0.0]
+    R_i, t_i = extrinsic_at_pose(
+        np.eye(3), _DEPTH_META["t_cb_base_mm"], _DEPTH_META["home_pose6"], pose)
+    expect = plane_homography(_DEPTH_META["K_fxfycxcy"], R_i, t_i, 160.0)
+    assert np.allclose(per_frame_homography(_DEPTH_META, pose), expect)
+
+
+def test_per_frame_homography_rejects_a_non_depth_homography():
+    from stain_relative_frame.homography import per_frame_homography
+
+    with pytest.raises(ValueError, match="depth_extrinsic"):
+        per_frame_homography({"method": "pixel_fit"}, [0, 0, 0, 0, 0, 0])
+
+
+def test_ptp_offset_spec_parses_and_preset_is_a_star():
+    from stain_relative_frame.ptp_relative_test import PRESET_OFFSETS, _parse_offsets
+
+    assert _parse_offsets(None) == PRESET_OFFSETS
+    assert _parse_offsets("10,0 -10,0 0,10") == [(10.0, 0.0), (-10.0, 0.0), (0.0, 10.0)]
+
+
 # ---------------------------------------------------------------- [2] detection
 
 @pytest.fixture(scope="module")
@@ -349,6 +402,83 @@ def test_checkpoint_flag_drives_the_inference_adapter(tmp_path):
     assert read_use_relative(p)[0] is False         # defaults to the old path
 
 
+def test_inference_node_observation_and_command_are_the_documented_pair():
+    """Locks the exact transform inference_core now applies per step:
+
+        policy_pose6 = adapter.observation(measured_abs_pose6)   # abs -> rel
+        seq_den[:, :6] = adapter.command(seq_den[:, :6])         # rel -> abs
+
+    The command call runs on the whole (T, 6) trajectory at once and must
+    move only x, y -- z / rotation are the policy's job, not the frame's.
+    """
+    origin = [452.0, 374.0]
+    adapter = RelativeFrameAdapter(origin, use_relative=True)
+
+    measured_abs = np.array([460.0, 380.0, 205.0, -0.02, 0.03, 2.31])
+    rel = adapter.observation(measured_abs)
+    assert np.allclose(rel[:2], [460.0 - 452.0, 380.0 - 374.0])
+    assert np.allclose(rel[2:], measured_abs[2:])          # untouched
+
+    # a denormalized stain-relative action chunk (T, 6)
+    seq_rel = np.array([
+        [10.0, -4.0, 190.0, -0.02, 0.03, 2.31],
+        [11.5, -3.0, 189.0, -0.02, 0.03, 2.31],
+        [13.0, -1.5, 188.0, -0.02, 0.03, 2.31],
+    ])
+    seq_abs = adapter.command(seq_rel)
+    assert np.allclose(seq_abs[:, 0], seq_rel[:, 0] + 452.0)
+    assert np.allclose(seq_abs[:, 1], seq_rel[:, 1] + 374.0)
+    assert np.allclose(seq_abs[:, 2:], seq_rel[:, 2:])     # z + rotation pass through
+
+    # observation and command are exact inverses on x, y
+    back = adapter.observation(seq_abs[0])
+    assert np.allclose(back[:2], seq_rel[0, :2])
+
+
+def test_carry_forward_relative_frame_stats_copies_only_the_markers(tmp_path):
+    """flow_train_core.carry_forward_relative_frame_stats: the training stats
+    are recomputed from scratch, so the stain-relative markers must be copied
+    from the converted dataset's own dataset_stats.pkl or the inference node
+    cannot tell a relative checkpoint from an absolute one."""
+    import pickle
+
+    flow_dir = Path(__file__).resolve().parents[4] / "scripts" / "flow"
+    sys.path.insert(0, str(flow_dir))
+    try:
+        from flow_train_core import (  # noqa: E402
+            RELATIVE_FRAME_STAT_KEYS, carry_forward_relative_frame_stats,
+        )
+    except Exception as exc:  # pragma: no cover - heavy optional deps
+        pytest.skip(f"flow_train_core not importable in this env: {exc}")
+
+    ds = tmp_path / "imitation_form"
+    ds.mkdir()
+    with open(ds / "dataset_stats.pkl", "wb") as f:
+        pickle.dump({
+            "use_relative_position": True,
+            "relative_transform_version": "stain_relative_v1",
+            "observation_force_xy_zeroed": True,
+            "qpos_min": [0.0] * 9,          # not a marker -> must NOT be copied
+        }, f)
+
+    stats = {"qpos_min": [1.0] * 9}         # training's own value stays
+    carry_forward_relative_frame_stats(stats, str(ds))
+    assert stats["use_relative_position"] is True
+    assert stats["relative_transform_version"] == "stain_relative_v1"
+    assert stats["observation_force_xy_zeroed"] is True
+    assert stats["qpos_min"] == [1.0] * 9
+    assert set(stats) - {"qpos_min"} <= set(RELATIVE_FRAME_STAT_KEYS)
+
+    # absolute-frame dataset: nothing to copy
+    ds2 = tmp_path / "abs_form"
+    ds2.mkdir()
+    with open(ds2 / "dataset_stats.pkl", "wb") as f:
+        pickle.dump({"qpos_min": [0.0] * 9}, f)
+    stats2 = {"qpos_min": [2.0] * 9}
+    carry_forward_relative_frame_stats(stats2, str(ds2))
+    assert stats2 == {"qpos_min": [2.0] * 9}
+
+
 # ------------------------------------------------ [1a] marker-free jog calibrate
 
 def _textured_image(h=240, w=424, seed=0):
@@ -513,6 +643,33 @@ def test_dark_blob_finds_a_black_strip_without_a_reference():
     det = detect_stain_dark(img, H, plate_roi=(120, 20, 340, 200), tool_box=(0, 0, 0, 0))
     assert det.ok
     assert abs(det.centroid_px[0] - 200) < 3 and abs(det.centroid_px[1] - 110) < 4
+
+
+def test_dark_cloud_origin_reports_the_strip_angle():
+    """dark_cloud_origin adds angle_rad -- the strip's base-frame principal
+    axis -- consumed only by the optional inference-side canonicalization."""
+    import cv2
+    from stain_relative_frame.stain_detect import dark_cloud_origin
+
+    def strip_frame(angle_deg):
+        img = np.full((240, 424, 3), 180, np.uint8)
+        canvas = np.zeros((240, 424), np.uint8)
+        cv2.rectangle(canvas, (150, 100), (270, 116), 255, -1)   # horizontal strip
+        M = cv2.getRotationMatrix2D((210, 108), angle_deg, 1.0)
+        canvas = cv2.warpAffine(canvas, M, (424, 240))
+        img[canvas > 0] = 12
+        return img
+
+    for want in (0.0, 30.0, 70.0):
+        frames = np.stack([strip_frame(want) for _ in range(10)])
+        Hs = np.stack([np.eye(3) for _ in range(10)])           # pixel == mm
+        rep = dark_cloud_origin(frames, Hs, (120, 20, 340, 200), (0, 0, 0, 0),
+                                std_tol_mm=99.0, dark_thresh=60, min_area=20)
+        assert rep.angle_rad is not None
+        got = np.degrees(rep.angle_rad) % 180.0
+        # cv2 rotates about pixel space (y down) -> the base-frame axis is -want
+        err = min(abs(got - (-want) % 180.0), 180.0 - abs(got - (-want) % 180.0))
+        assert err < 6.0, f"want {-want % 180.0}, got {got}"
 
 
 def test_icp_translation_recovers_a_shift_with_structure():

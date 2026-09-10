@@ -32,6 +32,12 @@ def generate_launch_description():
         DeclareLaunchArgument("frames", default_value="10"),
         DeclareLaunchArgument("homography", default_value=""),
         DeclareLaunchArgument("clean_reference", default_value=""),
+        # auto -> dark when homography.json is method=depth_extrinsic.
+        DeclareLaunchArgument("method", default_value="auto"),
+        DeclareLaunchArgument("pose_topic", default_value="/ur10skku/currentP"),
+        # dark only: the step-[2] origin report whose detect_params built this
+        # checkpoint's training origins (dataset_stats.pkl["stain_origin_report"]).
+        DeclareLaunchArgument("detect_params", default_value=""),
         Node(
             package=PKG,
             executable="stain_origin_node",
@@ -44,6 +50,9 @@ def generate_launch_description():
                 "frames": LaunchConfiguration("frames"),
                 "homography": LaunchConfiguration("homography"),
                 "clean_reference": LaunchConfiguration("clean_reference"),
+                "method": LaunchConfiguration("method"),
+                "pose_topic": LaunchConfiguration("pose_topic"),
+                "detect_params": LaunchConfiguration("detect_params"),
             }],
         ),
     ])

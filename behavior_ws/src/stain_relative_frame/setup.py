@@ -54,6 +54,10 @@ setup(
 
             # driver
             'run_pipeline = stain_relative_frame.run_pipeline:main',
+
+            # live diagnostics (not gated; hardware bring-up aids)
+            'live_relative_check = stain_relative_frame.live_relative_check:main',
+            'ptp_relative_test = stain_relative_frame.ptp_relative_test:main',
         ],
     },
 )

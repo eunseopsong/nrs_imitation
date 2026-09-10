@@ -155,6 +155,24 @@ class BSplinePolicy(nn.Module):
         self.bspline_loss_type = str(cfg.get("bspline_loss_type", "mse")).lower()
         if self.bspline_loss_type not in ("mse", "l1"):
             raise ValueError(f"bspline_loss_type must be mse or l1, got {self.bspline_loss_type}")
+        # Modality dropout: zero out qpos for a random fraction of training
+        # samples so the easy qpos shortcut can't fully explain the target
+        # trajectory, forcing gradient through the image pathway instead.
+        # Inference (sample_action) never applies this -- qpos is always
+        # passed through normally there.
+        self.qpos_dropout_prob = float(cfg.get("qpos_dropout_prob", 0.0))
+        if not (0.0 <= self.qpos_dropout_prob < 1.0):
+            raise ValueError(f"qpos_dropout_prob must be in [0,1), got {self.qpos_dropout_prob}")
+        # Additive Gaussian noise on (already minmax-normalized) qpos, applied
+        # every training sample regardless of dropout -- targets the case
+        # where qpos isn't just an easy shortcut but an almost noiseless one
+        # (e.g. per-direction position clusters corrected to ~1-2mm std), so
+        # dropout alone still leaves a near-perfect signal on the kept
+        # samples. Jitter blurs that signal on every sample instead of only
+        # removing it sometimes.
+        self.qpos_jitter_std = float(cfg.get("qpos_jitter_std", 0.0))
+        if self.qpos_jitter_std < 0.0:
+            raise ValueError(f"qpos_jitter_std must be >= 0, got {self.qpos_jitter_std}")
 
         self.obs_encoder = FlowRGBObservationEncoder(cfg)
         self.control_head = BSplineControlHead(
@@ -234,6 +252,10 @@ class BSplinePolicy(nn.Module):
             assert is_pad is not None, "is_pad is required for training"
             target = actions[:, : self.num_queries]
             is_pad = is_pad[:, : self.num_queries]
+            if self.training and self.qpos_dropout_prob > 0.0:
+                keep = (torch.rand(qpos.shape[0], 1, device=qpos.device, dtype=qpos.dtype)
+                        >= self.qpos_dropout_prob).to(qpos.dtype)
+                qpos = qpos * keep
             pred = self.predict_trajectory(qpos, image, force_history, marker, stain_mask)
             loss = self._masked_loss(pred, target, is_pad)
             return {"bspline": loss, "loss": loss}

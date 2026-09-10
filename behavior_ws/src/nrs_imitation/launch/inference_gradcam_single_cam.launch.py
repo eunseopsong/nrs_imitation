@@ -17,11 +17,24 @@ def generate_launch_description():
     metrics_log_enable = LaunchConfiguration("metrics_log_enable")
     metrics_log_dir = LaunchConfiguration("metrics_log_dir")
     metrics_run_tag = LaunchConfiguration("metrics_run_tag")
+    overlay_record_enable = LaunchConfiguration("overlay_record_enable")
+    removal_viz_enable = LaunchConfiguration("removal_viz_enable")
+    removal_viz_open_on_exit = LaunchConfiguration("removal_viz_open_on_exit")
+    removal_heatmap_tail_sec = LaunchConfiguration("removal_heatmap_tail_sec")
+    removal_view_margin_mm = LaunchConfiguration("removal_view_margin_mm")
     pose_topic = LaunchConfiguration("pose_topic")
     force_topic = LaunchConfiguration("force_topic")
     image_topic = LaunchConfiguration("image_topic")
     use_stain_mask = LaunchConfiguration("use_stain_mask")
     stain_mask_topic = LaunchConfiguration("stain_mask_topic")
+    stain_origin_topic = LaunchConfiguration("stain_origin_topic")
+    force_obs_xy_zero = LaunchConfiguration("force_obs_xy_zero")
+    stain_canon_enable = LaunchConfiguration("stain_canon_enable")
+    stain_canon_train_angle_deg = LaunchConfiguration("stain_canon_train_angle_deg")
+    stain_canon_live_angle_deg = LaunchConfiguration("stain_canon_live_angle_deg")
+    stain_canon_rotate_image = LaunchConfiguration("stain_canon_rotate_image")
+    stain_canon_image_angle_sign = LaunchConfiguration("stain_canon_image_angle_sign")
+    stain_canon_max_angle_deg = LaunchConfiguration("stain_canon_max_angle_deg")
     auto_stain_mask = LaunchConfiguration("auto_stain_mask")
     stain_mask_overlay_topic = LaunchConfiguration("stain_mask_overlay_topic")
     publish_stain_mask_overlay = LaunchConfiguration("publish_stain_mask_overlay")
@@ -57,6 +70,7 @@ def generate_launch_description():
         "contact_z_descent_block_enable"
     )
     contact_z_descent_margin_mm = LaunchConfiguration("contact_z_descent_margin_mm")
+    policy_z_offset_mm = LaunchConfiguration("policy_z_offset_mm")
     force_xy_cmd_enable = LaunchConfiguration("force_xy_cmd_enable")
     orientation_lock_enable = LaunchConfiguration("orientation_lock_enable")
     orientation_lock_wx = LaunchConfiguration("orientation_lock_wx")
@@ -146,11 +160,39 @@ def generate_launch_description():
         DeclareLaunchArgument("metrics_log_enable", default_value="false"),
         DeclareLaunchArgument("metrics_log_dir", default_value=""),
         DeclareLaunchArgument("metrics_run_tag", default_value=""),
+        # Auto screen-recording of the run (ffmpeg x11grab -> ~/Videos/Screencasts).
+        # Starts with this launch, stops (and finalizes the webm) on shutdown.
+        DeclareLaunchArgument("overlay_record_enable", default_value="true"),
+        # Polishing-removal visualization: records currentP/currentF for the
+        # whole launch and, on shutdown, writes a Preston removal heatmap +
+        # 3 companion plots for the traversed trajectory (ported from
+        # ~/nrspath_ws polishing_removal). Start/end = launch start/end.
+        DeclareLaunchArgument("removal_viz_enable", default_value="true"),
+        DeclareLaunchArgument("removal_viz_open_on_exit", default_value="false"),
+        # How long the heatmap is held at the end of the overlay webm, and
+        # how much workpiece margin (mm) to show around the polished area.
+        DeclareLaunchArgument("removal_heatmap_tail_sec", default_value="15.0"),
+        DeclareLaunchArgument("removal_view_margin_mm", default_value="40.0"),
         DeclareLaunchArgument("pose_topic", default_value="/ur10skku/currentP"),
         DeclareLaunchArgument("force_topic", default_value="/ur10skku/currentF"),
         DeclareLaunchArgument("image_topic", default_value="/realsense/vr/color/image_raw"),
         DeclareLaunchArgument("use_stain_mask", default_value="false"),
         DeclareLaunchArgument("stain_mask_topic", default_value="/inference_single_cam/stain_mask"),
+        # Latched stain-origin topic (stain_relative_frame/stain_origin_node).
+        # Only consumed when the checkpoint is a stain-relative one.
+        DeclareLaunchArgument(
+            "stain_origin_topic", default_value="/stain_relative_frame/stain_origin"
+        ),
+        # auto | true | false -- override observation fx,fy zeroing (ablation).
+        DeclareLaunchArgument("force_obs_xy_zero", default_value="auto"),
+        # Inference-side rotation canonicalization (experimental) -- let a
+        # single-direction policy follow a stain drawn at an arbitrary angle.
+        DeclareLaunchArgument("stain_canon_enable", default_value="false"),
+        DeclareLaunchArgument("stain_canon_train_angle_deg", default_value="132.0"),
+        DeclareLaunchArgument("stain_canon_live_angle_deg", default_value="-1.0"),
+        DeclareLaunchArgument("stain_canon_rotate_image", default_value="true"),
+        DeclareLaunchArgument("stain_canon_image_angle_sign", default_value="1.0"),
+        DeclareLaunchArgument("stain_canon_max_angle_deg", default_value="65.0"),
         DeclareLaunchArgument("auto_stain_mask", default_value="false"),
         DeclareLaunchArgument("stain_mask_overlay_topic", default_value="/inference_single_cam/stain_mask_overlay"),
         DeclareLaunchArgument("publish_stain_mask_overlay", default_value="true"),
@@ -184,6 +226,7 @@ def generate_launch_description():
         DeclareLaunchArgument("flow_replan_interval_steps", default_value="30"),
         DeclareLaunchArgument("contact_z_descent_block_enable", default_value="true"),
         DeclareLaunchArgument("contact_z_descent_margin_mm", default_value="0.2"),
+        DeclareLaunchArgument("policy_z_offset_mm", default_value="0.0"),
         DeclareLaunchArgument("force_xy_cmd_enable", default_value="false"),
         DeclareLaunchArgument("orientation_lock_enable", default_value="false"),
         DeclareLaunchArgument("orientation_lock_wx", default_value="0.0"),
@@ -297,6 +340,40 @@ def generate_launch_description():
 
         Node(
             package="nrs_imitation",
+            executable="overlay_video_recorder",
+            name="overlay_video_recorder",
+            output="screen",
+            parameters=[{
+                "enable": ParameterValue(overlay_record_enable, value_type=bool),
+                "policy_class": policy_class,
+                "run_tag": metrics_run_tag,
+                "modality_importance_topic": modality_importance_topic,
+                "flow_vector_overlay_topic": flow_vector_overlay_topic,
+                "record_modality_importance": ParameterValue(modality_importance_enable, value_type=bool),
+                "record_flow_vector_overlay": ParameterValue(flow_vector_overlay_enable, value_type=bool),
+                # tack the polishing-removal heatmap onto the end of the webm
+                "append_removal_heatmap": ParameterValue(removal_viz_enable, value_type=bool),
+                "removal_heatmap_tail_sec": ParameterValue(removal_heatmap_tail_sec, value_type=float),
+            }],
+        ),
+
+        Node(
+            package="nrs_imitation",
+            executable="polishing_removal_recorder",
+            name="polishing_removal_recorder",
+            output="screen",
+            parameters=[{
+                "enable": ParameterValue(removal_viz_enable, value_type=bool),
+                "open_on_exit": ParameterValue(removal_viz_open_on_exit, value_type=bool),
+                "position_topic": pose_topic,
+                "force_topic": force_topic,
+                "run_tag": metrics_run_tag,
+                "view_margin_mm": ParameterValue(removal_view_margin_mm, value_type=float),
+            }],
+        ),
+
+        Node(
+            package="nrs_imitation",
             executable="stain_mask_publisher",
             name="stain_mask_publisher",
             output="screen",
@@ -339,6 +416,16 @@ def generate_launch_description():
                 "pose_topic": pose_topic,
                 "force_topic": force_topic,
                 "image_topic": image_topic,
+                "stain_origin_topic": stain_origin_topic,
+                # ROS/YAML turns the bare token "true"/"false" into a Boolean;
+                # force it back to str so the node's string param accepts it.
+                "force_obs_xy_zero": ParameterValue(force_obs_xy_zero, value_type=str),
+                "stain_canon_enable": ParameterValue(stain_canon_enable, value_type=bool),
+                "stain_canon_train_angle_deg": ParameterValue(stain_canon_train_angle_deg, value_type=float),
+                "stain_canon_live_angle_deg": ParameterValue(stain_canon_live_angle_deg, value_type=float),
+                "stain_canon_rotate_image": ParameterValue(stain_canon_rotate_image, value_type=bool),
+                "stain_canon_image_angle_sign": ParameterValue(stain_canon_image_angle_sign, value_type=float),
+                "stain_canon_max_angle_deg": ParameterValue(stain_canon_max_angle_deg, value_type=float),
                 "visualization_only": ParameterValue(
                     visualization_only, value_type=bool
                 ),
@@ -368,6 +455,7 @@ def generate_launch_description():
                 "contact_z_descent_margin_mm": ParameterValue(
                     contact_z_descent_margin_mm, value_type=float
                 ),
+                "policy_z_offset_mm": ParameterValue(policy_z_offset_mm, value_type=float),
                 "force_xy_cmd_enable": ParameterValue(force_xy_cmd_enable, value_type=bool),
                 "orientation_lock_enable": ParameterValue(
                     orientation_lock_enable, value_type=bool

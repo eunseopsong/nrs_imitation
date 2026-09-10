@@ -316,6 +316,13 @@ def dark_cloud_origin(
         d = np.linalg.norm(allpts - c, axis=1)
         c = allpts[d <= np.quantile(d, 0.85)].mean(axis=0)
 
+    # Principal axis of the pooled cloud -> strip direction in base mm.
+    # Trim to the inlier core first so a stray blob doesn't tilt it.
+    core = allpts[np.linalg.norm(allpts - c, axis=1) <= np.quantile(
+        np.linalg.norm(allpts - c, axis=1), 0.85)]
+    _, _, Vt = np.linalg.svd(core - core.mean(axis=0), full_matrices=False)
+    angle = float(np.arctan2(Vt[0][1], Vt[0][0]) % np.pi)
+
     pf = np.stack(per_frame_c)
     med = np.median(pf, axis=0)
     std = 1.4826 * np.median(np.abs(pf - med), axis=0)
@@ -325,6 +332,7 @@ def dark_cloud_origin(
         origin_mm=c, std_mm=std, std_norm_mm=std_norm,
         unstable=bool(std_norm > float(std_tol_mm)
                       or len(failures) > 0.4 * arr.shape[0]),
+        angle_rad=angle,
     )
 
 
@@ -376,6 +384,12 @@ class StabilityReport:
     std_mm: Optional[np.ndarray]          # (2,) per-axis std
     std_norm_mm: float                    # sqrt(var_x + var_y), the reported scalar
     unstable: bool
+    # Principal-axis angle of the pooled dark cloud, base-frame radians in
+    # [0, pi) (a strip is a line, so direction is mod pi). None unless the
+    # detector computed it (dark_cloud_origin does). NOT used by the
+    # translation-only relative frame -- only the optional inference-side
+    # rotation-canonicalization consumes it.
+    angle_rad: Optional[float] = None
 
     def row(self) -> dict:
         return {

@@ -97,7 +97,46 @@ home-pose view, latches it on `/stain_relative_frame/stain_origin`
 (transient local) and releases the camera. A new episode needs an explicit
 `~/new_episode` service call.
 
-In the policy node:
+`nrs_imitation`'s `inference_core.py` already wires this in (see
+`_srf_observation_pose6` / `_srf_command_seq` / `_absolutize_demo_start_pose`):
+
+* it reads `use_relative_position` from the **checkpoint's**
+  `dataset_stats.pkl` -- not a launch argument -- so an absolute-trained
+  policy can never be driven through the relative path and vice versa;
+* with the flag off, `self._srf` is `None` and every hook short-circuits:
+  an absolute-frame run is byte-for-byte unchanged;
+* with the flag on it subscribes to `stain_origin_topic`
+  (`:=` overridable, default `/stain_relative_frame/stain_origin`), blocks
+  demo-start alignment and inference until the origin is latched, converts
+  the measured TCP pose to the stain frame before the policy sees it, and
+  converts the predicted trajectory (and `demo_start_pose_mean`) back to
+  absolute base coordinates before the robot does.
+
+`inference_clean_single_cam.launch.py` **auto-launches `stain_origin_node`**
+when the checkpoint is stain-relative (`stain_origin_autostart:=auto`, the
+default; `true` forces it, `false` disables it). It reads the step-[2]
+`detect_params` from the checkpoint stats' `stain_origin_report` so the online
+detector matches the trained frame. So the only operator step is:
+
+> **park the arm at the home / viewing pose, draw the stain, then launch the
+> inference stack as usual.**
+
+The origin node collects ~10 frames (<1 s), resolves + latches, and releases
+its subscriptions; the inference node then does its demo-start alignment.
+`method=dark` (auto-selected for a `depth_extrinsic` homography) needs the
+pose topic for the per-frame homography.
+
+To run the origin node yourself instead (`stain_origin_autostart:=false`):
+`ros2 launch stain_relative_frame stain_origin_online.launch.py
+detect_params:=<report.json>` before the inference stack.
+
+Checkpoints trained before `flow_train_core.carry_forward_relative_frame_stats`
+existed do not carry the flag in their own stats;
+`scripts/stain_relative_frame/patch_checkpoint_stats.py <ckpt_dir>` backfills
+it from the converted dataset's stats (inference also falls back to the
+dataset stats named in `dataset_dir` automatically).
+
+The manual form, if you wire your own node:
 
 ```python
 from stain_relative_frame.inference_adapter import StainOriginClient
@@ -109,10 +148,32 @@ qpos_rel = client.observation(qpos_abs)       # per step: policy input
 cmd_abs  = client.command(action_rel)         # per step: robot command
 ```
 
-`use_relative_position` is read from the checkpoint's `dataset_stats.pkl`,
-not from a launch argument, so an absolute-trained policy cannot be driven
-through the relative path. With the flag off the client is the identity, so
-the inference node keeps one code path either way.
+## Live diagnostics (not gated)
+
+Two bring-up aids for the real rig. Neither is part of the acceptance
+pipeline; both need `homography.json` from `homography_depth_calibrate`
+(method=depth_extrinsic) and use the reference-free dark-blob detector with a
+per-frame homography (`homography.per_frame_homography`).
+
+```bash
+# watch relative = to_relative(TCP, stain_origin) update live as you draw the
+# stain or jog the arm. --freeze (default) latches the origin like the node
+# does; --redetect re-runs the detector every frame (good for tuning the ROI).
+ros2 run stain_relative_frame live_relative_check -- \
+    --plate_roi 200 68 340 140 --tool_box 205 100 300 240 --dark_thresh 70
+
+# PTP the arm through a +/-12 mm XY star and check the relative position
+# follows. Z and orientation are held, offsets are clamped to --max_offset_mm,
+# and the arm returns to the recorded home pose in a finally block. The gate is
+# on the frozen-origin path (must track d_TCP within --track_tol_mm); the
+# per-frame redetect drift is reported for information only.
+ros2 run stain_relative_frame ptp_relative_test        # -> checkpoints/.../ptp_relative_test.json
+```
+
+The `live_relative_check` prints `to_relative` output directly and
+`ptp_relative_test` drives it through `RelativeFrameAdapter`, so both exercise
+the same transform the converter and the inference adapter use -- the [5]
+audit still sees one preprocessing path.
 
 ## The `use_relative_position` flag
 
@@ -171,7 +232,7 @@ executable, or edit the installed copy.
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest test/test_pipeline.py -q
 ```
 
-25 tests over a synthetic fixture with a known homography, known stain
+37 tests over a synthetic fixture with a known homography, known stain
 positions and a type-independent approach offset — so the gate is tested
 against data whose answer is known, including datasets with an injected force
 confound and an injected position confound that it must reject.

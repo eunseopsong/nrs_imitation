@@ -240,6 +240,33 @@ def save_homography(path: str | Path, result: HomographyResult, meta: Optional[D
     return p
 
 
+def per_frame_homography(h_meta: Dict, pose6) -> np.ndarray:
+    """pixel -> base-XY homography at an arbitrary TCP pose.
+
+    `h_meta` is the `meta` block of a homography.json written by
+    `homography_depth_calibrate` (method=depth_extrinsic): it carries the
+    camera intrinsics and the camera->base extrinsic at the calibration home
+    pose. The camera is eye-in-hand, so at any other TCP `pose6` the extrinsic
+    is `extrinsic_at_pose(...)` and the map is `plane_homography(...)` onto the
+    horizontal plate at Z = z0. This is exactly the per-frame rule
+    `stain_origin_offline --method dark` uses; keeping it here means the live
+    tools and the offline gate cannot drift.
+    """
+    if h_meta.get("method") != "depth_extrinsic":
+        raise ValueError(
+            "per_frame_homography needs a homography.json written by "
+            "homography_depth_calibrate (method=depth_extrinsic); got "
+            f"method={h_meta.get('method')!r}"
+        )
+    K = tuple(h_meta["K_fxfycxcy"])
+    R_cb_home = np.asarray(h_meta["R_cb"], float)
+    t_cb_home = np.asarray(h_meta["t_cb_base_mm"], float)
+    home_pose6 = np.asarray(h_meta["home_pose6"], float)
+    z0 = float(h_meta["z0_mm"])
+    R_i, t_i = extrinsic_at_pose(R_cb_home, t_cb_home, home_pose6, pose6)
+    return plane_homography(K, R_i, t_i, z0)
+
+
 def load_homography(path: str | Path, require_pass: bool = True) -> Tuple[np.ndarray, Dict]:
     """Read H back. Every downstream stage goes through here."""
     p = Path(path).expanduser()

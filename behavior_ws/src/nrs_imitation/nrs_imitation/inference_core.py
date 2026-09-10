@@ -70,6 +70,13 @@ from sensor_msgs.msg import Image
 from std_srvs.srv import Trigger
 from y2_rob_motion_interfaces.srv import SingleArmCommand
 
+try:
+    # Optional: only needed for stain-relative-frame checkpoints
+    # (use_relative_position=True). Absolute-frame runs never touch it.
+    from stain_relative_frame.inference_adapter import StainOriginClient
+except Exception:  # noqa: BLE001 -- package may not be on the path
+    StainOriginClient = None
+
 
 DEFAULT_ACT_ROOT = os.path.expanduser("~/nrs_imitation")
 
@@ -651,6 +658,53 @@ def _load_demo_start_pose_from_stats(ckpt_dir: str, xyz_scale: float = 1.0) -> O
     return None
 
 
+def _load_relative_frame_flags(ckpt_dir: str, act_root: str = "") -> Tuple[bool, str, bool]:
+    """Return (use_relative_position, relative_transform_version, obs_force_xy_zeroed).
+
+    Written by stain_relative_frame/dataset_relativize.py into the converted
+    dataset's dataset_stats.pkl and (for checkpoints trained after that change)
+    carried forward into the checkpoint's own stats by
+    flow_train_core.carry_forward_relative_frame_stats.
+
+    For a checkpoint trained before the carry-forward existed, fall back to the
+    source dataset's dataset_stats.pkl named in `dataset_dir`. Absolute-frame
+    checkpoints carry none of these keys -> (False, "", False), the historical
+    behaviour.
+    """
+    def _read(pkl_path: str) -> Optional[dict]:
+        if not pkl_path or not os.path.exists(pkl_path):
+            return None
+        try:
+            return _pickle_load_compat(pkl_path)
+        except Exception:
+            return None
+
+    st = _read(os.path.join(ckpt_dir, "dataset_stats.pkl")) or {}
+    src = st
+    if "use_relative_position" not in st:
+        ds_dir = str(st.get("dataset_dir", "") or "")
+        candidates = [os.path.join(ds_dir, "dataset_stats.pkl")] if ds_dir else []
+        if ds_dir and act_root and not os.path.isabs(ds_dir):
+            candidates.append(os.path.join(act_root, ds_dir, "dataset_stats.pkl"))
+        for cand in candidates:
+            ds_stats = _read(cand)
+            if ds_stats is not None and "use_relative_position" in ds_stats:
+                src = ds_stats
+                break
+
+    use_relative = bool(src.get("use_relative_position", False))
+    version = str(src.get("relative_transform_version", "") or "")
+    obs_fxy_zeroed = bool(src.get("observation_force_xy_zeroed", False))
+    return use_relative, version, obs_fxy_zeroed
+
+
+def _wrap_axis_delta(theta: float) -> float:
+    """Smallest rotation (rad) that aligns one line direction onto another.
+    A stain strip is a line -> direction is mod pi, so the result is in
+    (-pi/2, pi/2]."""
+    return ((float(theta) + math.pi / 2.0) % math.pi) - math.pi / 2.0
+
+
 def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
     """
     Priority:
@@ -1089,6 +1143,37 @@ class NodeCmdMotionInfer(Node):
         self.declare_parameter("global_image_topic", "/realsense/global/color/image_raw")
         self.declare_parameter("stain_mask_topic", "")
         self.declare_parameter("cmd_topic", "/ur10skku/cmdMotion")
+        # Latched stain-origin topic published once per episode by
+        # stain_relative_frame/stain_origin_node. Only consumed when the
+        # checkpoint's dataset_stats.pkl says use_relative_position=True;
+        # ignored (never subscribed) for an absolute-frame checkpoint.
+        self.declare_parameter("stain_origin_topic", "/stain_relative_frame/stain_origin")
+        # auto = follow the checkpoint's observation_force_xy_zeroed stat;
+        # true/false override it (ablation: e.g. zero fx,fy for an
+        # absolute-frame checkpoint that was trained with them).
+        self.declare_parameter("force_obs_xy_zero", "auto")
+        # -------- inference-side rotation canonicalization (experimental) ----
+        # Rotate the observation (image + qpos xy + tool yaw) so the live
+        # stain always presents at the training direction, then rotate the
+        # predicted trajectory back. Lets a single-direction policy follow a
+        # stain drawn at an arbitrary angle -- WITHOUT retraining. Needs a
+        # stain-relative checkpoint and a stain_origin_node that publishes the
+        # strip angle (dark method). Approximate: an in-plane image rotation is
+        # not a true rotated-camera view (tool/lighting/perspective drift),
+        # worse the farther from the trained angle.
+        self.declare_parameter("stain_canon_enable", False)
+        self.declare_parameter("stain_canon_train_angle_deg", 132.0)
+        # Override the live stain angle instead of using the (noisy, ~+/-15deg)
+        # dark-cloud principal axis -- for a controlled test where you draw the
+        # stain at a deliberate, known angle. <0 => use the detected value.
+        self.declare_parameter("stain_canon_live_angle_deg", -1.0)
+        self.declare_parameter("stain_canon_rotate_image", True)
+        # Flip if the image rotates the wrong way vs the pose frame (pixel-Y
+        # is down; the sign depends on the camera mount).
+        self.declare_parameter("stain_canon_image_angle_sign", 1.0)
+        # Refuse to canonicalize beyond this |alpha| (deg) -- image artifacts
+        # make far rotations unreliable; 0 disables the guard.
+        self.declare_parameter("stain_canon_max_angle_deg", 65.0)
         # Read-only model diagnostics: load the checkpoint and process live
         # observations, but do not create a robot-command publisher or control
         # timer. Only visualization publishers and the inference timer remain.
@@ -1576,6 +1661,16 @@ class NodeCmdMotionInfer(Node):
         self.global_image_topic = str(self.get_parameter("global_image_topic").value)
         self.stain_mask_topic = str(self.get_parameter("stain_mask_topic").value).strip()
         self.cmd_topic = str(self.get_parameter("cmd_topic").value)
+        self.stain_origin_topic = str(self.get_parameter("stain_origin_topic").value).strip()
+        self.stain_canon_enable = bool(self.get_parameter("stain_canon_enable").value)
+        self.stain_canon_train_angle_deg = float(self.get_parameter("stain_canon_train_angle_deg").value)
+        self.stain_canon_live_angle_deg = float(self.get_parameter("stain_canon_live_angle_deg").value)
+        self.stain_canon_rotate_image = bool(self.get_parameter("stain_canon_rotate_image").value)
+        self.stain_canon_image_angle_sign = float(self.get_parameter("stain_canon_image_angle_sign").value)
+        self.stain_canon_max_angle_deg = float(self.get_parameter("stain_canon_max_angle_deg").value)
+        self._canon_alpha = 0.0          # rad; set when the origin+angle arrive
+        self._canon_active = False
+        self._canon_setup_done = False
         self.visualization_only = bool(
             self.get_parameter("visualization_only").value
         )
@@ -1611,6 +1706,10 @@ class NodeCmdMotionInfer(Node):
         self._gradcam_activation = None
         self._gradcam_gradient = None
         self._gradcam_target_layer_name = ""
+        # Cached cam0 heatmap, reused by the FLOW vector overlay so it can
+        # show Grad-CAM without running its own backward pass. One replan
+        # tick stale at most (both update on the same ~few-second cadence).
+        self._latest_gradcam_heat = None
         self._gradcam_target_layer = None
         self._gradcam_fwd_handle = None
         self._gradcam_bwd_handle = None
@@ -2211,6 +2310,56 @@ class NodeCmdMotionInfer(Node):
                     f"{np.array2string(align_target, precision=4, separator=', ')}"
                 )
 
+        # ---------------------------------------------------------------
+        # Stain-relative frame (stain_relative_frame package, step [5]).
+        # The checkpoint's dataset_stats.pkl decides this, not a launch arg:
+        # a policy trained on stain-relative coordinates cannot be driven
+        # through the absolute path or vice versa.
+        #   observation : absolute TCP pose -> stain-relative (x,y only)
+        #   command     : stain-relative action -> absolute base command
+        # use_relative_position=False -> identity transform, no subscription;
+        # every existing checkpoint keeps its exact current behaviour.
+        # ---------------------------------------------------------------
+        self.rel_use_relative, self.rel_transform_version, self.obs_force_xy_zeroed = (
+            _load_relative_frame_flags(self.ckpt_dir, act_root=self.act_root)
+        )
+        # Ablation override: force obs fx,fy to 0 (or keep them) regardless of
+        # what the checkpoint stats say. "auto" (default) = follow the stats.
+        _fxyz = str(self.get_parameter("force_obs_xy_zero").value).strip().lower()
+        if _fxyz in ("true", "1", "yes", "on"):
+            self.obs_force_xy_zeroed = True
+        elif _fxyz in ("false", "0", "no", "off"):
+            self.obs_force_xy_zeroed = False
+        if _fxyz not in ("auto", ""):
+            self.get_logger().warn(
+                f"[FORCE-OBS] force_obs_xy_zero:={_fxyz} overrides the checkpoint's "
+                f"observation_force_xy_zeroed -> obs_force_xy_zeroed={self.obs_force_xy_zeroed}"
+            )
+        self._srf = None
+        self._srf_demo_start_absolutized = False
+        if self.rel_use_relative:
+            if StainOriginClient is None:
+                raise RuntimeError(
+                    "checkpoint dataset_stats.pkl has use_relative_position=True but "
+                    "the stain_relative_frame package is not importable. Build/source "
+                    "it, or run an absolute-frame checkpoint."
+                )
+            self._srf = StainOriginClient(
+                self,
+                use_relative=True,
+                origin_topic=self.stain_origin_topic,
+            )
+            self.get_logger().warn(
+                "[SRF] stain-relative checkpoint "
+                f"(transform={self.rel_transform_version or 'unversioned'}, "
+                f"obs_force_xy_zeroed={self.obs_force_xy_zeroed}). Waiting for a latched "
+                f"origin on {self.stain_origin_topic} before demo-start alignment / inference."
+            )
+        # else: absolute-frame checkpoint -- self._srf stays None and every
+        # _srf_* helper below short-circuits on `not self.rel_use_relative`,
+        # so an absolute run is byte-for-byte unchanged (no import required,
+        # no subscription, no extra log line).
+
         # policy
         self.policy = self._load_policy_and_ckpt_from_act_root()
         self._setup_gradcam_hooks()
@@ -2270,6 +2419,7 @@ class NodeCmdMotionInfer(Node):
         self._latest_flow_plan_t: float = 0.0
         self._flow_vector_overlay_count = 0
         self._flow_vector_overlay_fail_count = 0
+        self._flow_vector_delta_log_count = 0
         self._flow_step_count = 0
 
         # baseline state
@@ -2465,6 +2615,8 @@ class NodeCmdMotionInfer(Node):
             f"  image_topic={self.image_topic}\n"
             f"  global_image_topic={self.global_image_topic if self.use_global_image else '(disabled)'}\n"
             f"  cmd_topic={self.cmd_topic}\n"
+            f"  stain_relative_frame={'ON (' + self.stain_origin_topic + ', obs_force_xy_zeroed=' + str(self.obs_force_xy_zeroed) + ')' if self.rel_use_relative else 'off (absolute-frame checkpoint)'}\n"
+            f"  stain_canon={'enabled (train_angle=' + str(self.stain_canon_train_angle_deg) + 'deg, image_rotate=' + str(self.stain_canon_rotate_image) + ')' if self.stain_canon_enable else 'off'}\n"
             f"  gripper(enable={int(self.use_gripper)}, state=({self.gripper_position_topic}, {self.gripper_current_topic}), "
             f"position_cmd={self.gripper_command_topic if self.use_gripper else '(disabled)'}, "
             f"goal_current_cmd={self.gripper_goal_current_topic if self.use_gripper else '(disabled)'})\n"
@@ -2616,6 +2768,168 @@ class NodeCmdMotionInfer(Node):
         except Exception as e:
             self.get_logger().error(f"[METRICS] failed to log row: {e}")
             self._metrics_csv_writer = None
+
+    # ------------------------------------------------------------
+    # Stain-relative frame helpers (no-op unless use_relative_position=True)
+    # ------------------------------------------------------------
+    def _srf_ready(self) -> bool:
+        """True once a stain origin is available (always True in absolute mode)."""
+        if not self.rel_use_relative:
+            return True
+        if self._srf is None:
+            return False
+        if self._srf.ready:
+            if not self._canon_setup_done:
+                self._canon_setup()
+            if not self._srf_demo_start_absolutized:
+                self._absolutize_demo_start_pose()
+            return True
+        now = _monotonic()
+        if now - getattr(self, "_srf_wait_last_log", 0.0) >= 2.0:
+            self._srf_wait_last_log = now
+            self.get_logger().warn(
+                f"[SRF] waiting for latched stain_origin on {self.stain_origin_topic} "
+                "-- is stain_origin_node running with the arm at the home pose?"
+            )
+        return False
+
+    def _canon_setup(self) -> None:
+        """Resolve the rotation that maps the live stain axis onto the trained
+        one, once, when the frozen origin+angle arrive."""
+        self._canon_setup_done = True
+        self._canon_active = False
+        self._canon_alpha = 0.0
+        if not (self.rel_use_relative and self.stain_canon_enable):
+            return
+        if self.stain_canon_live_angle_deg >= 0.0:
+            theta = math.radians(self.stain_canon_live_angle_deg)
+            self.get_logger().warn(
+                f"[CANON] using operator-supplied live stain angle "
+                f"{self.stain_canon_live_angle_deg:.1f}deg (detection bypassed)"
+            )
+        else:
+            theta = getattr(self._srf, "stain_angle", None)
+        if theta is None:
+            self.get_logger().warn(
+                "[CANON] stain_canon_enable=True but no strip angle available "
+                "(dark method publishes one; or pass stain_canon_live_angle_deg). "
+                "Rotation canonicalization OFF."
+            )
+            return
+        alpha = _wrap_axis_delta(math.radians(self.stain_canon_train_angle_deg) - float(theta))
+        lim = math.radians(self.stain_canon_max_angle_deg) if self.stain_canon_max_angle_deg > 0 else None
+        if lim is not None and abs(alpha) > lim:
+            self.get_logger().error(
+                f"[CANON] live stain axis {math.degrees(theta):.1f}deg needs alpha="
+                f"{math.degrees(alpha):+.1f}deg, beyond stain_canon_max_angle_deg="
+                f"{self.stain_canon_max_angle_deg:.0f}. CANONICALIZATION OFF -- the policy "
+                f"will now stroke in the TRAINED direction (~{self.stain_canon_train_angle_deg:.0f}"
+                "deg), NOT along your stain. Ctrl-C now if that's wrong; else raise "
+                "stain_canon_max_angle_deg (image-rotation artifacts grow with it) or draw "
+                "the stain nearer the trained direction."
+            )
+            return
+        self._canon_alpha = float(alpha)
+        self._canon_active = True
+        # Safety: canon rotates the demo-start x,y about the (possibly far)
+        # stain origin -- a big alpha swings it tens of mm. The inference
+        # launches ship demo_start_max_align_dist_mm=0 (gate off); force a
+        # finite gate whenever canon is active so a mis-detected angle can't
+        # drive a violent alignment PTP.
+        if self.demo_start_max_align_dist_mm <= 0.0:
+            self.demo_start_max_align_dist_mm = 120.0
+            self.get_logger().warn(
+                "[CANON] demo_start_max_align_dist_mm was 0 (gate off) -> forcing 120mm "
+                "while canon is active"
+            )
+        self.get_logger().warn(
+            f"[CANON] live stain axis={math.degrees(theta):.1f}deg, trained="
+            f"{self.stain_canon_train_angle_deg:.1f}deg -> rotating obs x,y by "
+            f"{math.degrees(alpha):+.1f}deg (image_rotate={self.stain_canon_rotate_image}, "
+            f"sign={self.stain_canon_image_angle_sign:+.0f}); orientation NOT rotated"
+        )
+
+    def _canon_rotate_image(self, rgb: np.ndarray) -> np.ndarray:
+        """In-plane rotation of the policy's camera frame about the TCP-ROI
+        centre so the live stain presents at the trained direction."""
+        if not self._canon_active or not self.stain_canon_rotate_image or cv2 is None:
+            return rgb
+        h, w = rgb.shape[:2]
+        cx = float(np.clip(self.flow_vector_overlay_tcp_center_x, 0, w - 1))
+        cy = float(np.clip(self.flow_vector_overlay_tcp_center_y, 0, h - 1))
+        deg = self.stain_canon_image_angle_sign * math.degrees(self._canon_alpha)
+        M = cv2.getRotationMatrix2D((cx, cy), deg, 1.0)
+        return cv2.warpAffine(rgb, M, (w, h), flags=cv2.INTER_LINEAR,
+                              borderMode=cv2.BORDER_REFLECT)
+
+    def _canon_obs_pose6(self, p6: np.ndarray) -> np.ndarray:
+        """Rotate a stain-relative pose into the canonical (trained-direction)
+        frame: x,y only (Rz(alpha)). The tool orientation channel is left
+        untouched -- the polishing pad is axisymmetric, so its yaw carries no
+        task signal, and composing it through rotvec<->matrix near the +/-pi
+        wrap flipped the representation and commanded a violent wrist move
+        (20260910 canon_rot45 test). z / rotation / force pass through."""
+        if not self._canon_active:
+            return p6
+        out = np.asarray(p6, dtype=np.float64).reshape(-1).copy()
+        c, s = math.cos(self._canon_alpha), math.sin(self._canon_alpha)
+        x, y = out[0], out[1]
+        out[0], out[1] = c * x - s * y, s * x + c * y
+        return out.astype(np.float32)
+
+    def _canon_cmd_seq(self, seq_canon: np.ndarray) -> np.ndarray:
+        """Inverse of _canon_obs_pose6 on a whole (T,>=6) trajectory: x,y only
+        (Rz(-alpha)). Orientation and force columns untouched."""
+        if not self._canon_active:
+            return seq_canon
+        out = seq_canon
+        c, s = math.cos(-self._canon_alpha), math.sin(-self._canon_alpha)
+        x = out[:, 0].copy(); y = out[:, 1].copy()
+        out[:, 0] = c * x - s * y
+        out[:, 1] = s * x + c * y
+        return out
+
+    def _absolutize_demo_start_pose(self) -> None:
+        """demo_start_pose_mean is stored in the training (canonical) stain
+        frame; rotate its x,y back to the live stain direction, then translate
+        to absolute base coordinates so auto_move_to_demo_start PTPs correctly.
+        Orientation is NOT rotated (see _canon_obs_pose6)."""
+        if self._srf_demo_start_absolutized or self.demo_start_pose6 is None:
+            self._srf_demo_start_absolutized = True
+            return
+        canon = self.demo_start_pose6.astype(np.float64).copy()[:6].reshape(1, 6)
+        rel = self._canon_cmd_seq(canon)                       # x,y: Rz(-alpha)
+        absolute = np.asarray(self._srf.command(rel[0]), dtype=np.float64).reshape(-1)
+        self.demo_start_pose6[:2] = absolute[:2].astype(self.demo_start_pose6.dtype)
+        self._srf_demo_start_absolutized = True
+        self.get_logger().warn(
+            "[SRF] demo_start_pose_mean -> absolute via stain_origin "
+            f"{np.array2string(self._srf.stain_origin, precision=3, separator=', ')}"
+            + (f" + canon x,y {math.degrees(self._canon_alpha):+.1f}deg" if self._canon_active else "")
+            + f": {np.array2string(self.demo_start_pose6, precision=4, separator=', ')}"
+        )
+
+    def _srf_observation_pose6(self, pose6: np.ndarray) -> np.ndarray:
+        """Absolute measured TCP pose -> what the policy was trained on
+        (stain-relative, then rotation-canonical if enabled)."""
+        if not self.rel_use_relative:
+            return pose6
+        rel = np.asarray(self._srf.observation(pose6.astype(np.float64)), dtype=np.float32)
+        return self._canon_obs_pose6(rel.reshape(-1)[:6])
+
+    def _srf_command_seq(self, seq_den: np.ndarray) -> np.ndarray:
+        """Policy trajectory (canonical stain frame) -> absolute base commands:
+        Rz(-alpha) into the stain-relative frame, then + origin. z/force pass
+        through untouched (relative_frame.to_absolute contract)."""
+        if not self.rel_use_relative:
+            return seq_den
+        seq_den = self._canon_cmd_seq(seq_den)                 # canon -> relative
+        absolute_xy = np.asarray(
+            self._srf.command(seq_den[:, :6].astype(np.float64)), dtype=np.float32
+        )
+        seq_den[:, 0] = absolute_xy[:, 0]
+        seq_den[:, 1] = absolute_xy[:, 1]
+        return seq_den
 
     # ------------------------------------------------------------
     # Small helpers (force extraction / history)
@@ -2916,6 +3230,17 @@ class NodeCmdMotionInfer(Node):
                     z = z + dt * v
                 return z
 
+        if self.policy_class == "BSPLINE" and hasattr(self.policy, "predict_trajectory"):
+            # BSPLINE's forward(actions=None) dispatches to sample_action(),
+            # which is @torch.no_grad()-decorated (inference-only fast path)
+            # -- that inner decorator overrides this function's outer
+            # enable_grad(), so Grad-CAM's backward pass never gets a graph.
+            # predict_trajectory() itself carries no such decorator; call it
+            # directly instead.
+            if self.use_force_history:
+                return self.policy.predict_trajectory(q_gc, img_gc, force_history=fh_gc, stain_mask=stain_mask_gc)
+            return self.policy.predict_trajectory(q_gc, img_gc, stain_mask=stain_mask_gc)
+
         if self.use_force_history:
             return self.policy(q_gc, img_gc, force_history=fh_gc, stain_mask=stain_mask_gc)
         return self.policy(q_gc, img_gc, stain_mask=stain_mask_gc)
@@ -2943,6 +3268,8 @@ class NodeCmdMotionInfer(Node):
         self._gradcam_gradient = None
         gradcam_params = None
         gradcam_param_states = None
+        backbone_module = None
+        backbone_freeze_prev = None
         local_published = False
 
         try:
@@ -2953,6 +3280,25 @@ class NodeCmdMotionInfer(Node):
             gradcam_param_states = [p.requires_grad for p in gradcam_params]
             for p in gradcam_params:
                 p.requires_grad_(False)
+
+            # A frozen vision backbone (e.g. DINOv3Backbone) runs its own
+            # forward under torch.no_grad() internally for efficiency (see
+            # dinov3_backbone.py) -- that inner no_grad breaks the graph back
+            # to the input image regardless of this function's outer
+            # enable_grad(), so Grad-CAM would otherwise always see
+            # requires_grad=False at the target layer. Temporarily disable
+            # just that internal no_grad for this one backward pass; params
+            # already had requires_grad forced False above, so this doesn't
+            # risk an accidental backbone weight update.
+            backbone_attr_name = (self._gradcam_target_layer_name or "").split(".model.")[0]
+            if backbone_attr_name:
+                try:
+                    backbone_module = self.policy.get_submodule(backbone_attr_name)
+                except Exception:
+                    backbone_module = None
+            if backbone_module is not None and isinstance(getattr(backbone_module, "freeze", None), bool):
+                backbone_freeze_prev = backbone_module.freeze
+                backbone_module.freeze = False
 
             q_gc = q_t.detach().clone()
             img_gc = img_t.detach().clone()
@@ -3011,6 +3357,8 @@ class NodeCmdMotionInfer(Node):
                 weights = grad[cam_i:cam_i + 1].mean(dim=(2, 3), keepdim=True)
                 cam = torch.relu((weights * act[cam_i:cam_i + 1]).sum(dim=1, keepdim=False))[0]
                 heat = _normalize_heatmap_np(cam.detach().float().cpu().numpy())
+                if cam_i == 0:
+                    self._latest_gradcam_heat = heat
                 overlay = _make_gradcam_overlay_rgb(
                     images_rgb[cam_i],
                     heat,
@@ -3065,6 +3413,8 @@ class NodeCmdMotionInfer(Node):
             if gradcam_params is not None and gradcam_param_states is not None:
                 for p, req in zip(gradcam_params, gradcam_param_states):
                     p.requires_grad_(req)
+            if backbone_module is not None and backbone_freeze_prev is not None:
+                backbone_module.freeze = backbone_freeze_prev
             self._gradcam_activation = None
             self._gradcam_gradient = None
 
@@ -3484,23 +3834,11 @@ class NodeCmdMotionInfer(Node):
                 self.policy.train()
 
 
-    def _render_flow_vector_overlay_rgb(
-        self,
-        *,
-        rgb: np.ndarray,
-        pose6: np.ndarray,
-        force3: np.ndarray,
-        seq_raw: np.ndarray,
-    ) -> np.ndarray:
-        """Draw current-observation FLOW XYZ directions on the local image.
+    def _render_flow_vector_overlay_rgb(self, *, rgb: np.ndarray) -> np.ndarray:
+        """TCP-ROI camera view: Grad-CAM heatmap (if available) + red ROI box.
 
-        This is a direction diagnostic, not a full 3-D projection. Base-frame
-        displacements are rotated into the current TCP/tool frame, then the
-        tool X/Y components are mapped to image pixels via a 2x2 linear
-        matrix (flow_vector_overlay_m_*) and drawn at the configured TCP
-        pixel. The camera is eye-in-hand, so the tool tip itself barely moves
-        in-frame; the matrix is calibrated from how much the background
-        (workpiece) pans per mm of tool motion, not from tool-tip tracking.
+        No text/vector-arrow clutter -- this is meant to sit side-by-side
+        with the modality-importance dashboard in the recorded video.
         """
         if cv2 is None:
             raise RuntimeError("OpenCV is required for FLOW vector overlay")
@@ -3511,20 +3849,17 @@ class NodeCmdMotionInfer(Node):
         if image.dtype != np.uint8:
             image = np.clip(image, 0, 255).astype(np.uint8)
 
-        pose = np.asarray(pose6, dtype=np.float32).reshape(-1)
-        sequence = np.asarray(seq_raw, dtype=np.float32)
-        if pose.size < 6 or sequence.ndim != 2 or sequence.shape[1] < 9:
-            raise RuntimeError(
-                f"invalid FLOW overlay pose/sequence: pose={pose.shape}, seq={sequence.shape}"
-            )
-
         height, width = image.shape[:2]
         cx = int(np.clip(self.flow_vector_overlay_tcp_center_x, 0, width - 1))
         cy = int(np.clip(self.flow_vector_overlay_tcp_center_y, 0, height - 1))
-        m_du_dx = float(self.flow_vector_overlay_m_du_dx)
-        m_du_dy = float(self.flow_vector_overlay_m_du_dy)
-        m_dv_dx = float(self.flow_vector_overlay_m_dv_dx)
-        m_dv_dy = float(self.flow_vector_overlay_m_dv_dy)
+
+        if self._latest_gradcam_heat is not None:
+            image = _make_gradcam_overlay_rgb(
+                image,
+                self._latest_gradcam_heat,
+                alpha=self.gradcam_alpha,
+                colormap=self.gradcam_colormap,
+            )
 
         # TCP-centered square ROI used by this checkpoint.
         roi_side = max(1, int(round(math.sqrt(self.tcp_roi_area_fraction * float(width * height)))))
@@ -3538,141 +3873,26 @@ class NodeCmdMotionInfer(Node):
             1,
             cv2.LINE_AA,
         )
-
-        rotation_base_tool, _ = cv2.Rodrigues(pose[3:6].astype(np.float64))
-        rotation_tool_base = rotation_base_tool.T
-        max_radius_px = max(20.0, 0.42 * float(min(width, height)))
-        palette = [
-            (70, 180, 255),
-            (80, 235, 180),
-            (255, 215, 70),
-            (255, 145, 55),
-            (235, 85, 170),
-            (185, 105, 255),
-        ]
-
-        valid_horizons = [
-            min(max(0, int(h)), sequence.shape[0] - 1)
-            for h in self.flow_vector_overlay_horizons
-        ]
-        selected = min(
-            max(0, int(self.flow_vector_overlay_selected_horizon)), sequence.shape[0] - 1
-        )
-        if selected not in valid_horizons:
-            valid_horizons.append(selected)
-
-        selected_delta_base = sequence[selected, :3] - pose[:3]
-        selected_delta_tool = rotation_tool_base @ selected_delta_base.astype(np.float64)
-
-        for arrow_i, horizon in enumerate(valid_horizons):
-            delta_base = sequence[horizon, :3] - pose[:3]
-            delta_tool = rotation_tool_base @ delta_base.astype(np.float64)
-            dx_mm = float(delta_tool[0])
-            dy_mm = float(delta_tool[1])
-            du = m_du_dx * dx_mm + m_du_dy * dy_mm
-            dv = m_dv_dx * dx_mm + m_dv_dy * dy_mm
-            radius = float(math.hypot(du, dv))
-            if radius > max_radius_px:
-                scale = max_radius_px / max(radius, 1e-9)
-                du *= scale
-                dv *= scale
-            end_x = int(np.clip(round(cx + du), 0, width - 1))
-            end_y = int(np.clip(round(cy + dv), 0, height - 1))
-            is_selected = horizon == selected
-            color = (255, 245, 40) if is_selected else palette[arrow_i % len(palette)]
-            thickness = 3 if is_selected else 1
-            cv2.arrowedLine(
-                image,
-                (cx, cy),
-                (end_x, end_y),
-                color,
-                thickness,
-                cv2.LINE_AA,
-                tipLength=0.18,
-            )
-            cv2.putText(
-                image,
-                f"h{horizon}",
-                (min(width - 35, end_x + 3), max(12, end_y - 3)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.35,
-                color,
-                1,
-                cv2.LINE_AA,
-            )
-
-        cv2.drawMarker(
-            image,
-            (cx, cy),
-            (255, 255, 255),
-            markerType=cv2.MARKER_CROSS,
-            markerSize=13,
-            thickness=2,
-            line_type=cv2.LINE_AA,
-        )
-
-        target = sequence[selected]
-        fz_measured = float(force3[2]) if np.asarray(force3).size >= 3 else float("nan")
-        ood = False
-        if (
-            self.stats is not None
-            and self.stats.act_mode in ("minmax_01", "minmax_m11")
-            and self.stats.act_a.size >= 3
-        ):
-            lo = np.asarray(self.stats.act_a[:3], dtype=np.float32)
-            hi = np.asarray(self.stats.act_b[:3], dtype=np.float32)
-            ood = bool(np.any(target[:3] < lo) or np.any(target[:3] > hi))
-
-        panel_h = min(height, 72)
-        panel = image[:panel_h].copy()
-        image[:panel_h] = np.clip(
-            0.40 * panel.astype(np.float32), 0, 255
-        ).astype(np.uint8)
-        lines = [
-            "FLOW XYZ VECTOR | TOOL-XY PROXY | AUTO CMD: OFF"
-            if (self.flow_diagnostic_only or self.visualization_only)
-            else "FLOW XYZ VECTOR | TOOL-XY PROXY",
-            (
-                f"h={selected} dBASE=[{selected_delta_base[0]:+.2f},"
-                f"{selected_delta_base[1]:+.2f},{selected_delta_base[2]:+.2f}]mm "
-                f"|d|={np.linalg.norm(selected_delta_base):.2f}mm"
-            ),
-            (
-                f"dTOOL=[{selected_delta_tool[0]:+.2f},{selected_delta_tool[1]:+.2f},"
-                f"{selected_delta_tool[2]:+.2f}]mm predFz={target[8]:+.2f}N "
-                f"measFz={fz_measured:+.2f}N OOD={int(ood)}"
-            ),
-        ]
-        for line_i, line in enumerate(lines):
-            cv2.putText(
-                image,
-                line,
-                (7, 18 + line_i * 22),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.43,
-                (255, 255, 255),
-                1,
-                cv2.LINE_AA,
-            )
+        # Live camera feed and the hdf5-recorded training images are 180
+        # degrees apart in composition -- rotate the display-only copy here
+        # (not the tensor fed to the policy) so this overlay matches what
+        # the recorded episodes actually look like.
+        image = cv2.rotate(image, cv2.ROTATE_180)
         return image
 
-    def _publish_flow_vector_overlay(
-        self,
-        *,
-        rgb: np.ndarray,
-        pose6: np.ndarray,
-        force3: np.ndarray,
-        seq_raw: np.ndarray,
-    ) -> bool:
+    def _publish_flow_vector_overlay_frame(self, rgb: np.ndarray) -> bool:
+        """Render+publish the overlay for one camera frame.
+
+        Called from _on_img() at the camera's own native rate, so the
+        recorded video is as smooth as the camera feed itself -- the
+        overlay's only genuinely slow-updating ingredient is the cached
+        Grad-CAM heatmap (refreshed once per replan tick), everything else
+        (camera pixels, red ROI box) is fresh on every call.
+        """
         if not self.flow_vector_overlay_enable or self.pub_flow_vector_overlay is None:
             return False
         try:
-            overlay = self._render_flow_vector_overlay_rgb(
-                rgb=rgb,
-                pose6=pose6,
-                force3=force3,
-                seq_raw=seq_raw,
-            )
+            overlay = self._render_flow_vector_overlay_rgb(rgb=rgb)
             msg = _rgb_numpy_to_image_msg(
                 overlay,
                 stamp=self.get_clock().now().to_msg(),
@@ -3680,16 +3900,6 @@ class NodeCmdMotionInfer(Node):
             )
             self.pub_flow_vector_overlay.publish(msg)
             self._flow_vector_overlay_count += 1
-            if self._flow_vector_overlay_count <= 3 or self._flow_vector_overlay_count % 20 == 0:
-                selected = min(
-                    self.flow_vector_overlay_selected_horizon, seq_raw.shape[0] - 1
-                )
-                delta = seq_raw[selected, :3] - pose6[:3]
-                self.get_logger().info(
-                    f"[FLOW-VECTOR] #{self._flow_vector_overlay_count} h={selected} "
-                    f"delta_xyz=[{delta[0]:+.3f},{delta[1]:+.3f},{delta[2]:+.3f}]mm "
-                    f"pred_fz={seq_raw[selected,8]:+.3f}N"
-                )
             return True
         except Exception as exc:
             self._flow_vector_overlay_fail_count += 1
@@ -3698,6 +3908,20 @@ class NodeCmdMotionInfer(Node):
                     f"[FLOW-VECTOR] overlay failed #{self._flow_vector_overlay_fail_count}: {exc}"
                 )
             return False
+
+    def _log_flow_vector_delta(self, *, pose6: np.ndarray, seq_raw: np.ndarray) -> None:
+        """Per-replan diagnostic log only -- the overlay image itself now
+        publishes independently at camera rate (see
+        _publish_flow_vector_overlay_frame)."""
+        self._flow_vector_delta_log_count += 1
+        if self._flow_vector_delta_log_count <= 3 or self._flow_vector_delta_log_count % 20 == 0:
+            selected = min(self.flow_vector_overlay_selected_horizon, seq_raw.shape[0] - 1)
+            delta = seq_raw[selected, :3] - pose6[:3]
+            self.get_logger().info(
+                f"[FLOW-VECTOR] #{self._flow_vector_delta_log_count} h={selected} "
+                f"delta_xyz=[{delta[0]:+.3f},{delta[1]:+.3f},{delta[2]:+.3f}]mm "
+                f"pred_fz={seq_raw[selected,8]:+.3f}N"
+            )
 
     def _on_flow_step_service(self, request, response):
         del request
@@ -4369,6 +4593,12 @@ class NodeCmdMotionInfer(Node):
                 self._img_cam0 = rgb
         except Exception as e:
             self.get_logger().error(f"[CAM0 IMG] decode/preprocess failed: {e}")
+            return
+        # Publish the overlay at the camera's own native rate (not tied to
+        # the ~few-second replan cadence) so the recorded video is as smooth
+        # as the camera feed -- only the blended Grad-CAM heatmap is allowed
+        # to lag (it's cached from the last replan tick).
+        self._publish_flow_vector_overlay_frame(rgb)
 
     def _on_global_img(self, msg: Image):
         try:
@@ -4494,6 +4724,8 @@ class NodeCmdMotionInfer(Node):
     # Infer timer
     # ------------------------------------------------------------
     def _on_infer_timer(self):
+        if not self._srf_ready():
+            return
         if self.auto_move_to_demo_start and not self._demo_start_align_done:
             return
 
@@ -4577,8 +4809,21 @@ class NodeCmdMotionInfer(Node):
             return
 
         f3 = self._extract_force3(force)
+        if self.obs_force_xy_zeroed:
+            # This checkpoint was trained with observations/force fx,fy set to
+            # 0 (the "fz-only observation" dataset). Their normalization range
+            # is degenerate, so a live fx/fy would blow up after normalize --
+            # zero them here to match training exactly. action/force is NOT
+            # affected (it keeps a real range), and force_xy_cmd_enable still
+            # governs whether predicted command fx,fy are used.
+            f3 = f3.copy()
+            f3[0] = 0.0
+            f3[1] = 0.0
 
         policy_pose6 = pose6[:6].astype(np.float32).copy()
+        # Stain-relative checkpoint: absolute measured pose -> relative frame
+        # (x,y only) before it becomes policy input. No-op in absolute mode.
+        policy_pose6 = self._srf_observation_pose6(policy_pose6).astype(np.float32).copy()
         if self.orientation_lock_enable:
             # Preserve the checkpoint's expected 9-D qpos shape while making
             # orientation a constant, non-informative channel. Only live XYZ,
@@ -4593,12 +4838,19 @@ class NodeCmdMotionInfer(Node):
         force_hist_t = None
         if self.use_force_history:
             hist_np = self._build_live_force_history(force_hist_list, f3)  # (L,3)
+            if self.obs_force_xy_zeroed:
+                hist_np = hist_np.copy()
+                hist_np[:, 0:2] = 0.0
             force_hist_t = torch.from_numpy(hist_np).unsqueeze(0).to(self.device, dtype=torch.float32)  # (1,L,3)
             if self.normalize_qpos_enabled and self.stats is not None:
                 force_hist_t = _normalize_force_history(force_hist_t, self.stats)
 
         try:
-            images = [cam0]
+            # Rotation canonicalization: rotate the policy's camera frame so
+            # the live stain presents at the trained direction. Only the tensor
+            # fed to the policy is rotated -- overlays/recordings keep the true
+            # view. No-op unless stain_canon_enable and the origin+angle arrived.
+            images = [self._canon_rotate_image(cam0)]
             if self.use_global_image:
                 images.append(cam1)
             img_t = _to_tensor_image_stack(
@@ -4693,6 +4945,15 @@ class NodeCmdMotionInfer(Node):
                 seq = _denorm_action_seq(seq, self.stats)
 
             seq_den = seq.detach().cpu().numpy().astype(np.float32)
+
+            # Stain-relative checkpoint: the policy emits x,y in the stain
+            # frame. Convert the whole trajectory back to absolute base
+            # coordinates HERE, before anything downstream (z offset, safety
+            # clips, anchoring, PTP9D, overlays) touches it -- from this point
+            # on seq_den is absolute, exactly as an absolute-frame checkpoint's
+            # output already is. z / rotation / force pass through unchanged.
+            seq_den = self._srf_command_seq(seq_den)
+
             if abs(self.policy_z_offset_mm) > 1e-9:
                 if self.action_type == "absolute":
                     seq_den[:, 2] += np.float32(self.policy_z_offset_mm)
@@ -4716,12 +4977,7 @@ class NodeCmdMotionInfer(Node):
         self._latest_flow_pose6 = pose6[:6].astype(np.float32).copy()
         self._latest_flow_force3 = f3.astype(np.float32).copy()
         self._latest_flow_plan_t = _monotonic()
-        self._publish_flow_vector_overlay(
-            rgb=cam0,
-            pose6=pose6[:6],
-            force3=f3,
-            seq_raw=self._latest_flow_raw_seq,
-        )
+        self._log_flow_vector_delta(pose6=pose6[:6], seq_raw=self._latest_flow_raw_seq)
 
         local_anchor_applied = False
         if (
@@ -6086,6 +6342,10 @@ class NodeCmdMotionInfer(Node):
             return
 
         if self.auto_move_to_demo_start and not self._demo_start_align_done:
+            # A stain-relative checkpoint's demo_start_pose_mean is only usable
+            # once the origin is latched (it is absolutized inside _srf_ready).
+            if not self._srf_ready():
+                return
             if self.demo_start_use_ptp_service:
                 # PTP_command_gen streams its own path straight to cmdMotion
                 # from singleArm_cmd -- publishing anything from here at the

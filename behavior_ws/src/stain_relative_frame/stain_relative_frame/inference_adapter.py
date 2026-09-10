@@ -77,6 +77,7 @@ class StainOriginClient:
         self._use_relative = bool(use_relative)
         self._version = version
         self._adapter: Optional[RelativeFrameAdapter] = None
+        self._angle_rad: Optional[float] = None
         self._node = node
 
         if not self._use_relative:
@@ -107,7 +108,12 @@ class StainOriginClient:
     def _on_origin(self, msg) -> None:
         if self._adapter is not None:
             return  # already frozen; a republish cannot move it
-        xy = np.asarray(msg.data, dtype=np.float64).reshape(-1)[:2]
+        data = np.asarray(msg.data, dtype=np.float64).reshape(-1)
+        xy = data[:2]
+        # Optional 3rd element: strip principal-axis angle (base-frame rad).
+        # The translation-only adapter ignores it; the inference-side
+        # rotation-canonicalization reads it via .stain_angle.
+        self._angle_rad = float(data[2]) if data.size >= 3 and np.isfinite(data[2]) else None
         self._adapter = RelativeFrameAdapter(
             StainOrigin(xy, source="latched_topic"),
             use_relative=True, transform_version=self._version,
@@ -132,6 +138,12 @@ class StainOriginClient:
         if self._adapter is None:
             raise RuntimeError("stain_origin not received yet")
         return self._adapter.stain_origin
+
+    @property
+    def stain_angle(self) -> Optional[float]:
+        """Strip principal-axis angle (base-frame rad, [0,pi)) if the detector
+        published one, else None. Frozen with the origin for the episode."""
+        return self._angle_rad
 
     def wait_until_ready(self, timeout_sec: float = 30.0) -> bool:
         import rclpy

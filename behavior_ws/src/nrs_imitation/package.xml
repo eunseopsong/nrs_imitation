@@ -25,6 +25,11 @@
   <!-- Robot controller mode/PTP service (dev_ws/y2_ur10skku_control) -->
   <exec_depend>y2_rob_motion_interfaces</exec_depend>
 
+  <!-- Stain-relative frame adapter: consumed by inference_core only when the
+       checkpoint's dataset_stats.pkl has use_relative_position=True. Optional
+       at import time, so this is a soft runtime dependency. -->
+  <exec_depend>stain_relative_frame</exec_depend>
+
   <!-- Joystick -->
   <exec_depend>joy</exec_depend>
 

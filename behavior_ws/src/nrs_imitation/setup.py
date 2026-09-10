@@ -41,6 +41,8 @@ setup(
             'inference_gripper_single_cam = nrs_imitation.inference_gripper_single_cam:main',
             'stain_mask_publisher = nrs_imitation.stain_mask_publisher:main',
             'episode_playback = nrs_imitation.episode_playback:main',
+            'overlay_video_recorder = nrs_imitation.overlay_video_recorder:main',
+            'polishing_removal_recorder = nrs_imitation.polishing_removal_recorder:main',
 
             # Demonstration recording
             'hdf5_recorder_single_cam = nrs_imitation.hdf5_recorder_single_cam:main',

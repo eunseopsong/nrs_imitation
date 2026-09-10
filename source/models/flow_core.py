@@ -634,6 +634,14 @@ class FlowRGBPolicy(nn.Module):
         self.flow_train_eps = float(cfg.get("flow_train_eps", 1e-4))
         self.flow_infer_steps = int(cfg.get("flow_infer_steps", 10))
         self.flow_loss_type = str(cfg.get("flow_loss_type", "mse")).lower()
+        # Modality dropout: zero out qpos for a random fraction of training
+        # samples so the easy qpos shortcut can't fully explain the target
+        # trajectory, forcing gradient through the image pathway instead.
+        # Inference (sample_action) never applies this -- qpos is always
+        # passed through normally there. Mirrors BSplinePolicy's qpos dropout.
+        self.qpos_dropout_prob = float(cfg.get("qpos_dropout_prob", 0.0))
+        if not (0.0 <= self.qpos_dropout_prob < 1.0):
+            raise ValueError(f"qpos_dropout_prob must be in [0,1), got {self.qpos_dropout_prob}")
 
         self.obs_encoder = FlowRGBObservationEncoder(cfg)
         self.velocity_net = ConditionalUnet1D(
@@ -714,6 +722,10 @@ class FlowRGBPolicy(nn.Module):
             t = torch.rand(B, device=z1.device, dtype=z1.dtype) * (1.0 - 2.0 * eps) + eps
             z_t = (1.0 - t.view(B, 1, 1)) * z0 + t.view(B, 1, 1) * z1
             target_v = z1 - z0
+            if self.training and self.qpos_dropout_prob > 0.0:
+                keep = (torch.rand(qpos.shape[0], 1, device=qpos.device, dtype=qpos.dtype)
+                        >= self.qpos_dropout_prob).to(qpos.dtype)
+                qpos = qpos * keep
             pred_v = self.predict_velocity(z_t, t, qpos, image, force_history, marker, stain_mask)
             loss = self._masked_loss(pred_v, target_v, is_pad)
             return {"flow": loss, "loss": loss}

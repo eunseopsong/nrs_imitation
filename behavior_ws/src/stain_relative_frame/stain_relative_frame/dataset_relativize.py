@@ -245,6 +245,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     origins_path = None
     if use_relative:
         origins_path = Path(args.origins) if args.origins else cfg.path("stain_origin_report_file")
+        # Store absolute -- the inference-side consumer (stain_origin_node)
+        # runs from its own cwd and a relative path would not resolve there.
+        origins_path = origins_path.expanduser().resolve()
         if not origins_path.is_file():
             print(f"[relativize] step [2] report not found: {origins_path}\n"
                   f"             Run stain_origin_offline first, or pass "
