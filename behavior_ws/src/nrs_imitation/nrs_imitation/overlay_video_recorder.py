@@ -18,6 +18,7 @@ each topic (so the composite size is known).
 """
 import os
 import signal
+import shutil
 import subprocess
 import time
 
@@ -68,16 +69,12 @@ class OverlayVideoRecorderNode(Node):
         self.declare_parameter("file_prefix", "polishing_inference")
         self.declare_parameter("policy_class", "unknown")
         self.declare_parameter("run_tag", "")
-        self.declare_parameter("framerate", 30.0)
+        self.declare_parameter("framerate", 10.0)
+        self.declare_parameter("encoder_threads", 1)
         self.declare_parameter("bitrate_mbps", 4.0)
-        # The overlays are only recomputed once per policy replan (a few
-        # seconds apart, not every control tick) -- raising the output
-        # framerate alone just re-writes the same static frame, it can't
-        # make an update that's genuinely infrequent look smooth. Instead
-        # we crossfade from the previous composite to each new one over
-        # this many seconds, so the real (slow) update cadence reads as a
-        # smooth transition rather than an abrupt jump-cut.
-        self.declare_parameter("transition_sec", 0.6)
+        # Optional crossfade between diagnostic updates. Default off avoids
+        # full-frame float conversions/blending while inference is running.
+        self.declare_parameter("transition_sec", 0.0)
         self.declare_parameter("modality_importance_topic", "/inference_single_cam/modality_importance")
         self.declare_parameter("flow_vector_overlay_topic", "/inference_single_cam/flow_vector_overlay")
         self.declare_parameter("record_modality_importance", True)
@@ -118,6 +115,8 @@ class OverlayVideoRecorderNode(Node):
         self.policy_class = str(self.get_parameter("policy_class").value)
         self.run_tag = str(self.get_parameter("run_tag").value)
         self.framerate = float(self.get_parameter("framerate").value)
+        self.encoder_threads = max(1, int(self.get_parameter("encoder_threads").value))
+        cv2.setNumThreads(1)  # recorder process only; no effect on inference preprocessing
         self.bitrate_mbps = float(self.get_parameter("bitrate_mbps").value)
         self.transition_sec = float(self.get_parameter("transition_sec").value)
         self._prev_composite = None   # np.float32 (H,W,3), blend start point
@@ -153,6 +152,11 @@ class OverlayVideoRecorderNode(Node):
             return
         composite = self._composite()
         if composite is None:
+            return
+        if self.transition_sec <= 0:
+            self._prev_composite = None
+            self._target_composite = composite
+            self._target_time = None
             return
         if self._target_composite is not None and self._target_composite.shape == composite.shape:
             self._prev_composite = self._current_blend().astype(np.float32)
@@ -225,10 +229,14 @@ class OverlayVideoRecorderNode(Node):
             "-r", str(self.framerate),
             "-i", "-",
             "-c:v", "libvpx", "-b:v", f"{self.bitrate_mbps}M",
-            "-deadline", "realtime", "-cpu-used", "4",
+            "-deadline", "realtime", "-cpu-used", "8",
+            "-threads", str(self.encoder_threads),
             "-an",
             self.out_path,
         ]
+        nice = shutil.which("nice")
+        if nice:
+            cmd = [nice, "-n", "10", *cmd]
         self.get_logger().info(f"recording composite {width}x{height} (flow left, modality right) -> {self.out_path}")
         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=self._log_fh, stderr=subprocess.STDOUT)
 

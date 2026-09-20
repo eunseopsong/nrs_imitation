@@ -1,0 +1,27 @@
+{
+  "synthetic_only": true,
+  "hardware_verified": false,
+  "task": "schema_example_not_robot_run",
+  "force_observation": "OFF",
+  "tool_motion_type": "rotary",
+  "rpm_setpoint": null,
+  "rpm_setpoint_source": null,
+  "measured_rpm": null,
+  "rpm_measurement_available": false,
+  "rpm_assumed_constant": false,
+  "surface_normal": null,
+  "compression_sign": null,
+  "contact_point_offset": null,
+  "effective_contact_area_mm2": null,
+  "preston_coefficient": null,
+  "clocks": {
+    "use_sim_time": false,
+    "source": "synthetic timestamps",
+    "receipt": "synthetic example grid"
+  },
+  "run_id": "SYNTHETIC_OFF_20260917T163903_1789630743700352795_krjsuhiz",
+  "schema_version": 1,
+  "queue_size": 8192,
+  "middleware_loss_count": null,
+  "artifacts": []
+}

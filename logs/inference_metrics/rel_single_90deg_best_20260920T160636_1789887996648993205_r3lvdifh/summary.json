@@ -1,0 +1,175 @@
+{
+  "run_id": "rel_single_90deg_best_20260920T160636_1789887996648993205_r3lvdifh",
+  "counts": {
+    "events": {
+      "received": 971,
+      "enqueued": 971,
+      "dropped": 0,
+      "written": 971
+    },
+    "tcp_pose": {
+      "received": 739,
+      "enqueued": 739,
+      "dropped": 0,
+      "written": 739
+    },
+    "wrench": {
+      "received": 740,
+      "enqueued": 740,
+      "dropped": 0,
+      "written": 740
+    },
+    "commands": {
+      "received": 1817,
+      "enqueued": 1817,
+      "dropped": 0,
+      "written": 1817
+    },
+    "legacy": {
+      "received": 410,
+      "enqueued": 410,
+      "dropped": 0,
+      "written": 410
+    },
+    "roi": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "snapshot": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    }
+  },
+  "streams": {
+    "events:inference_node": {
+      "rows": 971,
+      "first_ns": 9515405169157,
+      "last_ns": 9558082667464,
+      "max_gap_ns": 4697161076,
+      "retrograde": 0
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "rows": 739,
+      "first_ns": 9515411336995,
+      "last_ns": 9558059333990,
+      "max_gap_ns": 343026837,
+      "retrograde": 0
+    },
+    "wrench:/ur10skku/currentF": {
+      "rows": 740,
+      "first_ns": 9515411523774,
+      "last_ns": 9558059644727,
+      "max_gap_ns": 342780574,
+      "retrograde": 0
+    },
+    "commands:/ur10skku/cmdMotion": {
+      "rows": 1,
+      "first_ns": 9515416375275,
+      "last_ns": 9515416375275,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "legacy:legacy_latest_snapshot_not_measurement": {
+      "rows": 410,
+      "first_ns": 9515416406315,
+      "last_ns": 9558048486561,
+      "max_gap_ns": 5129191752,
+      "retrograde": 0
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "rows": 1,
+      "first_ns": 9515424282472,
+      "last_ns": 9515424282472,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "commands:/singleArm_cmd/single_arm_command": {
+      "rows": 664,
+      "first_ns": 9515424951085,
+      "last_ns": 9558048571845,
+      "max_gap_ns": 4697248224,
+      "retrograde": 0
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "rows": 2,
+      "first_ns": 9515430307276,
+      "last_ns": 9558061298921,
+      "max_gap_ns": 42630991645,
+      "retrograde": 0
+    },
+    "commands:denormalized_policy_prediction": {
+      "rows": 1152,
+      "first_ns": 9520539612198,
+      "last_ns": 9554065743895,
+      "max_gap_ns": 4202521142,
+      "retrograde": 0
+    }
+  },
+  "source_counts": {
+    "events:inference_node": {
+      "received": 971,
+      "enqueued": 971,
+      "dropped": 0,
+      "written": 971
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "received": 739,
+      "enqueued": 739,
+      "dropped": 0,
+      "written": 739
+    },
+    "wrench:/ur10skku/currentF": {
+      "received": 740,
+      "enqueued": 740,
+      "dropped": 0,
+      "written": 740
+    },
+    "commands:/ur10skku/cmdMotion": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "legacy:legacy_latest_snapshot_not_measurement": {
+      "received": 410,
+      "enqueued": 410,
+      "dropped": 0,
+      "written": 410
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "commands:/singleArm_cmd/single_arm_command": {
+      "received": 664,
+      "enqueued": 664,
+      "dropped": 0,
+      "written": 664
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    },
+    "commands:denormalized_policy_prediction": {
+      "received": 1152,
+      "enqueued": 1152,
+      "dropped": 0,
+      "written": 1152
+    }
+  },
+  "write_error_count": 0,
+  "writer_diagnostic_rows_note": "logger_writer events are additional to enqueued stream counts",
+  "write_errors": [],
+  "queue_pending": 0,
+  "drained": true,
+  "middleware_loss_count": null,
+  "physical_task_completion": "unknown"
+}

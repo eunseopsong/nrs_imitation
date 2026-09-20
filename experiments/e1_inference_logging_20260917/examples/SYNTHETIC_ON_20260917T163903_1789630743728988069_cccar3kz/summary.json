@@ -1,0 +1,111 @@
+{
+  "run_id": "SYNTHETIC_ON_20260917T163903_1789630743728988069_cccar3kz",
+  "counts": {
+    "events": {
+      "received": 3,
+      "enqueued": 3,
+      "dropped": 0,
+      "written": 3
+    },
+    "roi": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "wrench": {
+      "received": 10,
+      "enqueued": 10,
+      "dropped": 0,
+      "written": 10
+    },
+    "tcp_pose": {
+      "received": 5,
+      "enqueued": 5,
+      "dropped": 0,
+      "written": 5
+    },
+    "commands": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    }
+  },
+  "streams": {
+    "events:synthetic_node": {
+      "rows": 3,
+      "first_ns": 101355603139001,
+      "last_ns": 101355653139001,
+      "max_gap_ns": 50000000,
+      "retrograde": 0
+    },
+    "roi:synthetic_reference": {
+      "rows": 1,
+      "first_ns": 101355603139001,
+      "last_ns": 101355603139001,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "wrench:synthetic_force": {
+      "rows": 10,
+      "first_ns": 101355603139001,
+      "last_ns": 101355648139001,
+      "max_gap_ns": 5000000,
+      "retrograde": 0
+    },
+    "tcp_pose:synthetic_feedback": {
+      "rows": 5,
+      "first_ns": 101355603139001,
+      "last_ns": 101355643139001,
+      "max_gap_ns": 10000000,
+      "retrograde": 0
+    },
+    "commands:synthetic_node": {
+      "rows": 1,
+      "first_ns": 101355608139001,
+      "last_ns": 101355608139001,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    }
+  },
+  "source_counts": {
+    "events:synthetic_node": {
+      "received": 3,
+      "enqueued": 3,
+      "dropped": 0,
+      "written": 3
+    },
+    "roi:synthetic_reference": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "wrench:synthetic_force": {
+      "received": 10,
+      "enqueued": 10,
+      "dropped": 0,
+      "written": 10
+    },
+    "tcp_pose:synthetic_feedback": {
+      "received": 5,
+      "enqueued": 5,
+      "dropped": 0,
+      "written": 5
+    },
+    "commands:synthetic_node": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    }
+  },
+  "write_error_count": 0,
+  "writer_diagnostic_rows_note": "logger_writer events are additional to enqueued stream counts",
+  "write_errors": [],
+  "queue_pending": 0,
+  "drained": true,
+  "middleware_loss_count": null,
+  "physical_task_completion": "unknown"
+}

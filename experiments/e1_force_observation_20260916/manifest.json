@@ -1,0 +1,40 @@
+{
+  "experiment": "E1_force_observation_ablation",
+  "created": "2026-09-16",
+  "dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
+  "source_dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single",
+  "split": {
+    "unit": "episode",
+    "seed": 0,
+    "rule": "numpy.default_rng(seed), shuffle episode files, first round(0.9*N) train and remainder validation",
+    "expected": "42 total, 38 train, 4 validation; test episodes are not selected by current entrypoint"
+  },
+  "normalizer": {
+    "fit": "train episodes only, loader recomputes dataset_stats.pkl",
+    "mode": "minmax_m11",
+    "shared_action_schema": "action/position[6] + action/force[3]"
+  },
+  "seed": 0,
+  "configs": {
+    "on": "experiments/e1_force_observation_20260916/train_on.sh",
+    "off": "experiments/e1_force_observation_20260916/train_off.sh"
+  },
+  "force_observation": {
+    "on": true,
+    "off": false,
+    "off_mask": "normalized qpos[6:9] and every normalized force_history row set to zero"
+  },
+  "schema": {
+    "observation": "qpos[9]=position[6]+measured_force[Fx,Fy,Fz][3], image cam0, force_history[30,3]",
+    "action": "action[9]=target_position[6]+target_force[Fx,Fy,Fz][3]"
+  },
+  "code_commit_before_changes": "0c2cff6cff0268a289fbe9ed396165faabc58bd0",
+  "change_files": [
+    "source/data/dataset.py",
+    "scripts/flow/flow_train_core.py",
+    "behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py",
+    "behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py",
+    "scripts/flow/e1_force_observation_check.py"
+  ],
+  "checkpoint_status": "not trained; no final checkpoint claimed"
+}

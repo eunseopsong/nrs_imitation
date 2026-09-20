@@ -1,0 +1,623 @@
+diff --git a/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py b/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
+index 1bad469..1106b48 100644
+--- a/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
+@@ -59,6 +59,7 @@ def generate_launch_description():
+     chunk_size = LaunchConfiguration("chunk_size")
+     use_force_history = LaunchConfiguration("use_force_history")
+     force_history_len = LaunchConfiguration("force_history_len")
++    use_force_observation = LaunchConfiguration("use_force_observation")
+     flow_infer_steps = LaunchConfiguration("flow_infer_steps")
+     flow_deterministic_noise = LaunchConfiguration("flow_deterministic_noise")
+     flow_noise_seed = LaunchConfiguration("flow_noise_seed")
+@@ -160,6 +161,13 @@ def generate_launch_description():
+         DeclareLaunchArgument("metrics_log_enable", default_value="false"),
+         DeclareLaunchArgument("metrics_log_dir", default_value=""),
+         DeclareLaunchArgument("metrics_run_tag", default_value=""),
++        DeclareLaunchArgument("metrics_specimen_id", default_value=""),
++        DeclareLaunchArgument("metrics_repeat_id", default_value=""),
++        DeclareLaunchArgument("metrics_rpm_setpoint", default_value=""),
++        DeclareLaunchArgument("metrics_rpm_assumed_constant", default_value="false"),
++        DeclareLaunchArgument("metrics_context_file", default_value=""),
++        DeclareLaunchArgument("metrics_queue_size", default_value="8192"),
++        DeclareLaunchArgument("metrics_snapshot_enable", default_value="true"),
+         # Auto screen-recording of the run (ffmpeg x11grab -> ~/Videos/Screencasts).
+         # Starts with this launch, stops (and finalizes the webm) on shutdown.
+         DeclareLaunchArgument("overlay_record_enable", default_value="true"),
+@@ -217,6 +225,7 @@ def generate_launch_description():
+         DeclareLaunchArgument("chunk_size", default_value="200"),
+         DeclareLaunchArgument("use_force_history", default_value="true"),
+         DeclareLaunchArgument("force_history_len", default_value="10"),
++        DeclareLaunchArgument("use_force_observation", default_value="true"),
+         DeclareLaunchArgument("flow_infer_steps", default_value="10"),
+         DeclareLaunchArgument("flow_deterministic_noise", default_value="true"),
+         DeclareLaunchArgument("flow_noise_seed", default_value="0"),
+@@ -413,6 +422,13 @@ def generate_launch_description():
+                 "metrics_log_enable": ParameterValue(metrics_log_enable, value_type=bool),
+                 "metrics_log_dir": metrics_log_dir,
+                 "metrics_run_tag": metrics_run_tag,
++                "metrics_specimen_id": ParameterValue(LaunchConfiguration("metrics_specimen_id"), value_type=str),
++                "metrics_repeat_id": ParameterValue(LaunchConfiguration("metrics_repeat_id"), value_type=str),
++                "metrics_rpm_setpoint": ParameterValue(LaunchConfiguration("metrics_rpm_setpoint"), value_type=str),
++                "metrics_rpm_assumed_constant": ParameterValue(LaunchConfiguration("metrics_rpm_assumed_constant"), value_type=bool),
++                "metrics_context_file": ParameterValue(LaunchConfiguration("metrics_context_file"), value_type=str),
++                "metrics_queue_size": ParameterValue(LaunchConfiguration("metrics_queue_size"), value_type=int),
++                "metrics_snapshot_enable": ParameterValue(LaunchConfiguration("metrics_snapshot_enable"), value_type=bool),
+                 "pose_topic": pose_topic,
+                 "force_topic": force_topic,
+                 "image_topic": image_topic,
+@@ -438,6 +454,7 @@ def generate_launch_description():
+                 "chunk_size": ParameterValue(chunk_size, value_type=int),
+                 "use_force_history": ParameterValue(use_force_history, value_type=bool),
+                 "force_history_len": ParameterValue(force_history_len, value_type=int),
++                "use_force_observation": ParameterValue(use_force_observation, value_type=bool),
+                 "flow_infer_steps": ParameterValue(flow_infer_steps, value_type=int),
+                 "flow_deterministic_noise": ParameterValue(flow_deterministic_noise, value_type=bool),
+                 "flow_noise_seed": ParameterValue(flow_noise_seed, value_type=int),
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+index b92e559..4f8e1b8 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+@@ -69,6 +69,7 @@ from std_msgs.msg import Float32, Float64MultiArray, Int32
+ from sensor_msgs.msg import Image
+ from std_srvs.srv import Trigger
+ from y2_rob_motion_interfaces.srv import SingleArmCommand
++from nrs_imitation.inference_metrics import InferenceMetrics, PARAMETERS as METRICS_PARAMETERS
+ 
+ try:
+     # Optional: only needed for stain-relative-frame checkpoints
+@@ -1131,6 +1132,8 @@ class NodeCmdMotionInfer(Node):
+         self.declare_parameter("metrics_log_enable", False)
+         self.declare_parameter("metrics_log_dir", "")  # empty -> <act_root>/logs/inference_metrics
+         self.declare_parameter("metrics_run_tag", "")
++        for name, default in METRICS_PARAMETERS.items():
++            self.declare_parameter(name, default)
+         self.declare_parameter("obs_mode", "single_cam")  # single_cam | dual_cam
+         self.declare_parameter("camera_names", "auto")    # auto | "cam0" | "cam0,cam1"
+         self.declare_parameter("phase_mode", "pure")  # kept for recommended Flow command compatibility
+@@ -1287,6 +1290,7 @@ class NodeCmdMotionInfer(Node):
+         # -----------------------------
+         self.declare_parameter("use_force_history", True)
+         self.declare_parameter("force_history_len", 10)
++        self.declare_parameter("use_force_observation", True)
+ 
+         self.declare_parameter("position_dim", 6)
+         self.declare_parameter("force_dim", 3)
+@@ -1858,6 +1862,7 @@ class NodeCmdMotionInfer(Node):
+         )
+         self.use_force_history = bool(self.get_parameter("use_force_history").value)
+         self.force_history_len = int(self.get_parameter("force_history_len").value)
++        self.use_force_observation = bool(self.get_parameter("use_force_observation").value)
+ 
+         self.position_dim = int(self.get_parameter("position_dim").value)
+         self.force_dim = int(self.get_parameter("force_dim").value)
+@@ -2692,82 +2697,41 @@ class NodeCmdMotionInfer(Node):
+             and worker is not threading.current_thread()
+         ):
+             worker.join(timeout=2.0)
+-        metrics_file = getattr(self, "_metrics_csv_file", None)
+-        if metrics_file is not None:
+-            try:
+-                metrics_file.close()
+-            except Exception:
+-                pass
++        self._metrics_call("close")
+         return super().destroy_node()
+ 
+     # ------------------------------------------------------------
+     # Cross-policy comparison: per-tick CSV metrics log
+     # ------------------------------------------------------------
+     def _setup_metrics_logger(self):
+-        """Optionally record one CSV row per published command.
+-
+-        Used to compare policy_class runs (e.g. FLOW vs BSPLINE) offline with
+-        scripts/compare_policy_runs.py: same task, same topics, one CSV per run.
+-        """
+-        self._metrics_csv_file = None
+-        self._metrics_csv_writer = None
++        """Read-only asynchronous recorder; failures never change control state."""
++        self._metrics = None
+         self._metrics_t0 = _monotonic()
+         if not self.metrics_log_enable:
+             return
+-        log_dir = self.metrics_log_dir or os.path.join(self.act_root, "logs", "inference_metrics")
+         try:
+-            os.makedirs(log_dir, exist_ok=True)
+-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+-            tag = f"_{self.metrics_run_tag}" if self.metrics_run_tag else ""
+-            fname = f"{self.policy_class.lower()}{tag}_{ts}.csv"
+-            path = os.path.join(log_dir, fname)
+-            self._metrics_csv_file = open(path, "w", newline="")
+-            self._metrics_csv_writer = csv.writer(self._metrics_csv_file)
+-            self._metrics_csv_writer.writerow([
+-                "t_wall", "t_elapsed_sec", "stage", "policy_class", "ckpt_dir",
+-                "meas_x_mm", "meas_y_mm", "meas_z_mm", "meas_rx", "meas_ry", "meas_rz",
+-                "meas_fx_N", "meas_fy_N", "meas_fz_N",
+-                "cmd_x_mm", "cmd_y_mm", "cmd_z_mm", "cmd_rx", "cmd_ry", "cmd_rz",
+-                "cmd_fx_N", "cmd_fy_N", "cmd_fz_N",
+-                "contact", "cmd_safety_blocked",
+-            ])
+-            self._metrics_csv_file.flush()
+-            self.get_logger().info(f"[METRICS] logging per-tick comparison CSV -> {path}")
++            self._metrics = InferenceMetrics(self)
++            self._metrics.start_observer()
+         except Exception as e:
+-            self.get_logger().error(f"[METRICS] failed to open metrics log: {e}")
+-            self._metrics_csv_file = None
+-            self._metrics_csv_writer = None
++            self.get_logger().error(f"[METRICS] setup failed (control unchanged): {e}")
++            self._metrics_call("event", "logger_setup_error", error=str(e))
+ 
+-    def _log_metrics_row(self, cmd9: np.ndarray, blocked: bool):
+-        if self._metrics_csv_writer is None:
++    def _metrics_call(self, method, *args, **kwargs):
++        recorder = getattr(self, "_metrics", None)
++        if recorder is None:
+             return
+         try:
+-            with self._lock:
+-                pose6 = None if self._pose6 is None else self._pose6.copy()
+-                force = None if self._force is None else self._force.copy()
+-            meas6 = pose6.astype(np.float32).tolist() if pose6 is not None else [float("nan")] * 6
+-            f3 = (
+-                self._extract_force3(force).astype(np.float32).tolist()
+-                if force is not None and force.size >= 3
+-                else [float("nan")] * 3
+-            )
+-            cmd = np.asarray(cmd9, dtype=np.float32).reshape(-1)[:9].tolist()
+-            self._metrics_csv_writer.writerow([
+-                time.time(),
+-                _monotonic() - self._metrics_t0,
+-                self.stage.name,
+-                self.policy_class,
+-                self.ckpt_dir,
+-                *meas6,
+-                *f3,
+-                *cmd,
+-                int(bool(self._contact)),
+-                int(bool(blocked)),
+-            ])
+-            self._metrics_csv_file.flush()
+-        except Exception as e:
+-            self.get_logger().error(f"[METRICS] failed to log row: {e}")
+-            self._metrics_csv_writer = None
++            getattr(recorder, method)(*args, **kwargs)
++        except Exception as exc:
++            now = _monotonic()
++            if now - getattr(self, "_metrics_last_error_t", 0.0) >= 1.0:
++                self._metrics_last_error_t = now
++                self.get_logger().error(f"[METRICS] {method} failed (control unchanged): {exc}")
++            if method != "event":
++                self._metrics_call("event", "logger_adapter_error", operation=method, error=str(exc))
++
++    def _log_metrics_row(self, cmd9: np.ndarray, blocked: bool):
++        self._metrics_call("legacy", cmd9, blocked)
+ 
+     # ------------------------------------------------------------
+     # Stain-relative frame helpers (no-op unless use_relative_position=True)
+@@ -2775,18 +2739,21 @@ class NodeCmdMotionInfer(Node):
+     def _srf_ready(self) -> bool:
+         """True once a stain origin is available (always True in absolute mode)."""
+         if not self.rel_use_relative:
++            self._metrics_call("reference")
+             return True
+         if self._srf is None:
+             return False
+         if self._srf.ready:
+             if not self._canon_setup_done:
+                 self._canon_setup()
++            self._metrics_call("reference")
+             if not self._srf_demo_start_absolutized:
+                 self._absolutize_demo_start_pose()
+             return True
+         now = _monotonic()
+         if now - getattr(self, "_srf_wait_last_log", 0.0) >= 2.0:
+             self._srf_wait_last_log = now
++            self._metrics_call("event", "wait", reason="stain_reference_not_ready")
+             self.get_logger().warn(
+                 f"[SRF] waiting for latched stain_origin on {self.stain_origin_topic} "
+                 "-- is stain_origin_node running with the arm at the home pose?"
+@@ -4131,6 +4098,7 @@ class NodeCmdMotionInfer(Node):
+             # FLOW config
+             "use_force_history": self.use_force_history,
+             "force_history_len": self.force_history_len,
++            "use_force_observation": self.use_force_observation,
+             "flow_infer_steps": self.flow_infer_steps,
+             "flow_train_eps": self.flow_train_eps,
+             "flow_loss_type": self.flow_loss_type,
+@@ -4183,6 +4151,16 @@ class NodeCmdMotionInfer(Node):
+                     "BSPLINE checkpoint (has 'num_control_points' in policy_config). "
+                     "Pass a matching ckpt_dir."
+                 )
++            ckpt_use_force_observation = bool(
++                ckpt_policy_cfg.get("use_force_observation", stats_obj.get("use_force_observation", True))
++            )
++            if ckpt_use_force_observation != self.use_force_observation:
++                raise RuntimeError(
++                    "use_force_observation mismatch: "
++                    f"checkpoint={ckpt_use_force_observation}, inference_arg={self.use_force_observation}. "
++                    "Use the checkpoint's exact observation schema."
++                )
++            args_override["use_force_observation"] = ckpt_use_force_observation
+             for key in (
+                 "image_backbone",
+                 "dino_model_name",
+@@ -4382,6 +4360,7 @@ class NodeCmdMotionInfer(Node):
+             raise RuntimeError(f"policy_best.ckpt not found: {ckpt_path}")
+ 
+         ckpt_obj = torch.load(ckpt_path, map_location=self.device)
++        self._metrics_checkpoint_config = ckpt_obj.get("config") if isinstance(ckpt_obj, dict) else None
+         if isinstance(ckpt_obj, dict):
+             ckpt_cfg = ckpt_obj.get("config", {}).get("policy_config", {})
+             ckpt_use_stain = bool(ckpt_cfg.get("use_stain_mask", False))
+@@ -4433,12 +4412,14 @@ class NodeCmdMotionInfer(Node):
+     # ROS callbacks
+     # ------------------------------------------------------------
+     def _on_pose(self, msg: Float64MultiArray):
++        self._metrics_call("pose", msg)
+         arr = np.asarray(msg.data, dtype=np.float32).reshape(-1)
+         if arr.size >= 6:
+             with self._lock:
+                 self._pose6 = arr[:6].copy()
+ 
+     def _on_force(self, msg: Float64MultiArray):
++        self._metrics_call("force", msg)
+         arr = np.asarray(msg.data, dtype=np.float32).reshape(-1)
+         with self._lock:
+             self._force = arr.copy()
+@@ -4446,6 +4427,7 @@ class NodeCmdMotionInfer(Node):
+                 self._force_hist.append(self._extract_force3(arr))
+ 
+     def _on_force_wrench(self, msg: Wrench):
++        self._metrics_call("force", msg)
+         arr = np.asarray([msg.force.x, msg.force.y, msg.force.z], dtype=np.float32)
+         with self._lock:
+             self._force = arr.copy()
+@@ -4588,6 +4570,7 @@ class NodeCmdMotionInfer(Node):
+     def _on_img(self, msg: Image):
+         try:
+             rgb_raw = _img_to_rgb_numpy(msg)
++            self._metrics_call("image", msg, rgb_raw)
+             rgb = self._preprocess_live_image(rgb_raw)
+             with self._lock:
+                 self._img_cam0 = rgb
+@@ -4611,6 +4594,7 @@ class NodeCmdMotionInfer(Node):
+     def _on_stain_mask(self, msg: Image):
+         try:
+             mask = _mask_msg_to_float_numpy(msg)
++            self._metrics_call("mask", msg, mask)
+             with self._lock:
+                 self._stain_mask = mask.copy()
+         except Exception as e:
+@@ -4674,6 +4658,7 @@ class NodeCmdMotionInfer(Node):
+         self._preload_target_N = self._compute_preload_target()
+ 
+         self.stage = Stage.PRELOAD
++        self._metrics_call("stage")
+         self.plans.clear()
+         self._anchor_ready = False
+ 
+@@ -4683,6 +4668,7 @@ class NodeCmdMotionInfer(Node):
+ 
+     def _enter_track(self):
+         self.stage = Stage.TRACK
++        self._metrics_call("stage")
+         self.plans.clear()
+         self._anchor_ready = False
+         self._preload_last_exit_t = _monotonic()
+@@ -4694,6 +4680,7 @@ class NodeCmdMotionInfer(Node):
+ 
+     def _enter_release(self, fz_cmd_start: float):
+         self.stage = Stage.RELEASE
++        self._metrics_call("stage")
+         self._release_t0 = _monotonic()
+         self._release_start_fz_cmd = float(max(0.0, fz_cmd_start))
+ 
+@@ -4705,6 +4692,7 @@ class NodeCmdMotionInfer(Node):
+ 
+     def _soft_reset_to_approach(self, reason: str):
+         self.stage = Stage.APPROACH
++        self._metrics_call("stage")
+         self.plans.clear()
+         self._anchor_ready = False
+         self._touch_ok = 0
+@@ -4788,6 +4776,8 @@ class NodeCmdMotionInfer(Node):
+             now_dbg = _monotonic()
+             if now_dbg - self._infer_wait_last_log >= 1.0:
+                 self._infer_wait_last_log = now_dbg
++                self._metrics_call("event", "wait", reason="missing_inference_input",
++                                   pose=pose6 is not None, force=force is not None, image=cam0 is not None)
+                 self.get_logger().warn(
+                     "[INFER-WAIT] missing live input -> "
+                     f"pose={pose6 is not None}, force={force is not None}, "
+@@ -4808,6 +4798,7 @@ class NodeCmdMotionInfer(Node):
+                 self.get_logger().warn(f"[INFER-WAIT] force vector too short: size={force.size}")
+             return
+ 
++        self._metrics_call("infer_start", force_hist_list)
+         f3 = self._extract_force3(force)
+         if self.obs_force_xy_zeroed:
+             # This checkpoint was trained with observations/force fx,fy set to
+@@ -4834,6 +4825,8 @@ class NodeCmdMotionInfer(Node):
+ 
+         if self.normalize_qpos_enabled and self.stats is not None:
+             q_t = _normalize_qpos(q_t, self.stats)
++        if not self.use_force_observation:
++            q_t[:, 6:9] = 0.0
+ 
+         force_hist_t = None
+         if self.use_force_history:
+@@ -4844,6 +4837,8 @@ class NodeCmdMotionInfer(Node):
+             force_hist_t = torch.from_numpy(hist_np).unsqueeze(0).to(self.device, dtype=torch.float32)  # (1,L,3)
+             if self.normalize_qpos_enabled and self.stats is not None:
+                 force_hist_t = _normalize_force_history(force_hist_t, self.stats)
++            if not self.use_force_observation:
++                force_hist_t.zero_()
+ 
+         try:
+             # Rotation canonicalization: rotate the policy's camera frame so
+@@ -4907,6 +4902,7 @@ class NodeCmdMotionInfer(Node):
+                     )
+         except Exception as e:
+             self.get_logger().error(f"[INFER] image stack failed: {e}")
++            self._metrics_call("event", "inference_error", error=str(e), operation="image_stack")
+             return
+ 
+         flow_initial_noise_t = None
+@@ -4945,6 +4941,7 @@ class NodeCmdMotionInfer(Node):
+                 seq = _denorm_action_seq(seq, self.stats)
+ 
+             seq_den = seq.detach().cpu().numpy().astype(np.float32)
++            self._metrics_call("prediction", seq_den)
+ 
+             # Stain-relative checkpoint: the policy emits x,y in the stain
+             # frame. Convert the whole trajectory back to absolute base
+@@ -4965,9 +4962,11 @@ class NodeCmdMotionInfer(Node):
+                 seq_den[:, 6:8] = 0.0
+             if self.fz_hard_limit > 0.0:
+                 seq_den[:, 8] = np.clip(seq_den[:, 8], -self.fz_hard_limit, self.fz_hard_limit)
++            self._metrics_call("postprocess", seq_den)
+ 
+         except Exception as e:
+             self.get_logger().error(f"[INFER] policy forward failed: {e}")
++            self._metrics_call("event", "inference_error", error=str(e))
+             return
+ 
+         # Preserve the unanchored, denormalized absolute FLOW output for
+@@ -4996,6 +4995,7 @@ class NodeCmdMotionInfer(Node):
+             Plan(t0=_monotonic(), seq_den=seq_den, local_anchor_applied=local_anchor_applied)
+         )
+         self._infer_plan_count += 1
++        self._metrics_call("plan", self.plans[-1])
+ 
+         if (
+             self._ptp9d_track_active
+@@ -5123,6 +5123,7 @@ class NodeCmdMotionInfer(Node):
+             if now - self._cmd_safety_last_log >= 1.0:
+                 self._cmd_safety_last_log = now
+                 self.get_logger().error(f"[CMD-SAFETY] malformed cmd size={cmd.size}; publish skipped")
++                self._metrics_call("event", "safety_limit", reason="malformed_command", size=int(cmd.size))
+             return self.prev_cmd.copy() if self.prev_cmd is not None else np.zeros(9, dtype=np.float32)
+ 
+         cmd = cmd[:9].astype(np.float32).copy()
+@@ -5221,6 +5222,8 @@ class NodeCmdMotionInfer(Node):
+         m = Float64MultiArray()
+         m.data = [float(x) for x in published.reshape(-1).tolist()]
+         self.pub_cmd.publish(m)
++        self._metrics_call("sent", m.data, self.cmd_topic, blocked=blocked,
++                           reason=reason if blocked else None)
+         self._log_metrics_row(published, blocked)
+         return published
+ 
+@@ -5592,6 +5595,8 @@ class NodeCmdMotionInfer(Node):
+ 
+         align_dist = float(np.linalg.norm(target[0:3] - pose6_now[0:3]))
+         if self.demo_start_max_align_dist_mm > 0.0 and align_dist > float(self.demo_start_max_align_dist_mm):
++            self._metrics_call("event", "safety_limit", reason="demo_start_max_align_dist",
++                               distance_mm=align_dist, limit_mm=self.demo_start_max_align_dist_mm)
+             self.get_logger().error(
+                 "[DEMO_START-SAFETY] PTP target is too far from current pose: "
+                 f"dist={align_dist:.3f}mm > limit={self.demo_start_max_align_dist_mm:.3f}mm. "
+@@ -5628,6 +5633,8 @@ class NodeCmdMotionInfer(Node):
+         )
+         future = self._ptp_client.call_async(req)
+         future.add_done_callback(self._on_ptp_alignment_done)
++        self._metrics_call("sent", req.target_pose, self.ptp_service_name, req.command_mode,
++                           future=future, velocity=req.target_velocity)
+ 
+     def _on_ptp_alignment_done(self, future):
+         try:
+@@ -5659,6 +5666,8 @@ class NodeCmdMotionInfer(Node):
+         force_req.command_mode = "Force"
+         future2 = self._ptp_client.call_async(force_req)
+         future2.add_done_callback(self._on_ptp_force_mode_done)
++        self._metrics_call("sent", force_req.target_pose, self.ptp_service_name, force_req.command_mode,
++                           future=future2)
+ 
+     def _on_ptp_force_mode_done(self, future):
+         try:
+@@ -5841,6 +5850,10 @@ class NodeCmdMotionInfer(Node):
+ 
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(self._on_ptp9d_step_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode,
++                           indices=segment_idx, future=future, velocity=req.target_velocity,
++                           blocked=not self._contact,
++                           reason="existing_precontact_fz_zero_gate" if not self._contact else None)
+ 
+     def _on_ptp9d_step_done(self, future):
+         self._ptp9d_inflight = False
+@@ -5915,6 +5928,7 @@ class NodeCmdMotionInfer(Node):
+         self._ptp9d_stream_last_force_send_t = 0.0
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_start_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode, future=future)
+ 
+     def _ptp9d_stream_stop(self):
+         if self._ptp9d_client is None or not self._ptp9d_client.service_is_ready():
+@@ -5934,6 +5948,7 @@ class NodeCmdMotionInfer(Node):
+         self._ptp9d_stream_started = False
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_stop_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode, future=future)
+ 
+     def _ptp9d_stream_topup(self):
+         if not self._ptp9d_stream_started:
+@@ -6040,6 +6055,9 @@ class NodeCmdMotionInfer(Node):
+ 
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_append_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode,
++                           indices=segment_idx, future=future, velocity=req.target_velocity,
++                           reason="existing_pose_smoothing; queued_force_columns_unused_zero")
+ 
+     def _ptp9d_stream_update_force(self):
+         """
+@@ -6120,6 +6138,9 @@ class NodeCmdMotionInfer(Node):
+ 
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_set_force_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode,
++                           indices=[idx], future=future, blocked=not self._contact,
++                           reason="existing_precontact_fz_zero_gate" if not self._contact else None)
+ 
+     def _run_demo_start_alignment(self, pose6: np.ndarray, now_t: float):
+         """
+@@ -6147,6 +6168,8 @@ class NodeCmdMotionInfer(Node):
+             now_dbg = _monotonic()
+             if now_dbg - self._demo_start_safety_last_log >= 1.0:
+                 self._demo_start_safety_last_log = now_dbg
++                self._metrics_call("event", "safety_limit", reason="demo_start_alignment_distance_hold",
++                                   distance_mm=align_dist, limit_mm=self.demo_start_max_align_dist_mm)
+                 self.get_logger().error(
+                     "[DEMO_START-SAFETY] alignment target is too far from current pose: "
+                     f"dist={align_dist:.3f}mm > limit={self.demo_start_max_align_dist_mm:.3f}mm. "
+@@ -6289,6 +6312,7 @@ class NodeCmdMotionInfer(Node):
+     # Control timer
+     # ------------------------------------------------------------
+     def _on_control_timer(self):
++        self._metrics_call("stage")
+         now_t = _monotonic()
+ 
+         with self._lock:
+@@ -6745,7 +6769,13 @@ def main(args=None, node_name: str = "inference_core"):
+         node = NodeCmdMotionInfer(node_name=node_name)
+         rclpy.spin(node)
+     except KeyboardInterrupt:
+-        pass
++        if node is not None:
++            node._metrics_call("event", "run_interrupted", reason="KeyboardInterrupt",
++                               physical_task_completion="unknown")
++    except Exception as exc:
++        if node is not None:
++            node._metrics_call("event", "run_error", error=repr(exc))
++        raise
+     finally:
+         if node is not None:
+             try:
+diff --git a/scripts/flow/flow_train_core.py b/scripts/flow/flow_train_core.py
+index a5442c6..ce318b0 100644
+--- a/scripts/flow/flow_train_core.py
++++ b/scripts/flow/flow_train_core.py
+@@ -80,6 +80,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--force_encoder_hidden_dim", type=int, default=64)
+     parser.add_argument("--force_encoder_num_layers", type=int, default=1)
+     parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
++    parser.add_argument(
++        "--use_force_observation", dest="use_force_observation",
++        action="store_true", default=True,
++        help="Expose measured force in qpos/history (default: enabled).",
++    )
++    parser.add_argument(
++        "--no_force_observation", dest="use_force_observation",
++        action="store_false",
++        help="E1 FORCE_OBS_OFF: zero measured-force qpos/history after normalization.",
++    )
+ 
+     parser.add_argument("--no_pretrained", action="store_true", default=False)
+     parser.add_argument(
+@@ -316,6 +326,7 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
+         "force_encoder_hidden_dim": args.force_encoder_hidden_dim,
+         "force_encoder_num_layers": args.force_encoder_num_layers,
+         "force_encoder_dropout": args.force_encoder_dropout,
++        "use_force_observation": bool(args.use_force_observation),
+         "flow_obs_hidden_dim": args.flow_obs_hidden_dim,
+         "flow_image_feature_dim": args.flow_image_feature_dim,
+         "flow_marker_feature_dim": args.flow_marker_feature_dim,
+@@ -946,6 +957,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
+         phase_weight_contact=args.phase_weight_contact,
+         qpos_dropout_prob=args.qpos_dropout_prob,
+         qpos_swap_prob=args.qpos_swap_prob,
++        use_force_observation=args.use_force_observation,
+     )
+     if args.phase_resample_enable:
+         print(
+@@ -965,6 +977,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
+     stats["dataset_hz"] = float(args.dataset_hz)
+     stats["force_history_sec"] = float(args.force_history_sec)
+     stats["force_history_len"] = int(args.force_history_len)
++    stats["use_force_observation"] = bool(args.use_force_observation)
+     stats["chunk_sec"] = float(args.chunk_sec)
+     stats["chunk_size"] = int(args.chunk_size)
+     carry_forward_relative_frame_stats(stats, dataset_dir)
+diff --git a/source/data/dataset.py b/source/data/dataset.py
+index b83db27..c073bf8 100644
+--- a/source/data/dataset.py
++++ b/source/data/dataset.py
+@@ -504,6 +504,7 @@ class ImitationEpisodeDataset(Dataset):
+         phase_weight_contact: float = 1.0,
+         qpos_dropout_prob: float = 0.0,
+         qpos_swap_prob: float = 0.0,
++        use_force_observation: bool = True,
+     ):
+         super().__init__()
+         self.episode_paths = list(episode_paths)
+@@ -559,6 +560,7 @@ class ImitationEpisodeDataset(Dataset):
+         # stain_direction_deg (see build scripts); silently disabled
+         # (falls back to no-op) if that attribute isn't present.
+         self.qpos_swap_prob = float(qpos_swap_prob)
++        self.use_force_observation = bool(use_force_observation)
+         if not (0.0 <= self.qpos_swap_prob < 1.0):
+             raise ValueError(f"qpos_swap_prob must be in [0,1), got {self.qpos_swap_prob}")
+         self._direction_labels: List[Optional[int]] = [None] * len(self.episode_paths)
+@@ -746,9 +748,17 @@ class ImitationEpisodeDataset(Dataset):
+                             swapped_raw, self.stats["qpos_min"], self.stats["qpos_max"], self.qpos_norm_mode
+                         )
+                         qpos_t = torch.from_numpy(swapped_norm).float()
++        # E1 FORCE_OBS_OFF: preserve the 9-D qpos interface, but make every
++        # measured-force channel constant after normalization.  This is
++        # deliberately applied after qpos dropout/swap so those augmentations
++        # cannot re-introduce measured force.  Action targets are untouched.
++        if not self.use_force_observation:
++            qpos_t[6:9] = 0.0
+         action_t = torch.from_numpy(action_norm).float()
+         is_pad_t = torch.from_numpy(is_pad).bool()
+         fh_t = torch.from_numpy(fh_norm).float()
++        if not self.use_force_observation:
++            fh_t.zero_()
+         marker_t = torch.from_numpy(marker_norm).float()
+         if self.include_gripper:
+             gripper_position_raw = np.asarray([gripper_position[start]], dtype=np.float32)
+@@ -855,6 +865,7 @@ def make_loaders(
+     phase_weight_contact: float = 1.0,
+     qpos_dropout_prob: float = 0.0,
+     qpos_swap_prob: float = 0.0,
++    use_force_observation: bool = True,
+ ):
+     use_gripper_history = bool(use_gripper_history)
+     gripper_history_len = max(1, int(gripper_history_len))
+@@ -916,6 +927,7 @@ def make_loaders(
+         phase_weight_free=phase_weight_free,
+         phase_weight_precontact=phase_weight_precontact,
+         phase_weight_contact=phase_weight_contact,
++        use_force_observation=use_force_observation,
+     )
+     train_ds = ImitationEpisodeDataset(
+         train_paths,
+@@ -967,5 +979,6 @@ def make_loaders(
+         "stain_mask_key": str(stain_mask_key or "observations/images/stain_mask"),
+         "stain_mask_threshold": float(stain_mask_threshold),
+         "resample_each_epoch": bool(resample_each_epoch),
++        "use_force_observation": bool(use_force_observation),
+     }
+     return train_loader, val_loader, stats, meta

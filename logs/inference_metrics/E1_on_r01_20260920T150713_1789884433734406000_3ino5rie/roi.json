@@ -1,0 +1,77 @@
+{
+  "reference": {
+    "source_seq": null,
+    "source_stamp_ns": null,
+    "receipt_ros_ns": 1789884433763598613,
+    "receipt_monotonic_ns": 5952520264596,
+    "stamp_basis": "receipt_only_no_header",
+    "source_clock": null,
+    "frame_id": null,
+    "source": "/stain_relative_frame/stain_origin",
+    "validity": "valid",
+    "center_xy_mm": [
+      437.9145669158414,
+      365.1718575479866
+    ],
+    "direction_rad": 2.5002397399211715,
+    "semantic_frame": "robot_base",
+    "reference_transform": {
+      "version": "stain_relative_v1",
+      "use_relative": true,
+      "translation_xy_mm": [
+        437.9145669158414,
+        365.1718575479866
+      ],
+      "rotation_canonicalization": false,
+      "canon_alpha_rad": 0.0
+    },
+    "source_time_note": "time first observed ready; origin message is headerless; not detector acquisition",
+    "surface_normal": null,
+    "contact_offset": null,
+    "logger_seq": 41,
+    "run_id": "E1_on_r01_20260920T150713_1789884433734406000_3ino5rie"
+  },
+  "mask": null,
+  "initial_image": {
+    "source_seq": null,
+    "source_stamp_ns": 1789884433711901611,
+    "receipt_ros_ns": 1789884433747321601,
+    "receipt_monotonic_ns": 5952503988125,
+    "stamp_basis": "source_header",
+    "source_clock": "publisher_ros_unverified_sync",
+    "frame_id": "vr_color_optical_frame",
+    "source": "/realsense/vr/color/image_raw",
+    "validity": "valid",
+    "logger_seq": 28,
+    "run_id": "E1_on_r01_20260920T150713_1789884433734406000_3ino5rie",
+    "path": "snapshots/initial_image.png",
+    "shape": [
+      240,
+      424,
+      3
+    ]
+  },
+  "final_image": {
+    "source_seq": null,
+    "source_stamp_ns": 1789884670651949219,
+    "receipt_ros_ns": 1789884671151697650,
+    "receipt_monotonic_ns": 6189908372971,
+    "stamp_basis": "source_header",
+    "source_clock": "publisher_ros_unverified_sync",
+    "frame_id": "vr_color_optical_frame",
+    "source": "/realsense/vr/color/image_raw",
+    "validity": "valid",
+    "logger_seq": 8571,
+    "run_id": "E1_on_r01_20260920T150713_1789884433734406000_3ino5rie",
+    "path": "snapshots/final_image.png",
+    "shape": [
+      240,
+      424,
+      3
+    ]
+  },
+  "calibration_ref": "metadata.json:camera_calibration_candidate",
+  "evaluation_roi": null,
+  "reason": "manual ROI required; no mask/canonicalization enabled by logger",
+  "run_id": "E1_on_r01_20260920T150713_1789884433734406000_3ino5rie"
+}

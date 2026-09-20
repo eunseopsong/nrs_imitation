@@ -394,7 +394,17 @@ ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
 
 ACT checkpoint를 직접 지정할 때는 `policy_class:=ACT`와 ACT checkpoint 경로를 같이 지정합니다.
 
-위 launch 명령은 inference와 `rqt_image_view`를 같이 실행합니다.
+Polishing single-camera launch는 `rqt_image_view` 창을 기본으로 열지 않습니다.
+`inference_clean_single_cam.launch.py`는 flow-vector와 modality 영상을 창 없이
+`~/Videos/Screencasts/*.webm`에 자동 저장합니다. 필요할 때만
+`visualize_flow_vector:=true` 또는 `visualize_modality_importance:=true`로 창을 엽니다.
+영상/overlay 기본값은 10fps (`overlay_record_fps`)이며, 인코더는 1 thread와 낮은
+CPU 우선순위를 사용합니다. `metrics_log_enable:=true`에서도 추가 고주파 토픽 구독은
+기본 OFF (`metrics_extra_telemetry_enable:=false`), 위치·힘/비교 CSV 기록은 최대
+20Hz (`metrics_sample_hz:=20.0`, `0.0`은 전부 기록)입니다. 전송 명령과 이벤트는
+샘플링하지 않고, 정책 입력·힘 history·로봇 제어 주기도 바꾸지 않습니다.
+샘플링된 기록은 고주파 힘 피크 분석용이 아니며, 생략 수는 `sampling_summary`에 남습니다.
+Dual-camera launch는 기존 시각화 기본값을 사용합니다.
 
 ```bash
 ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py

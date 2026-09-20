@@ -1,0 +1,16 @@
+x_min: 404.0
+x_max: 486.0
+y_min: 354.0
+y_max: 435.0
+cell_mm: 1.0
+k_preston: 1.0
+contact_threshold_N: 0.5
+speed_threshold_mm_s: 0.1
+pad_radius_mm: 20.0
+mean_heatmap_removal: 0.1299111537282604
+std_heatmap_removal: 0.18851392138108314
+samples: 81400
+contact_samples: 152
+duration_s: 1627.9799749851227
+max_speed_mm_s: 3.6984842412592913
+max_fn_N: 139.78959626095207

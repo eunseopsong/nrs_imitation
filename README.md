@@ -928,6 +928,9 @@ ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py \
 생성하므로 stain-mask topic이나 publisher가 필요 없다. ROI 좌표는 checkpoint
 metadata에서 자동 복원된다.
 
+Polishing single-camera 추론의 Grad-CAM 기본값은 `false`다.
+진단 시에만 `gradcam_enable:=true`로 켠다.
+
 ACT:
 
 ```bash
@@ -1024,7 +1027,20 @@ ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
 
 ### 6.4 Grad-CAM
 
-Grad-CAM과 `rqt_image_view`는 inference launch에서 기본 활성화된다.
+Polishing single-camera launch는 Grad-CAM과 `rqt_image_view`를 기본으로 끈다.
+`inference_clean_single_cam.launch.py`는 flow-vector와 modality 영상을 창 없이
+`~/Videos/Screencasts/*.webm`에 자동 저장한다 (`overlay_record_enable:=true`).
+실시간 확인이 필요한 경우에만 `visualize_flow_vector:=true` 또는
+`visualize_modality_importance:=true`로 해당 창을 연다.
+기록 부하를 줄이기 위해 영상과 overlay 발행은 기본 10fps
+(`overlay_record_fps`), 인코더는 1 thread/낮은 CPU 우선순위를 사용한다.
+`metrics_log_enable:=true`에서도 추가 2kHz FT/제어 상태 토픽 구독은 기본 OFF
+(`metrics_extra_telemetry_enable:=false`)이며, 기존 위치·힘 입력과 비교 CSV는
+최대 20Hz로 기록한다 (`metrics_sample_hz:=20.0`, `0.0`은 전부 기록).
+전송 명령·이벤트는 샘플링하지 않으며, 정책 입력·힘 history·제어 주기는 그대로다.
+샘플링 생략 수는 `sampling_summary` 이벤트에 남고, 20Hz 기록으로 고주파 힘 피크를 평가할 수는 없다.
+`use_stain_mask:=false`이면 불필요한 mask publisher도 실행하지 않는다.
+Dual-camera와 gripper launch는 기존 시각화 기본값을 사용한다.
 
 ```text
 Polishing single   /inference_single_cam/gradcam_overlay

@@ -1,0 +1,105 @@
+{
+  "run_id": "rel_single_90deg_best_20260920T160636_1789887996648993205_r3lvdifh",
+  "counts": {
+    "events": {
+      "received": 960,
+      "enqueued": 960,
+      "dropped": 0,
+      "written": 960
+    },
+    "tcp_pose": {
+      "received": 735,
+      "enqueued": 735,
+      "dropped": 0,
+      "written": 735
+    },
+    "wrench": {
+      "received": 735,
+      "enqueued": 735,
+      "dropped": 0,
+      "written": 735
+    },
+    "commands": {
+      "received": 1813,
+      "enqueued": 1813,
+      "dropped": 0,
+      "written": 1813
+    },
+    "legacy": {
+      "received": 406,
+      "enqueued": 406,
+      "dropped": 0,
+      "written": 406
+    },
+    "roi": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "snapshot": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    }
+  },
+  "source_counts": {
+    "events:inference_node": {
+      "received": 960,
+      "enqueued": 960,
+      "dropped": 0,
+      "written": 960
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "received": 735,
+      "enqueued": 735,
+      "dropped": 0,
+      "written": 735
+    },
+    "wrench:/ur10skku/currentF": {
+      "received": 735,
+      "enqueued": 735,
+      "dropped": 0,
+      "written": 735
+    },
+    "commands:/ur10skku/cmdMotion": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "legacy:legacy_latest_snapshot_not_measurement": {
+      "received": 406,
+      "enqueued": 406,
+      "dropped": 0,
+      "written": 406
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "commands:/singleArm_cmd/single_arm_command": {
+      "received": 660,
+      "enqueued": 660,
+      "dropped": 0,
+      "written": 660
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "commands:denormalized_policy_prediction": {
+      "received": 1152,
+      "enqueued": 1152,
+      "dropped": 0,
+      "written": 1152
+    }
+  },
+  "queue_pending": 1,
+  "write_errors": []
+}

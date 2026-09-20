@@ -1,0 +1,25 @@
+{
+  "status_at_recording": "both_training_on_cuda",
+  "started_local": "2026-09-16T15:31:00+09:00",
+  "start_time_precision": "minute from checkpoint directory",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "execution": "host persistent sessions; GPU device unavailable inside sandbox",
+  "off": {
+    "session_id": 9792,
+    "log": "experiments/e1_force_observation_20260916/gpu_run_z582O9/off_session.log",
+    "checkpoint_directory": "checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531",
+    "script": "experiments/e1_force_observation_20260916/train_off.sh"
+  },
+  "on": {
+    "session_id": 27852,
+    "log": "experiments/e1_force_observation_20260916/gpu_run_z582O9/on_session.log",
+    "checkpoint_directory": "checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531",
+    "script": "experiments/e1_force_observation_20260916/train_on.sh"
+  },
+  "num_workers": 2,
+  "num_epochs": 500,
+  "seed": 0,
+  "initialization": "both restarted from original common pretrained backbone and seed, not CPU fine-tuned checkpoints",
+  "previous_attempts": "CPU sessions 64112/50609 and blocked worker sessions 78849/54106 interrupted; logs and 20260916_1515 checkpoint directories preserved",
+  "launcher_guard": "ON/OFF scripts now refuse to start full training if CUDA is unavailable"
+}

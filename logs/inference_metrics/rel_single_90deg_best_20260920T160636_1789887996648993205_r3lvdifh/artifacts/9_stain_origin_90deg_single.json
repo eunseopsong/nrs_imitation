@@ -1,0 +1,192 @@
+{
+  "step": "2_stain_origin_SINGLE_ORIGIN_OVERRIDE",
+  "note": "stain is effectively fixed across all 42 episodes; per-episode dark detection scattered 42mm due to non-repeatable start poses + eye-in-hand extrinsic error (corr 0.79). Using one clean origin = max data, zero label noise.",
+  "stain_method": "dark_single_override",
+  "detect_params": {
+    "method": "dark",
+    "dark_thresh": 65,
+    "plate_roi": [
+      130,
+      58,
+      346,
+      122
+    ],
+    "tool_box": [
+      258,
+      115,
+      292,
+      122
+    ]
+  },
+  "origins": {
+    "episode_0": [
+      457.4,
+      375.0
+    ],
+    "episode_1": [
+      457.4,
+      375.0
+    ],
+    "episode_10": [
+      457.4,
+      375.0
+    ],
+    "episode_11": [
+      457.4,
+      375.0
+    ],
+    "episode_12": [
+      457.4,
+      375.0
+    ],
+    "episode_13": [
+      457.4,
+      375.0
+    ],
+    "episode_14": [
+      457.4,
+      375.0
+    ],
+    "episode_15": [
+      457.4,
+      375.0
+    ],
+    "episode_16": [
+      457.4,
+      375.0
+    ],
+    "episode_17": [
+      457.4,
+      375.0
+    ],
+    "episode_18": [
+      457.4,
+      375.0
+    ],
+    "episode_19": [
+      457.4,
+      375.0
+    ],
+    "episode_2": [
+      457.4,
+      375.0
+    ],
+    "episode_20": [
+      457.4,
+      375.0
+    ],
+    "episode_21": [
+      457.4,
+      375.0
+    ],
+    "episode_22": [
+      457.4,
+      375.0
+    ],
+    "episode_23": [
+      457.4,
+      375.0
+    ],
+    "episode_24": [
+      457.4,
+      375.0
+    ],
+    "episode_25": [
+      457.4,
+      375.0
+    ],
+    "episode_26": [
+      457.4,
+      375.0
+    ],
+    "episode_27": [
+      457.4,
+      375.0
+    ],
+    "episode_28": [
+      457.4,
+      375.0
+    ],
+    "episode_29": [
+      457.4,
+      375.0
+    ],
+    "episode_3": [
+      457.4,
+      375.0
+    ],
+    "episode_30": [
+      457.4,
+      375.0
+    ],
+    "episode_31": [
+      457.4,
+      375.0
+    ],
+    "episode_32": [
+      457.4,
+      375.0
+    ],
+    "episode_33": [
+      457.4,
+      375.0
+    ],
+    "episode_34": [
+      457.4,
+      375.0
+    ],
+    "episode_35": [
+      457.4,
+      375.0
+    ],
+    "episode_36": [
+      457.4,
+      375.0
+    ],
+    "episode_37": [
+      457.4,
+      375.0
+    ],
+    "episode_38": [
+      457.4,
+      375.0
+    ],
+    "episode_39": [
+      457.4,
+      375.0
+    ],
+    "episode_4": [
+      457.4,
+      375.0
+    ],
+    "episode_40": [
+      457.4,
+      375.0
+    ],
+    "episode_41": [
+      457.4,
+      375.0
+    ],
+    "episode_5": [
+      457.4,
+      375.0
+    ],
+    "episode_6": [
+      457.4,
+      375.0
+    ],
+    "episode_7": [
+      457.4,
+      375.0
+    ],
+    "episode_8": [
+      457.4,
+      375.0
+    ],
+    "episode_9": [
+      457.4,
+      375.0
+    ]
+  },
+  "unstable_episodes": []
+}

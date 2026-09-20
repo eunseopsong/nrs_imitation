@@ -1,0 +1,1074 @@
+diff --git a/behavior_ws/src/nrs_imitation/README.md b/behavior_ws/src/nrs_imitation/README.md
+index d91c602..219d9c5 100644
+--- a/behavior_ws/src/nrs_imitation/README.md
++++ b/behavior_ws/src/nrs_imitation/README.md
+@@ -394,7 +394,17 @@ ros2 launch nrs_imitation inference_gradcam_dual_cam.launch.py \
+ 
+ ACT checkpoint를 직접 지정할 때는 `policy_class:=ACT`와 ACT checkpoint 경로를 같이 지정합니다.
+ 
+-위 launch 명령은 inference와 `rqt_image_view`를 같이 실행합니다.
++Polishing single-camera launch는 `rqt_image_view` 창을 기본으로 열지 않습니다.
++`inference_clean_single_cam.launch.py`는 flow-vector와 modality 영상을 창 없이
++`~/Videos/Screencasts/*.webm`에 자동 저장합니다. 필요할 때만
++`visualize_flow_vector:=true` 또는 `visualize_modality_importance:=true`로 창을 엽니다.
++영상/overlay 기본값은 10fps (`overlay_record_fps`)이며, 인코더는 1 thread와 낮은
++CPU 우선순위를 사용합니다. `metrics_log_enable:=true`에서도 추가 고주파 토픽 구독은
++기본 OFF (`metrics_extra_telemetry_enable:=false`), 위치·힘/비교 CSV 기록은 최대
++20Hz (`metrics_sample_hz:=20.0`, `0.0`은 전부 기록)입니다. 전송 명령과 이벤트는
++샘플링하지 않고, 정책 입력·힘 history·로봇 제어 주기도 바꾸지 않습니다.
++샘플링된 기록은 고주파 힘 피크 분석용이 아니며, 생략 수는 `sampling_summary`에 남습니다.
++Dual-camera launch는 기존 시각화 기본값을 사용합니다.
+ 
+ ```bash
+ ros2 launch nrs_imitation inference_gradcam_single_cam.launch.py
+diff --git a/behavior_ws/src/nrs_imitation/launch/inference_autodir_single_cam.launch.py b/behavior_ws/src/nrs_imitation/launch/inference_autodir_single_cam.launch.py
+index 77a7920..a0ff951 100644
+--- a/behavior_ws/src/nrs_imitation/launch/inference_autodir_single_cam.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/inference_autodir_single_cam.launch.py
+@@ -158,9 +158,9 @@ def _pick_ckpt_and_include(context, *args, **kwargs):
+                 "image_topic": LaunchConfiguration("image_topic"),
+                 "pose_topic": LaunchConfiguration("pose_topic"),
+                 "stain_origin_topic": LaunchConfiguration("stain_origin_topic"),
+-                # inference_clean defaults gradcam_enable=true, which adds a
+-                # backward pass through DINOv3 every replan tick. On the
+-                # phase-2 operational run that stalled replanning to ~5s
++                # Enabling Grad-CAM adds a backward pass through DINOv3
++                # every replan tick. On the phase-2 operational run that
++                # stalled replanning to ~5s
+                 # (MODALITY compute 46ms -> 3500ms) and the robot held a
+                 # stale force-mode target between plans -> ESTOP. Keep the
+                 # heavy diagnostic off here, same as phase 1 does.
+diff --git a/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py b/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py
+index 737c548..14f3517 100644
+--- a/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-"""Minimal operational FLOW inference with the two requested diagnostics."""
++"""Operational FLOW inference with diagnostic recording and optional viewers."""
+ 
+ import os
+ import pickle
+@@ -130,6 +130,8 @@ def generate_launch_description():
+     removal_heatmap_tail_sec = LaunchConfiguration("removal_heatmap_tail_sec")
+     removal_view_margin_mm = LaunchConfiguration("removal_view_margin_mm")
+     gradcam_enable = LaunchConfiguration("gradcam_enable")
++    visualize_modality_importance = LaunchConfiguration("visualize_modality_importance")
++    visualize_flow_vector = LaunchConfiguration("visualize_flow_vector")
+     use_stain_mask = LaunchConfiguration("use_stain_mask")
+     ptp9d_segment_points = LaunchConfiguration("ptp9d_segment_points")
+     ptp9d_segment_stride = LaunchConfiguration("ptp9d_segment_stride")
+@@ -199,8 +201,14 @@ def generate_launch_description():
+             DeclareLaunchArgument("metrics_log_enable", default_value="false"),
+             DeclareLaunchArgument("metrics_log_dir", default_value=""),
+             DeclareLaunchArgument("metrics_run_tag", default_value=""),
++            DeclareLaunchArgument("metrics_extra_telemetry_enable", default_value="false"),
++            DeclareLaunchArgument("metrics_sample_hz", default_value="20.0"),
+             DeclareLaunchArgument("policy_z_offset_mm", default_value="0.0"),
+             DeclareLaunchArgument("overlay_record_enable", default_value="true"),
++            DeclareLaunchArgument("overlay_record_fps", default_value="10.0"),
++            # Record the image topics directly; live GUI windows are optional.
++            DeclareLaunchArgument("visualize_modality_importance", default_value="false"),
++            DeclareLaunchArgument("visualize_flow_vector", default_value="false"),
+             # Polishing-removal visualization: heatmap of the traversed
+             # trajectory's material removal, written on shutdown. Start/end
+             # tied to this launch's lifecycle.
+@@ -208,10 +216,9 @@ def generate_launch_description():
+             DeclareLaunchArgument("removal_viz_open_on_exit", default_value="false"),
+             DeclareLaunchArgument("removal_heatmap_tail_sec", default_value="15.0"),
+             DeclareLaunchArgument("removal_view_margin_mm", default_value="40.0"),
+-            # Feeds the flow-vector-overlay panel's heatmap (see
+-            # inference_core.py _render_flow_vector_overlay_rgb). Adds one
+-            # extra backward pass per replan tick -- pass :=false to skip it.
+-            DeclareLaunchArgument("gradcam_enable", default_value="true"),
++            # Optional heatmap diagnostic: enabling it adds one backward
++            # pass per replan tick. Keep it off for operational inference.
++            DeclareLaunchArgument("gradcam_enable", default_value="false"),
+             # Default "true" matches the pinned legacy FLOW ckpt_dir default
+             # above. Newer dinov3/use_tcp_roi checkpoints (both FLOW and
+             # BSPLINE) were trained with use_stain_mask=False -- pass
+@@ -267,8 +274,11 @@ def generate_launch_description():
+                     "metrics_log_enable": metrics_log_enable,
+                     "metrics_log_dir": metrics_log_dir,
+                     "metrics_run_tag": metrics_run_tag,
++                    "metrics_extra_telemetry_enable": LaunchConfiguration("metrics_extra_telemetry_enable"),
++                    "metrics_sample_hz": LaunchConfiguration("metrics_sample_hz"),
+                     "policy_z_offset_mm": policy_z_offset_mm,
+                     "overlay_record_enable": overlay_record_enable,
++                    "overlay_record_fps": LaunchConfiguration("overlay_record_fps"),
+                     "removal_viz_enable": removal_viz_enable,
+                     "removal_viz_open_on_exit": removal_viz_open_on_exit,
+                     "removal_heatmap_tail_sec": removal_heatmap_tail_sec,
+@@ -307,7 +317,8 @@ def generate_launch_description():
+                     "ptp9d_stream_stride": LaunchConfiguration("ptp9d_stream_stride"),
+                     "ptp9d_stream_force_min_interval_sec": LaunchConfiguration("ptp9d_stream_force_min_interval_sec"),
+                     "ptp9d_target_velocity_mm_s": ptp9d_target_velocity_mm_s,
+-                    "auto_stain_mask": "true",
++                    # No unused full-rate image processing for mask-free checkpoints.
++                    "auto_stain_mask": use_stain_mask,
+                     "stain_mask_mode": "tcp_roi",
+                     "tcp_roi_reference_width": "424",
+                     "tcp_roi_reference_height": "240",
+@@ -338,7 +349,7 @@ def generate_launch_description():
+                     "trajectory_hz": "30.0",
+                     "flow_local_anchor_enable": "false",
+                     "flow_replan_interval_steps": "120",
+-                    # Only the requested diagnostic windows are shown.
++                    # Generate diagnostics for recording; viewers default off.
+                     "gradcam_enable": gradcam_enable,
+                     "visualize": "false",
+                     "modality_importance_enable": "true",
+@@ -346,14 +357,14 @@ def generate_launch_description():
+                     "modality_importance_target": "action_norm",
+                     "modality_importance_target_step": "0",
+                     "modality_importance_target_horizon": "16",
+-                    "visualize_modality_importance": "true",
++                    "visualize_modality_importance": visualize_modality_importance,
+                     "flow_vector_overlay_enable": "true",
+                     "flow_vector_overlay_horizons": "1,5,15,30,60,127",
+                     "flow_vector_overlay_selected_horizon": vector_horizon,
+                     "flow_vector_overlay_tcp_center_x": "253",
+                     "flow_vector_overlay_tcp_center_y": "120",
+                     "flow_vector_overlay_pixels_per_mm": "2.0",
+-                    "visualize_flow_vector": "true",
++                    "visualize_flow_vector": visualize_flow_vector,
+                 }.items(),
+             ),
+             OpaqueFunction(function=_maybe_stain_origin),
+diff --git a/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py b/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
+index 1bad469..8e0b72f 100644
+--- a/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
+@@ -59,6 +59,7 @@ def generate_launch_description():
+     chunk_size = LaunchConfiguration("chunk_size")
+     use_force_history = LaunchConfiguration("use_force_history")
+     force_history_len = LaunchConfiguration("force_history_len")
++    use_force_observation = LaunchConfiguration("use_force_observation")
+     flow_infer_steps = LaunchConfiguration("flow_infer_steps")
+     flow_deterministic_noise = LaunchConfiguration("flow_deterministic_noise")
+     flow_noise_seed = LaunchConfiguration("flow_noise_seed")
+@@ -160,9 +161,19 @@ def generate_launch_description():
+         DeclareLaunchArgument("metrics_log_enable", default_value="false"),
+         DeclareLaunchArgument("metrics_log_dir", default_value=""),
+         DeclareLaunchArgument("metrics_run_tag", default_value=""),
+-        # Auto screen-recording of the run (ffmpeg x11grab -> ~/Videos/Screencasts).
+-        # Starts with this launch, stops (and finalizes the webm) on shutdown.
++        DeclareLaunchArgument("metrics_specimen_id", default_value="default"),
++        DeclareLaunchArgument("metrics_repeat_id", default_value=""),
++        DeclareLaunchArgument("metrics_rpm_setpoint", default_value=""),
++        DeclareLaunchArgument("metrics_rpm_assumed_constant", default_value="false"),
++        DeclareLaunchArgument("metrics_context_file", default_value=""),
++        DeclareLaunchArgument("metrics_queue_size", default_value="8192"),
++        DeclareLaunchArgument("metrics_snapshot_enable", default_value="true"),
++        DeclareLaunchArgument("metrics_extra_telemetry_enable", default_value="false"),
++        DeclareLaunchArgument("metrics_sample_hz", default_value="20.0"),
++        # Record diagnostic image topics directly to ~/Videos/Screencasts.
++        # No GUI is needed; the webm is finalized on shutdown.
+         DeclareLaunchArgument("overlay_record_enable", default_value="true"),
++        DeclareLaunchArgument("overlay_record_fps", default_value="10.0"),
+         # Polishing-removal visualization: records currentP/currentF for the
+         # whole launch and, on shutdown, writes a Preston removal heatmap +
+         # 3 companion plots for the traversed trajectory (ported from
+@@ -217,6 +228,7 @@ def generate_launch_description():
+         DeclareLaunchArgument("chunk_size", default_value="200"),
+         DeclareLaunchArgument("use_force_history", default_value="true"),
+         DeclareLaunchArgument("force_history_len", default_value="10"),
++        DeclareLaunchArgument("use_force_observation", default_value="true"),
+         DeclareLaunchArgument("flow_infer_steps", default_value="10"),
+         DeclareLaunchArgument("flow_deterministic_noise", default_value="true"),
+         DeclareLaunchArgument("flow_noise_seed", default_value="0"),
+@@ -284,7 +296,7 @@ def generate_launch_description():
+         DeclareLaunchArgument("cmd_safety_max_z_up_from_start_mm", default_value="95.0"),
+         DeclareLaunchArgument("cmd_safety_latch_on_start_limit", default_value="true"),
+ 
+-        DeclareLaunchArgument("gradcam_enable", default_value="true"),
++        DeclareLaunchArgument("gradcam_enable", default_value="false"),
+         DeclareLaunchArgument("gradcam_publish", default_value="true"),
+         DeclareLaunchArgument("gradcam_every_n_infer", default_value="1"),
+         DeclareLaunchArgument("gradcam_target", default_value="z"),
+@@ -294,7 +306,7 @@ def generate_launch_description():
+         DeclareLaunchArgument("gradcam_overlay_topic", default_value="/inference_single_cam/gradcam_overlay"),
+         DeclareLaunchArgument("gradcam_save", default_value="false"),
+         DeclareLaunchArgument("gradcam_save_dir", default_value="~/nrs_imitation/gradcam"),
+-        DeclareLaunchArgument("visualize", default_value="true"),
++        DeclareLaunchArgument("visualize", default_value="false"),
+         DeclareLaunchArgument("modality_importance_enable", default_value="true"),
+         DeclareLaunchArgument("modality_importance_every_n_infer", default_value="5"),
+         DeclareLaunchArgument("modality_importance_target", default_value="action_norm"),
+@@ -305,7 +317,7 @@ def generate_launch_description():
+             "modality_importance_topic",
+             default_value="/inference_single_cam/modality_importance",
+         ),
+-        DeclareLaunchArgument("visualize_modality_importance", default_value="true"),
++        DeclareLaunchArgument("visualize_modality_importance", default_value="false"),
+         DeclareLaunchArgument("flow_vector_overlay_enable", default_value="false"),
+         DeclareLaunchArgument(
+             "flow_vector_overlay_topic",
+@@ -345,6 +357,7 @@ def generate_launch_description():
+             output="screen",
+             parameters=[{
+                 "enable": ParameterValue(overlay_record_enable, value_type=bool),
++                "framerate": ParameterValue(LaunchConfiguration("overlay_record_fps"), value_type=float),
+                 "policy_class": policy_class,
+                 "run_tag": metrics_run_tag,
+                 "modality_importance_topic": modality_importance_topic,
+@@ -413,6 +426,16 @@ def generate_launch_description():
+                 "metrics_log_enable": ParameterValue(metrics_log_enable, value_type=bool),
+                 "metrics_log_dir": metrics_log_dir,
+                 "metrics_run_tag": metrics_run_tag,
++                "metrics_specimen_id": ParameterValue(LaunchConfiguration("metrics_specimen_id"), value_type=str),
++                "metrics_repeat_id": ParameterValue(LaunchConfiguration("metrics_repeat_id"), value_type=str),
++                "metrics_rpm_setpoint": ParameterValue(LaunchConfiguration("metrics_rpm_setpoint"), value_type=str),
++                "metrics_rpm_assumed_constant": ParameterValue(LaunchConfiguration("metrics_rpm_assumed_constant"), value_type=bool),
++                "metrics_context_file": ParameterValue(LaunchConfiguration("metrics_context_file"), value_type=str),
++                "metrics_queue_size": ParameterValue(LaunchConfiguration("metrics_queue_size"), value_type=int),
++                "metrics_snapshot_enable": ParameterValue(LaunchConfiguration("metrics_snapshot_enable"), value_type=bool),
++                "metrics_extra_telemetry_enable": ParameterValue(LaunchConfiguration("metrics_extra_telemetry_enable"), value_type=bool),
++                "metrics_sample_hz": ParameterValue(LaunchConfiguration("metrics_sample_hz"), value_type=float),
++                "flow_vector_overlay_max_hz": ParameterValue(LaunchConfiguration("overlay_record_fps"), value_type=float),
+                 "pose_topic": pose_topic,
+                 "force_topic": force_topic,
+                 "image_topic": image_topic,
+@@ -438,6 +461,7 @@ def generate_launch_description():
+                 "chunk_size": ParameterValue(chunk_size, value_type=int),
+                 "use_force_history": ParameterValue(use_force_history, value_type=bool),
+                 "force_history_len": ParameterValue(force_history_len, value_type=int),
++                "use_force_observation": ParameterValue(use_force_observation, value_type=bool),
+                 "flow_infer_steps": ParameterValue(flow_infer_steps, value_type=int),
+                 "flow_deterministic_noise": ParameterValue(flow_deterministic_noise, value_type=bool),
+                 "flow_noise_seed": ParameterValue(flow_noise_seed, value_type=int),
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+index b92e559..03d75c2 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+@@ -69,6 +69,7 @@ from std_msgs.msg import Float32, Float64MultiArray, Int32
+ from sensor_msgs.msg import Image
+ from std_srvs.srv import Trigger
+ from y2_rob_motion_interfaces.srv import SingleArmCommand
++from nrs_imitation.inference_metrics import InferenceMetrics, PARAMETERS as METRICS_PARAMETERS
+ 
+ try:
+     # Optional: only needed for stain-relative-frame checkpoints
+@@ -1131,6 +1132,8 @@ class NodeCmdMotionInfer(Node):
+         self.declare_parameter("metrics_log_enable", False)
+         self.declare_parameter("metrics_log_dir", "")  # empty -> <act_root>/logs/inference_metrics
+         self.declare_parameter("metrics_run_tag", "")
++        for name, default in METRICS_PARAMETERS.items():
++            self.declare_parameter(name, default)
+         self.declare_parameter("obs_mode", "single_cam")  # single_cam | dual_cam
+         self.declare_parameter("camera_names", "auto")    # auto | "cam0" | "cam0,cam1"
+         self.declare_parameter("phase_mode", "pure")  # kept for recommended Flow command compatibility
+@@ -1234,6 +1237,7 @@ class NodeCmdMotionInfer(Node):
+         # no robot commands. A bounded move is possible only through the explicit
+         # Trigger service below.
+         self.declare_parameter("flow_vector_overlay_enable", False)
++        self.declare_parameter("flow_vector_overlay_max_hz", 0.0)  # 0: native camera rate
+         self.declare_parameter(
+             "flow_vector_overlay_topic", "/inference_core/flow_vector_overlay"
+         )
+@@ -1287,6 +1291,7 @@ class NodeCmdMotionInfer(Node):
+         # -----------------------------
+         self.declare_parameter("use_force_history", True)
+         self.declare_parameter("force_history_len", 10)
++        self.declare_parameter("use_force_observation", True)
+ 
+         self.declare_parameter("position_dim", 6)
+         self.declare_parameter("force_dim", 3)
+@@ -1476,6 +1481,8 @@ class NodeCmdMotionInfer(Node):
+         # commanded trajectory, has settled near the demonstration start.
+         self.declare_parameter("demo_start_position_tolerance_mm", 5.0)
+         self.declare_parameter("demo_start_rotation_tolerance_rad", 0.05)
++        self.declare_parameter("ptp_feedback_timeout_sec", 2.0)
++        self.declare_parameter("ptp_feedback_max_age_sec", 0.5)
+         # Drive the current-pose -> demo_start move through the controller's
+         # native PTP (singleArm_cmd/single_arm_command service) instead of
+         # this node's own smoothstep + admittance position servo. False
+@@ -1763,6 +1770,10 @@ class NodeCmdMotionInfer(Node):
+         self.flow_vector_overlay_enable = bool(
+             self.get_parameter("flow_vector_overlay_enable").value
+         )
++        self.flow_vector_overlay_max_hz = float(self.get_parameter("flow_vector_overlay_max_hz").value)
++        if not np.isfinite(self.flow_vector_overlay_max_hz) or self.flow_vector_overlay_max_hz < 0:
++            raise ValueError("flow_vector_overlay_max_hz must be finite and nonnegative")
++        self._flow_vector_overlay_last_t = None
+         self.flow_vector_overlay_topic = str(
+             self.get_parameter("flow_vector_overlay_topic").value
+         ).strip()
+@@ -1858,6 +1869,7 @@ class NodeCmdMotionInfer(Node):
+         )
+         self.use_force_history = bool(self.get_parameter("use_force_history").value)
+         self.force_history_len = int(self.get_parameter("force_history_len").value)
++        self.use_force_observation = bool(self.get_parameter("use_force_observation").value)
+ 
+         self.position_dim = int(self.get_parameter("position_dim").value)
+         self.force_dim = int(self.get_parameter("force_dim").value)
+@@ -1995,6 +2007,11 @@ class NodeCmdMotionInfer(Node):
+         self.demo_start_rotation_tolerance_rad = max(
+             0.0, float(self.get_parameter("demo_start_rotation_tolerance_rad").value)
+         )
++        self.ptp_feedback_timeout_sec = float(self.get_parameter("ptp_feedback_timeout_sec").value)
++        self.ptp_feedback_max_age_sec = float(self.get_parameter("ptp_feedback_max_age_sec").value)
++        for name in ("ptp_feedback_timeout_sec", "ptp_feedback_max_age_sec"):
++            if not np.isfinite(getattr(self, name)) or getattr(self, name) <= 0.0:
++                raise RuntimeError(f"{name} must be finite and positive")
+         self.demo_start_use_ptp_service = bool(
+             self.get_parameter("demo_start_use_ptp_service").value
+         )
+@@ -2370,6 +2387,7 @@ class NodeCmdMotionInfer(Node):
+         # -----------------------------
+         self._lock = threading.Lock()
+         self._pose6: Optional[np.ndarray] = None
++        self._pose_receipt_t: Optional[float] = None
+         self._force: Optional[np.ndarray] = None
+         self._gripper_position: Optional[int] = None
+         self._gripper_current_mA: Optional[float] = None
+@@ -2438,6 +2456,10 @@ class NodeCmdMotionInfer(Node):
+         self._demo_start_from_pose6: Optional[np.ndarray] = None
+         self._demo_start_effective_move_sec: Optional[float] = None
+         self._ptp_alignment_requested = False
++        self._ptp_alignment_target6: Optional[np.ndarray] = None
++        self._ptp_feedback_pending = False
++        self._ptp_feedback_deadline = 0.0
++        self._ptp_alignment_failed = False
+ 
+         # contact state
+         self._contact = False
+@@ -2692,82 +2714,41 @@ class NodeCmdMotionInfer(Node):
+             and worker is not threading.current_thread()
+         ):
+             worker.join(timeout=2.0)
+-        metrics_file = getattr(self, "_metrics_csv_file", None)
+-        if metrics_file is not None:
+-            try:
+-                metrics_file.close()
+-            except Exception:
+-                pass
++        self._metrics_call("close")
+         return super().destroy_node()
+ 
+     # ------------------------------------------------------------
+     # Cross-policy comparison: per-tick CSV metrics log
+     # ------------------------------------------------------------
+     def _setup_metrics_logger(self):
+-        """Optionally record one CSV row per published command.
+-
+-        Used to compare policy_class runs (e.g. FLOW vs BSPLINE) offline with
+-        scripts/compare_policy_runs.py: same task, same topics, one CSV per run.
+-        """
+-        self._metrics_csv_file = None
+-        self._metrics_csv_writer = None
++        """Read-only asynchronous recorder; failures never change control state."""
++        self._metrics = None
+         self._metrics_t0 = _monotonic()
+         if not self.metrics_log_enable:
+             return
+-        log_dir = self.metrics_log_dir or os.path.join(self.act_root, "logs", "inference_metrics")
+         try:
+-            os.makedirs(log_dir, exist_ok=True)
+-            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+-            tag = f"_{self.metrics_run_tag}" if self.metrics_run_tag else ""
+-            fname = f"{self.policy_class.lower()}{tag}_{ts}.csv"
+-            path = os.path.join(log_dir, fname)
+-            self._metrics_csv_file = open(path, "w", newline="")
+-            self._metrics_csv_writer = csv.writer(self._metrics_csv_file)
+-            self._metrics_csv_writer.writerow([
+-                "t_wall", "t_elapsed_sec", "stage", "policy_class", "ckpt_dir",
+-                "meas_x_mm", "meas_y_mm", "meas_z_mm", "meas_rx", "meas_ry", "meas_rz",
+-                "meas_fx_N", "meas_fy_N", "meas_fz_N",
+-                "cmd_x_mm", "cmd_y_mm", "cmd_z_mm", "cmd_rx", "cmd_ry", "cmd_rz",
+-                "cmd_fx_N", "cmd_fy_N", "cmd_fz_N",
+-                "contact", "cmd_safety_blocked",
+-            ])
+-            self._metrics_csv_file.flush()
+-            self.get_logger().info(f"[METRICS] logging per-tick comparison CSV -> {path}")
++            self._metrics = InferenceMetrics(self)
++            self._metrics.start_observer()
+         except Exception as e:
+-            self.get_logger().error(f"[METRICS] failed to open metrics log: {e}")
+-            self._metrics_csv_file = None
+-            self._metrics_csv_writer = None
++            self.get_logger().error(f"[METRICS] setup failed (control unchanged): {e}")
++            self._metrics_call("event", "logger_setup_error", error=str(e))
+ 
+-    def _log_metrics_row(self, cmd9: np.ndarray, blocked: bool):
+-        if self._metrics_csv_writer is None:
++    def _metrics_call(self, method, *args, **kwargs):
++        recorder = getattr(self, "_metrics", None)
++        if recorder is None:
+             return
+         try:
+-            with self._lock:
+-                pose6 = None if self._pose6 is None else self._pose6.copy()
+-                force = None if self._force is None else self._force.copy()
+-            meas6 = pose6.astype(np.float32).tolist() if pose6 is not None else [float("nan")] * 6
+-            f3 = (
+-                self._extract_force3(force).astype(np.float32).tolist()
+-                if force is not None and force.size >= 3
+-                else [float("nan")] * 3
+-            )
+-            cmd = np.asarray(cmd9, dtype=np.float32).reshape(-1)[:9].tolist()
+-            self._metrics_csv_writer.writerow([
+-                time.time(),
+-                _monotonic() - self._metrics_t0,
+-                self.stage.name,
+-                self.policy_class,
+-                self.ckpt_dir,
+-                *meas6,
+-                *f3,
+-                *cmd,
+-                int(bool(self._contact)),
+-                int(bool(blocked)),
+-            ])
+-            self._metrics_csv_file.flush()
+-        except Exception as e:
+-            self.get_logger().error(f"[METRICS] failed to log row: {e}")
+-            self._metrics_csv_writer = None
++            getattr(recorder, method)(*args, **kwargs)
++        except Exception as exc:
++            now = _monotonic()
++            if now - getattr(self, "_metrics_last_error_t", 0.0) >= 1.0:
++                self._metrics_last_error_t = now
++                self.get_logger().error(f"[METRICS] {method} failed (control unchanged): {exc}")
++            if method != "event":
++                self._metrics_call("event", "logger_adapter_error", operation=method, error=str(exc))
++
++    def _log_metrics_row(self, cmd9: np.ndarray, blocked: bool):
++        self._metrics_call("legacy", cmd9, blocked)
+ 
+     # ------------------------------------------------------------
+     # Stain-relative frame helpers (no-op unless use_relative_position=True)
+@@ -2775,18 +2756,21 @@ class NodeCmdMotionInfer(Node):
+     def _srf_ready(self) -> bool:
+         """True once a stain origin is available (always True in absolute mode)."""
+         if not self.rel_use_relative:
++            self._metrics_call("reference")
+             return True
+         if self._srf is None:
+             return False
+         if self._srf.ready:
+             if not self._canon_setup_done:
+                 self._canon_setup()
++            self._metrics_call("reference")
+             if not self._srf_demo_start_absolutized:
+                 self._absolutize_demo_start_pose()
+             return True
+         now = _monotonic()
+         if now - getattr(self, "_srf_wait_last_log", 0.0) >= 2.0:
+             self._srf_wait_last_log = now
++            self._metrics_call("event", "wait", reason="stain_reference_not_ready")
+             self.get_logger().warn(
+                 f"[SRF] waiting for latched stain_origin on {self.stain_origin_topic} "
+                 "-- is stain_origin_node running with the arm at the home pose?"
+@@ -3883,14 +3867,16 @@ class NodeCmdMotionInfer(Node):
+     def _publish_flow_vector_overlay_frame(self, rgb: np.ndarray) -> bool:
+         """Render+publish the overlay for one camera frame.
+ 
+-        Called from _on_img() at the camera's own native rate, so the
+-        recorded video is as smooth as the camera feed itself -- the
+-        overlay's only genuinely slow-updating ingredient is the cached
+-        Grad-CAM heatmap (refreshed once per replan tick), everything else
+-        (camera pixels, red ROI box) is fresh on every call.
++        Called after updating the policy image. Limit only diagnostic rendering
++        and publication; camera observations retain their original cadence.
+         """
+         if not self.flow_vector_overlay_enable or self.pub_flow_vector_overlay is None:
+             return False
++        now_t = _monotonic()
++        if (self.flow_vector_overlay_max_hz > 0 and self._flow_vector_overlay_last_t is not None
++                and now_t - self._flow_vector_overlay_last_t < 1.0 / self.flow_vector_overlay_max_hz):
++            return False
++        self._flow_vector_overlay_last_t = now_t
+         try:
+             overlay = self._render_flow_vector_overlay_rgb(rgb=rgb)
+             msg = _rgb_numpy_to_image_msg(
+@@ -4131,6 +4117,7 @@ class NodeCmdMotionInfer(Node):
+             # FLOW config
+             "use_force_history": self.use_force_history,
+             "force_history_len": self.force_history_len,
++            "use_force_observation": self.use_force_observation,
+             "flow_infer_steps": self.flow_infer_steps,
+             "flow_train_eps": self.flow_train_eps,
+             "flow_loss_type": self.flow_loss_type,
+@@ -4183,6 +4170,16 @@ class NodeCmdMotionInfer(Node):
+                     "BSPLINE checkpoint (has 'num_control_points' in policy_config). "
+                     "Pass a matching ckpt_dir."
+                 )
++            ckpt_use_force_observation = bool(
++                ckpt_policy_cfg.get("use_force_observation", stats_obj.get("use_force_observation", True))
++            )
++            if ckpt_use_force_observation != self.use_force_observation:
++                raise RuntimeError(
++                    "use_force_observation mismatch: "
++                    f"checkpoint={ckpt_use_force_observation}, inference_arg={self.use_force_observation}. "
++                    "Use the checkpoint's exact observation schema."
++                )
++            args_override["use_force_observation"] = ckpt_use_force_observation
+             for key in (
+                 "image_backbone",
+                 "dino_model_name",
+@@ -4382,6 +4379,7 @@ class NodeCmdMotionInfer(Node):
+             raise RuntimeError(f"policy_best.ckpt not found: {ckpt_path}")
+ 
+         ckpt_obj = torch.load(ckpt_path, map_location=self.device)
++        self._metrics_checkpoint_config = ckpt_obj.get("config") if isinstance(ckpt_obj, dict) else None
+         if isinstance(ckpt_obj, dict):
+             ckpt_cfg = ckpt_obj.get("config", {}).get("policy_config", {})
+             ckpt_use_stain = bool(ckpt_cfg.get("use_stain_mask", False))
+@@ -4433,12 +4431,15 @@ class NodeCmdMotionInfer(Node):
+     # ROS callbacks
+     # ------------------------------------------------------------
+     def _on_pose(self, msg: Float64MultiArray):
++        self._metrics_call("pose", msg)
+         arr = np.asarray(msg.data, dtype=np.float32).reshape(-1)
+         if arr.size >= 6:
+             with self._lock:
+                 self._pose6 = arr[:6].copy()
++                self._pose_receipt_t = _monotonic()
+ 
+     def _on_force(self, msg: Float64MultiArray):
++        self._metrics_call("force", msg)
+         arr = np.asarray(msg.data, dtype=np.float32).reshape(-1)
+         with self._lock:
+             self._force = arr.copy()
+@@ -4446,6 +4447,7 @@ class NodeCmdMotionInfer(Node):
+                 self._force_hist.append(self._extract_force3(arr))
+ 
+     def _on_force_wrench(self, msg: Wrench):
++        self._metrics_call("force", msg)
+         arr = np.asarray([msg.force.x, msg.force.y, msg.force.z], dtype=np.float32)
+         with self._lock:
+             self._force = arr.copy()
+@@ -4588,16 +4590,15 @@ class NodeCmdMotionInfer(Node):
+     def _on_img(self, msg: Image):
+         try:
+             rgb_raw = _img_to_rgb_numpy(msg)
++            self._metrics_call("image", msg, rgb_raw)
+             rgb = self._preprocess_live_image(rgb_raw)
+             with self._lock:
+                 self._img_cam0 = rgb
+         except Exception as e:
+             self.get_logger().error(f"[CAM0 IMG] decode/preprocess failed: {e}")
+             return
+-        # Publish the overlay at the camera's own native rate (not tied to
+-        # the ~few-second replan cadence) so the recorded video is as smooth
+-        # as the camera feed -- only the blended Grad-CAM heatmap is allowed
+-        # to lag (it's cached from the last replan tick).
++        # Only diagnostic rendering/publication is rate-limited; the policy
++        # already received this camera frame above.
+         self._publish_flow_vector_overlay_frame(rgb)
+ 
+     def _on_global_img(self, msg: Image):
+@@ -4611,6 +4612,7 @@ class NodeCmdMotionInfer(Node):
+     def _on_stain_mask(self, msg: Image):
+         try:
+             mask = _mask_msg_to_float_numpy(msg)
++            self._metrics_call("mask", msg, mask)
+             with self._lock:
+                 self._stain_mask = mask.copy()
+         except Exception as e:
+@@ -4674,6 +4676,7 @@ class NodeCmdMotionInfer(Node):
+         self._preload_target_N = self._compute_preload_target()
+ 
+         self.stage = Stage.PRELOAD
++        self._metrics_call("stage")
+         self.plans.clear()
+         self._anchor_ready = False
+ 
+@@ -4683,6 +4686,7 @@ class NodeCmdMotionInfer(Node):
+ 
+     def _enter_track(self):
+         self.stage = Stage.TRACK
++        self._metrics_call("stage")
+         self.plans.clear()
+         self._anchor_ready = False
+         self._preload_last_exit_t = _monotonic()
+@@ -4694,6 +4698,7 @@ class NodeCmdMotionInfer(Node):
+ 
+     def _enter_release(self, fz_cmd_start: float):
+         self.stage = Stage.RELEASE
++        self._metrics_call("stage")
+         self._release_t0 = _monotonic()
+         self._release_start_fz_cmd = float(max(0.0, fz_cmd_start))
+ 
+@@ -4705,6 +4710,7 @@ class NodeCmdMotionInfer(Node):
+ 
+     def _soft_reset_to_approach(self, reason: str):
+         self.stage = Stage.APPROACH
++        self._metrics_call("stage")
+         self.plans.clear()
+         self._anchor_ready = False
+         self._touch_ok = 0
+@@ -4788,6 +4794,8 @@ class NodeCmdMotionInfer(Node):
+             now_dbg = _monotonic()
+             if now_dbg - self._infer_wait_last_log >= 1.0:
+                 self._infer_wait_last_log = now_dbg
++                self._metrics_call("event", "wait", reason="missing_inference_input",
++                                   pose=pose6 is not None, force=force is not None, image=cam0 is not None)
+                 self.get_logger().warn(
+                     "[INFER-WAIT] missing live input -> "
+                     f"pose={pose6 is not None}, force={force is not None}, "
+@@ -4808,6 +4816,7 @@ class NodeCmdMotionInfer(Node):
+                 self.get_logger().warn(f"[INFER-WAIT] force vector too short: size={force.size}")
+             return
+ 
++        self._metrics_call("infer_start", force_hist_list)
+         f3 = self._extract_force3(force)
+         if self.obs_force_xy_zeroed:
+             # This checkpoint was trained with observations/force fx,fy set to
+@@ -4834,6 +4843,8 @@ class NodeCmdMotionInfer(Node):
+ 
+         if self.normalize_qpos_enabled and self.stats is not None:
+             q_t = _normalize_qpos(q_t, self.stats)
++        if not self.use_force_observation:
++            q_t[:, 6:9] = 0.0
+ 
+         force_hist_t = None
+         if self.use_force_history:
+@@ -4844,6 +4855,8 @@ class NodeCmdMotionInfer(Node):
+             force_hist_t = torch.from_numpy(hist_np).unsqueeze(0).to(self.device, dtype=torch.float32)  # (1,L,3)
+             if self.normalize_qpos_enabled and self.stats is not None:
+                 force_hist_t = _normalize_force_history(force_hist_t, self.stats)
++            if not self.use_force_observation:
++                force_hist_t.zero_()
+ 
+         try:
+             # Rotation canonicalization: rotate the policy's camera frame so
+@@ -4907,6 +4920,7 @@ class NodeCmdMotionInfer(Node):
+                     )
+         except Exception as e:
+             self.get_logger().error(f"[INFER] image stack failed: {e}")
++            self._metrics_call("event", "inference_error", error=str(e), operation="image_stack")
+             return
+ 
+         flow_initial_noise_t = None
+@@ -4945,6 +4959,7 @@ class NodeCmdMotionInfer(Node):
+                 seq = _denorm_action_seq(seq, self.stats)
+ 
+             seq_den = seq.detach().cpu().numpy().astype(np.float32)
++            self._metrics_call("prediction", seq_den)
+ 
+             # Stain-relative checkpoint: the policy emits x,y in the stain
+             # frame. Convert the whole trajectory back to absolute base
+@@ -4965,9 +4980,11 @@ class NodeCmdMotionInfer(Node):
+                 seq_den[:, 6:8] = 0.0
+             if self.fz_hard_limit > 0.0:
+                 seq_den[:, 8] = np.clip(seq_den[:, 8], -self.fz_hard_limit, self.fz_hard_limit)
++            self._metrics_call("postprocess", seq_den)
+ 
+         except Exception as e:
+             self.get_logger().error(f"[INFER] policy forward failed: {e}")
++            self._metrics_call("event", "inference_error", error=str(e))
+             return
+ 
+         # Preserve the unanchored, denormalized absolute FLOW output for
+@@ -4996,6 +5013,7 @@ class NodeCmdMotionInfer(Node):
+             Plan(t0=_monotonic(), seq_den=seq_den, local_anchor_applied=local_anchor_applied)
+         )
+         self._infer_plan_count += 1
++        self._metrics_call("plan", self.plans[-1])
+ 
+         if (
+             self._ptp9d_track_active
+@@ -5123,6 +5141,7 @@ class NodeCmdMotionInfer(Node):
+             if now - self._cmd_safety_last_log >= 1.0:
+                 self._cmd_safety_last_log = now
+                 self.get_logger().error(f"[CMD-SAFETY] malformed cmd size={cmd.size}; publish skipped")
++                self._metrics_call("event", "safety_limit", reason="malformed_command", size=int(cmd.size))
+             return self.prev_cmd.copy() if self.prev_cmd is not None else np.zeros(9, dtype=np.float32)
+ 
+         cmd = cmd[:9].astype(np.float32).copy()
+@@ -5221,6 +5240,8 @@ class NodeCmdMotionInfer(Node):
+         m = Float64MultiArray()
+         m.data = [float(x) for x in published.reshape(-1).tolist()]
+         self.pub_cmd.publish(m)
++        self._metrics_call("sent", m.data, self.cmd_topic, blocked=blocked,
++                           reason=reason if blocked else None)
+         self._log_metrics_row(published, blocked)
+         return published
+ 
+@@ -5592,6 +5613,8 @@ class NodeCmdMotionInfer(Node):
+ 
+         align_dist = float(np.linalg.norm(target[0:3] - pose6_now[0:3]))
+         if self.demo_start_max_align_dist_mm > 0.0 and align_dist > float(self.demo_start_max_align_dist_mm):
++            self._metrics_call("event", "safety_limit", reason="demo_start_max_align_dist",
++                               distance_mm=align_dist, limit_mm=self.demo_start_max_align_dist_mm)
+             self.get_logger().error(
+                 "[DEMO_START-SAFETY] PTP target is too far from current pose: "
+                 f"dist={align_dist:.3f}mm > limit={self.demo_start_max_align_dist_mm:.3f}mm. "
+@@ -5620,6 +5643,7 @@ class NodeCmdMotionInfer(Node):
+             float(np.degrees(target[5])),
+         ]
+         req.target_velocity = float(self.ptp_target_velocity_mm_s)
++        self._ptp_alignment_target6 = target.copy()
+ 
+         self.get_logger().warn(
+             "[DEMO_START] requesting PTP to demo_start_pose_mean + world_Z_offset "
+@@ -5628,6 +5652,8 @@ class NodeCmdMotionInfer(Node):
+         )
+         future = self._ptp_client.call_async(req)
+         future.add_done_callback(self._on_ptp_alignment_done)
++        self._metrics_call("sent", req.target_pose, self.ptp_service_name, req.command_mode,
++                           future=future, velocity=req.target_velocity)
+ 
+     def _on_ptp_alignment_done(self, future):
+         try:
+@@ -5646,7 +5672,57 @@ class NodeCmdMotionInfer(Node):
+             )
+             return
+ 
+-        self.get_logger().warn(f"[DEMO_START] PTP complete: {resp.message}")
++        self.get_logger().info(
++            f"[DEMO_START] PTP service returned success; verifying measured TCP: {resp.message}"
++        )
++        self._ptp_feedback_pending = True
++        self._ptp_feedback_deadline = _monotonic() + self.ptp_feedback_timeout_sec
++        self._verify_ptp_alignment_feedback()
++
++    def _ptp_alignment_feedback(self):
++        """Check received feedback; service success only confirms command transfer."""
++        with self._lock:
++            pose = None if self._pose6 is None else self._pose6.copy()
++            received = self._pose_receipt_t
++        target = self._ptp_alignment_target6
++        details = dict(position_error_mm=None, rotation_error_rad=None, receipt_age_sec=None)
++        if pose is None or target is None or received is None:
++            return False, dict(details, reason="missing_pose_or_alignment_target")
++        age = _monotonic() - received
++        details["receipt_age_sec"] = age
++        if not np.all(np.isfinite(pose)) or not np.all(np.isfinite(target)):
++            return False, dict(details, reason="nonfinite_pose_or_alignment_target")
++        details["position_error_mm"] = float(np.linalg.norm(pose[:3] - target[:3]))
++        details["rotation_error_rad"] = float(np.linalg.norm(pose[3:6] - target[3:6]))
++        if not np.isfinite(age) or age < 0.0 or age > self.ptp_feedback_max_age_sec:
++            return False, dict(details, reason="stale_pose_receipt")
++        reached = (
++            details["position_error_mm"] <= self.demo_start_position_tolerance_mm
++            and details["rotation_error_rad"] <= self.demo_start_rotation_tolerance_rad
++        )
++        return reached, dict(details, reason="reached" if reached else "target_not_reached")
++
++    def _fail_ptp_alignment(self, details):
++        self._ptp_feedback_pending = False
++        self._ptp_alignment_failed = True
++        self._demo_start_align_done = False
++        self.get_logger().error(
++            "[DEMO_START] alignment NOT verified; policy/stream start blocked. "
++            f"{details}. Check robot/driver state; no automatic retry."
++        )
++        self._metrics_call("event", "alignment_not_verified", **details)
++
++    def _verify_ptp_alignment_feedback(self):
++        if not self._ptp_feedback_pending or self._ptp_alignment_failed:
++            return
++        reached, details = self._ptp_alignment_feedback()
++        if not reached:
++            if _monotonic() >= self._ptp_feedback_deadline:
++                self._fail_ptp_alignment(details)
++            return
++        self._ptp_feedback_pending = False
++        self.get_logger().info(f"[DEMO_START] measured TCP alignment verified: {details}")
++        self._metrics_call("event", "alignment_verified", **details)
+ 
+         if not self.ptp_switch_to_force_mode:
+             self._finish_ptp_alignment()
+@@ -5659,6 +5735,8 @@ class NodeCmdMotionInfer(Node):
+         force_req.command_mode = "Force"
+         future2 = self._ptp_client.call_async(force_req)
+         future2.add_done_callback(self._on_ptp_force_mode_done)
++        self._metrics_call("sent", force_req.target_pose, self.ptp_service_name, force_req.command_mode,
++                           future=future2)
+ 
+     def _on_ptp_force_mode_done(self, future):
+         try:
+@@ -5693,6 +5771,13 @@ class NodeCmdMotionInfer(Node):
+         after arrival). Re-anchor everything to the live pose before letting
+         control resume.
+         """
++        if self._ptp_alignment_failed:
++            return
++        reached, details = self._ptp_alignment_feedback()
++        if not reached:
++            self._fail_ptp_alignment(details)
++            return
++
+         with self._lock:
+             pose6_now = None if self._pose6 is None else self._pose6.copy()
+ 
+@@ -5841,6 +5926,10 @@ class NodeCmdMotionInfer(Node):
+ 
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(self._on_ptp9d_step_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode,
++                           indices=segment_idx, future=future, velocity=req.target_velocity,
++                           blocked=not self._contact,
++                           reason="existing_precontact_fz_zero_gate" if not self._contact else None)
+ 
+     def _on_ptp9d_step_done(self, future):
+         self._ptp9d_inflight = False
+@@ -5915,6 +6004,7 @@ class NodeCmdMotionInfer(Node):
+         self._ptp9d_stream_last_force_send_t = 0.0
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_start_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode, future=future)
+ 
+     def _ptp9d_stream_stop(self):
+         if self._ptp9d_client is None or not self._ptp9d_client.service_is_ready():
+@@ -5934,6 +6024,7 @@ class NodeCmdMotionInfer(Node):
+         self._ptp9d_stream_started = False
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_stop_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode, future=future)
+ 
+     def _ptp9d_stream_topup(self):
+         if not self._ptp9d_stream_started:
+@@ -6040,6 +6131,9 @@ class NodeCmdMotionInfer(Node):
+ 
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_append_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode,
++                           indices=segment_idx, future=future, velocity=req.target_velocity,
++                           reason="existing_pose_smoothing; queued_force_columns_unused_zero")
+ 
+     def _ptp9d_stream_update_force(self):
+         """
+@@ -6120,6 +6214,9 @@ class NodeCmdMotionInfer(Node):
+ 
+         future = self._ptp9d_client.call_async(req)
+         future.add_done_callback(_on_set_force_done)
++        self._metrics_call("sent", req.target_pose, self.ptp9d_service_name, req.command_mode,
++                           indices=[idx], future=future, blocked=not self._contact,
++                           reason="existing_precontact_fz_zero_gate" if not self._contact else None)
+ 
+     def _run_demo_start_alignment(self, pose6: np.ndarray, now_t: float):
+         """
+@@ -6147,6 +6244,8 @@ class NodeCmdMotionInfer(Node):
+             now_dbg = _monotonic()
+             if now_dbg - self._demo_start_safety_last_log >= 1.0:
+                 self._demo_start_safety_last_log = now_dbg
++                self._metrics_call("event", "safety_limit", reason="demo_start_alignment_distance_hold",
++                                   distance_mm=align_dist, limit_mm=self.demo_start_max_align_dist_mm)
+                 self.get_logger().error(
+                     "[DEMO_START-SAFETY] alignment target is too far from current pose: "
+                     f"dist={align_dist:.3f}mm > limit={self.demo_start_max_align_dist_mm:.3f}mm. "
+@@ -6289,8 +6388,16 @@ class NodeCmdMotionInfer(Node):
+     # Control timer
+     # ------------------------------------------------------------
+     def _on_control_timer(self):
++        self._metrics_call("stage")
+         now_t = _monotonic()
+ 
++        if self.auto_move_to_demo_start and not self._demo_start_align_done:
++            if self._ptp_alignment_failed:
++                return
++            if self._ptp_feedback_pending:
++                self._verify_ptp_alignment_feedback()
++                return
++
+         with self._lock:
+             pose6 = None if self._pose6 is None else self._pose6.copy()
+             force = None if self._force is None else self._force.copy()
+@@ -6745,7 +6852,13 @@ def main(args=None, node_name: str = "inference_core"):
+         node = NodeCmdMotionInfer(node_name=node_name)
+         rclpy.spin(node)
+     except KeyboardInterrupt:
+-        pass
++        if node is not None:
++            node._metrics_call("event", "run_interrupted", reason="KeyboardInterrupt",
++                               physical_task_completion="unknown")
++    except Exception as exc:
++        if node is not None:
++            node._metrics_call("event", "run_error", error=repr(exc))
++        raise
+     finally:
+         if node is not None:
+             try:
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_single_cam.py b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_single_cam.py
+index 73d3923..4828510 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_single_cam.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_single_cam.py
+@@ -53,7 +53,7 @@ DEFAULT_ROS_ARGS = [
+     "-p", "contact_off_thr:=1.2",
+     "-p", "clear_plans_on_contact_change:=false",
+     "-p", "dither_enable:=false",
+-    "-p", "gradcam_enable:=true",
++    "-p", "gradcam_enable:=false",
+     "-p", "gradcam_publish:=true",
+     "-p", "gradcam_every_n_infer:=1",
+     "-p", "gradcam_target:=z",
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/overlay_video_recorder.py b/behavior_ws/src/nrs_imitation/nrs_imitation/overlay_video_recorder.py
+index 1148dc1..f66d666 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/overlay_video_recorder.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/overlay_video_recorder.py
+@@ -18,6 +18,7 @@ each topic (so the composite size is known).
+ """
+ import os
+ import signal
++import shutil
+ import subprocess
+ import time
+ 
+@@ -68,16 +69,12 @@ class OverlayVideoRecorderNode(Node):
+         self.declare_parameter("file_prefix", "polishing_inference")
+         self.declare_parameter("policy_class", "unknown")
+         self.declare_parameter("run_tag", "")
+-        self.declare_parameter("framerate", 30.0)
++        self.declare_parameter("framerate", 10.0)
++        self.declare_parameter("encoder_threads", 1)
+         self.declare_parameter("bitrate_mbps", 4.0)
+-        # The overlays are only recomputed once per policy replan (a few
+-        # seconds apart, not every control tick) -- raising the output
+-        # framerate alone just re-writes the same static frame, it can't
+-        # make an update that's genuinely infrequent look smooth. Instead
+-        # we crossfade from the previous composite to each new one over
+-        # this many seconds, so the real (slow) update cadence reads as a
+-        # smooth transition rather than an abrupt jump-cut.
+-        self.declare_parameter("transition_sec", 0.6)
++        # Optional crossfade between diagnostic updates. Default off avoids
++        # full-frame float conversions/blending while inference is running.
++        self.declare_parameter("transition_sec", 0.0)
+         self.declare_parameter("modality_importance_topic", "/inference_single_cam/modality_importance")
+         self.declare_parameter("flow_vector_overlay_topic", "/inference_single_cam/flow_vector_overlay")
+         self.declare_parameter("record_modality_importance", True)
+@@ -118,6 +115,8 @@ class OverlayVideoRecorderNode(Node):
+         self.policy_class = str(self.get_parameter("policy_class").value)
+         self.run_tag = str(self.get_parameter("run_tag").value)
+         self.framerate = float(self.get_parameter("framerate").value)
++        self.encoder_threads = max(1, int(self.get_parameter("encoder_threads").value))
++        cv2.setNumThreads(1)  # recorder process only; no effect on inference preprocessing
+         self.bitrate_mbps = float(self.get_parameter("bitrate_mbps").value)
+         self.transition_sec = float(self.get_parameter("transition_sec").value)
+         self._prev_composite = None   # np.float32 (H,W,3), blend start point
+@@ -154,6 +153,11 @@ class OverlayVideoRecorderNode(Node):
+         composite = self._composite()
+         if composite is None:
+             return
++        if self.transition_sec <= 0:
++            self._prev_composite = None
++            self._target_composite = composite
++            self._target_time = None
++            return
+         if self._target_composite is not None and self._target_composite.shape == composite.shape:
+             self._prev_composite = self._current_blend().astype(np.float32)
+         else:
+@@ -225,10 +229,14 @@ class OverlayVideoRecorderNode(Node):
+             "-r", str(self.framerate),
+             "-i", "-",
+             "-c:v", "libvpx", "-b:v", f"{self.bitrate_mbps}M",
+-            "-deadline", "realtime", "-cpu-used", "4",
++            "-deadline", "realtime", "-cpu-used", "8",
++            "-threads", str(self.encoder_threads),
+             "-an",
+             self.out_path,
+         ]
++        nice = shutil.which("nice")
++        if nice:
++            cmd = [nice, "-n", "10", *cmd]
+         self.get_logger().info(f"recording composite {width}x{height} (flow left, modality right) -> {self.out_path}")
+         self.proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=self._log_fh, stderr=subprocess.STDOUT)
+ 
+diff --git a/scripts/flow/flow_train_core.py b/scripts/flow/flow_train_core.py
+index a5442c6..ce318b0 100644
+--- a/scripts/flow/flow_train_core.py
++++ b/scripts/flow/flow_train_core.py
+@@ -80,6 +80,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
+     parser.add_argument("--force_encoder_hidden_dim", type=int, default=64)
+     parser.add_argument("--force_encoder_num_layers", type=int, default=1)
+     parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
++    parser.add_argument(
++        "--use_force_observation", dest="use_force_observation",
++        action="store_true", default=True,
++        help="Expose measured force in qpos/history (default: enabled).",
++    )
++    parser.add_argument(
++        "--no_force_observation", dest="use_force_observation",
++        action="store_false",
++        help="E1 FORCE_OBS_OFF: zero measured-force qpos/history after normalization.",
++    )
+ 
+     parser.add_argument("--no_pretrained", action="store_true", default=False)
+     parser.add_argument(
+@@ -316,6 +326,7 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
+         "force_encoder_hidden_dim": args.force_encoder_hidden_dim,
+         "force_encoder_num_layers": args.force_encoder_num_layers,
+         "force_encoder_dropout": args.force_encoder_dropout,
++        "use_force_observation": bool(args.use_force_observation),
+         "flow_obs_hidden_dim": args.flow_obs_hidden_dim,
+         "flow_image_feature_dim": args.flow_image_feature_dim,
+         "flow_marker_feature_dim": args.flow_marker_feature_dim,
+@@ -946,6 +957,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
+         phase_weight_contact=args.phase_weight_contact,
+         qpos_dropout_prob=args.qpos_dropout_prob,
+         qpos_swap_prob=args.qpos_swap_prob,
++        use_force_observation=args.use_force_observation,
+     )
+     if args.phase_resample_enable:
+         print(
+@@ -965,6 +977,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
+     stats["dataset_hz"] = float(args.dataset_hz)
+     stats["force_history_sec"] = float(args.force_history_sec)
+     stats["force_history_len"] = int(args.force_history_len)
++    stats["use_force_observation"] = bool(args.use_force_observation)
+     stats["chunk_sec"] = float(args.chunk_sec)
+     stats["chunk_size"] = int(args.chunk_size)
+     carry_forward_relative_frame_stats(stats, dataset_dir)
+diff --git a/source/data/dataset.py b/source/data/dataset.py
+index b83db27..c073bf8 100644
+--- a/source/data/dataset.py
++++ b/source/data/dataset.py
+@@ -504,6 +504,7 @@ class ImitationEpisodeDataset(Dataset):
+         phase_weight_contact: float = 1.0,
+         qpos_dropout_prob: float = 0.0,
+         qpos_swap_prob: float = 0.0,
++        use_force_observation: bool = True,
+     ):
+         super().__init__()
+         self.episode_paths = list(episode_paths)
+@@ -559,6 +560,7 @@ class ImitationEpisodeDataset(Dataset):
+         # stain_direction_deg (see build scripts); silently disabled
+         # (falls back to no-op) if that attribute isn't present.
+         self.qpos_swap_prob = float(qpos_swap_prob)
++        self.use_force_observation = bool(use_force_observation)
+         if not (0.0 <= self.qpos_swap_prob < 1.0):
+             raise ValueError(f"qpos_swap_prob must be in [0,1), got {self.qpos_swap_prob}")
+         self._direction_labels: List[Optional[int]] = [None] * len(self.episode_paths)
+@@ -746,9 +748,17 @@ class ImitationEpisodeDataset(Dataset):
+                             swapped_raw, self.stats["qpos_min"], self.stats["qpos_max"], self.qpos_norm_mode
+                         )
+                         qpos_t = torch.from_numpy(swapped_norm).float()
++        # E1 FORCE_OBS_OFF: preserve the 9-D qpos interface, but make every
++        # measured-force channel constant after normalization.  This is
++        # deliberately applied after qpos dropout/swap so those augmentations
++        # cannot re-introduce measured force.  Action targets are untouched.
++        if not self.use_force_observation:
++            qpos_t[6:9] = 0.0
+         action_t = torch.from_numpy(action_norm).float()
+         is_pad_t = torch.from_numpy(is_pad).bool()
+         fh_t = torch.from_numpy(fh_norm).float()
++        if not self.use_force_observation:
++            fh_t.zero_()
+         marker_t = torch.from_numpy(marker_norm).float()
+         if self.include_gripper:
+             gripper_position_raw = np.asarray([gripper_position[start]], dtype=np.float32)
+@@ -855,6 +865,7 @@ def make_loaders(
+     phase_weight_contact: float = 1.0,
+     qpos_dropout_prob: float = 0.0,
+     qpos_swap_prob: float = 0.0,
++    use_force_observation: bool = True,
+ ):
+     use_gripper_history = bool(use_gripper_history)
+     gripper_history_len = max(1, int(gripper_history_len))
+@@ -916,6 +927,7 @@ def make_loaders(
+         phase_weight_free=phase_weight_free,
+         phase_weight_precontact=phase_weight_precontact,
+         phase_weight_contact=phase_weight_contact,
++        use_force_observation=use_force_observation,
+     )
+     train_ds = ImitationEpisodeDataset(
+         train_paths,
+@@ -967,5 +979,6 @@ def make_loaders(
+         "stain_mask_key": str(stain_mask_key or "observations/images/stain_mask"),
+         "stain_mask_threshold": float(stain_mask_threshold),
+         "resample_each_epoch": bool(resample_each_epoch),
++        "use_force_observation": bool(use_force_observation),
+     }
+     return train_loader, val_loader, stats, meta

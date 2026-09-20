@@ -80,6 +80,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--force_encoder_hidden_dim", type=int, default=64)
     parser.add_argument("--force_encoder_num_layers", type=int, default=1)
     parser.add_argument("--force_encoder_dropout", type=float, default=0.0)
+    parser.add_argument(
+        "--use_force_observation", dest="use_force_observation",
+        action="store_true", default=True,
+        help="Expose measured force in qpos/history (default: enabled).",
+    )
+    parser.add_argument(
+        "--no_force_observation", dest="use_force_observation",
+        action="store_false",
+        help="E1 FORCE_OBS_OFF: zero measured-force qpos/history after normalization.",
+    )
 
     parser.add_argument("--no_pretrained", action="store_true", default=False)
     parser.add_argument(
@@ -316,6 +326,7 @@ def default_policy_config(args, obs_mode: str, camera_names: Sequence[str]) -> D
         "force_encoder_hidden_dim": args.force_encoder_hidden_dim,
         "force_encoder_num_layers": args.force_encoder_num_layers,
         "force_encoder_dropout": args.force_encoder_dropout,
+        "use_force_observation": bool(args.use_force_observation),
         "flow_obs_hidden_dim": args.flow_obs_hidden_dim,
         "flow_image_feature_dim": args.flow_image_feature_dim,
         "flow_marker_feature_dim": args.flow_marker_feature_dim,
@@ -946,6 +957,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
         phase_weight_contact=args.phase_weight_contact,
         qpos_dropout_prob=args.qpos_dropout_prob,
         qpos_swap_prob=args.qpos_swap_prob,
+        use_force_observation=args.use_force_observation,
     )
     if args.phase_resample_enable:
         print(
@@ -965,6 +977,7 @@ def run_one(args, obs_mode: str, timestamp: Optional[str] = None):
     stats["dataset_hz"] = float(args.dataset_hz)
     stats["force_history_sec"] = float(args.force_history_sec)
     stats["force_history_len"] = int(args.force_history_len)
+    stats["use_force_observation"] = bool(args.use_force_observation)
     stats["chunk_sec"] = float(args.chunk_sec)
     stats["chunk_size"] = int(args.chunk_size)
     carry_forward_relative_frame_stats(stats, dataset_dir)

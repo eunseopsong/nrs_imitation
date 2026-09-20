@@ -158,9 +158,9 @@ def _pick_ckpt_and_include(context, *args, **kwargs):
                 "image_topic": LaunchConfiguration("image_topic"),
                 "pose_topic": LaunchConfiguration("pose_topic"),
                 "stain_origin_topic": LaunchConfiguration("stain_origin_topic"),
-                # inference_clean defaults gradcam_enable=true, which adds a
-                # backward pass through DINOv3 every replan tick. On the
-                # phase-2 operational run that stalled replanning to ~5s
+                # Enabling Grad-CAM adds a backward pass through DINOv3
+                # every replan tick. On the phase-2 operational run that
+                # stalled replanning to ~5s
                 # (MODALITY compute 46ms -> 3500ms) and the robot held a
                 # stale force-mode target between plans -> ESTOP. Keep the
                 # heavy diagnostic off here, same as phase 1 does.

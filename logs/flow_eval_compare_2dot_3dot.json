@@ -1,0 +1,83 @@
+{
+  "n_seeds": 3,
+  "cells": {
+    "model=2dot/best  eval_on=2dot": {
+      "flow_loss_mean": 0.076,
+      "flow_loss_std": 0.0042,
+      "val_episodes": 4,
+      "val_samples": 200
+    },
+    "model=2dot/best  eval_on=3dot": {
+      "flow_loss_mean": 0.2074,
+      "flow_loss_std": 0.0023,
+      "val_episodes": 3,
+      "val_samples": 150
+    },
+    "model=2dot/last  eval_on=2dot": {
+      "flow_loss_mean": 0.2526,
+      "flow_loss_std": 0.0066,
+      "val_episodes": 4,
+      "val_samples": 200
+    },
+    "model=2dot/last  eval_on=3dot": {
+      "flow_loss_mean": 0.8319,
+      "flow_loss_std": 0.014,
+      "val_episodes": 3,
+      "val_samples": 150
+    },
+    "model=3dot/best  eval_on=2dot": {
+      "flow_loss_mean": 0.1345,
+      "flow_loss_std": 0.0049,
+      "val_episodes": 4,
+      "val_samples": 200
+    },
+    "model=3dot/best  eval_on=3dot": {
+      "flow_loss_mean": 0.066,
+      "flow_loss_std": 0.0031,
+      "val_episodes": 3,
+      "val_samples": 150
+    },
+    "model=3dot/last  eval_on=2dot": {
+      "flow_loss_mean": 0.4419,
+      "flow_loss_std": 0.0164,
+      "val_episodes": 4,
+      "val_samples": 200
+    },
+    "model=3dot/last  eval_on=3dot": {
+      "flow_loss_mean": 0.2027,
+      "flow_loss_std": 0.0069,
+      "val_episodes": 3,
+      "val_samples": 150
+    }
+  },
+  "checkpoints": {
+    "2dot/best": {
+      "epoch": 40,
+      "logged_val": {
+        "flow": 0.06600519182050929,
+        "loss": 0.06600519182050929
+      }
+    },
+    "2dot/last": {
+      "epoch": 499,
+      "logged_val": {
+        "flow": 0.2378170420141781,
+        "loss": 0.2378170420141781
+      }
+    },
+    "3dot/best": {
+      "epoch": 85,
+      "logged_val": {
+        "flow": 0.05632704525039746,
+        "loss": 0.05632704525039746
+      }
+    },
+    "3dot/last": {
+      "epoch": 499,
+      "logged_val": {
+        "flow": 0.18300950527191162,
+        "loss": 0.18300950527191162
+      }
+    }
+  }
+}

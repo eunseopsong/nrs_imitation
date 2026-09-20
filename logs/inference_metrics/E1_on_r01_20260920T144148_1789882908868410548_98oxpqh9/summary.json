@@ -1,0 +1,240 @@
+{
+  "run_id": "E1_on_r01_20260920T144148_1789882908868410548_98oxpqh9",
+  "counts": {
+    "events": {
+      "received": 19,
+      "enqueued": 19,
+      "dropped": 0,
+      "written": 19
+    },
+    "wrench": {
+      "received": 39196,
+      "enqueued": 39196,
+      "dropped": 0,
+      "written": 39196
+    },
+    "tcp_pose": {
+      "received": 2957,
+      "enqueued": 2957,
+      "dropped": 0,
+      "written": 2957
+    },
+    "commands": {
+      "received": 6156,
+      "enqueued": 6156,
+      "dropped": 0,
+      "written": 6156
+    },
+    "legacy": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "snapshot": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    },
+    "roi": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    }
+  },
+  "streams": {
+    "events:inference_node": {
+      "rows": 18,
+      "first_ns": 4427623721866,
+      "last_ns": 4619590632097,
+      "max_gap_ns": 171003265861,
+      "retrograde": 0
+    },
+    "wrench:/ur10skku/ftdata": {
+      "rows": 32742,
+      "first_ns": 4427628471063,
+      "last_ns": 4456181411347,
+      "max_gap_ns": 145662957,
+      "retrograde": 0
+    },
+    "wrench:/ur10skku/ftdata_tcp": {
+      "rows": 1708,
+      "first_ns": 4427635312248,
+      "last_ns": 4456175819158,
+      "max_gap_ns": 485471811,
+      "retrograde": 0
+    },
+    "wrench:/ur10skku/ftdata_tcp_raw": {
+      "rows": 1716,
+      "first_ns": 4427635399587,
+      "last_ns": 4456175785684,
+      "max_gap_ns": 903269698,
+      "retrograde": 0
+    },
+    "events:/ur10skku/ctlMode": {
+      "rows": 1,
+      "first_ns": 4427636023581,
+      "last_ns": 4427636023581,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "rows": 2957,
+      "first_ns": 4427636233446,
+      "last_ns": 4452717076021,
+      "max_gap_ns": 173261717,
+      "retrograde": 0
+    },
+    "wrench:/ur10skku/currentF": {
+      "rows": 3030,
+      "first_ns": 4427636493308,
+      "last_ns": 4452942843931,
+      "max_gap_ns": 172733788,
+      "retrograde": 0
+    },
+    "commands:/ur10skku/targetP": {
+      "rows": 3073,
+      "first_ns": 4427636608851,
+      "last_ns": 4452943126807,
+      "max_gap_ns": 178393412,
+      "retrograde": 0
+    },
+    "commands:/ur10skku/targetF": {
+      "rows": 3081,
+      "first_ns": 4427636759251,
+      "last_ns": 4452943355698,
+      "max_gap_ns": 178909337,
+      "retrograde": 0
+    },
+    "commands:/ur10skku/cmdMotion": {
+      "rows": 1,
+      "first_ns": 4427639408415,
+      "last_ns": 4427639408415,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "legacy:legacy_latest_snapshot_not_measurement": {
+      "rows": 1,
+      "first_ns": 4427639439285,
+      "last_ns": 4427639439285,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "rows": 2,
+      "first_ns": 4439346143686,
+      "last_ns": 4619441977819,
+      "max_gap_ns": 180095834133,
+      "retrograde": 0
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "rows": 1,
+      "first_ns": 4441959315478,
+      "last_ns": 4441959315478,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "commands:/singleArm_cmd/single_arm_command": {
+      "rows": 1,
+      "first_ns": 4441960314656,
+      "last_ns": 4441960314656,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    }
+  },
+  "source_counts": {
+    "events:inference_node": {
+      "received": 18,
+      "enqueued": 18,
+      "dropped": 0,
+      "written": 18
+    },
+    "wrench:/ur10skku/ftdata": {
+      "received": 32742,
+      "enqueued": 32742,
+      "dropped": 0,
+      "written": 32742
+    },
+    "wrench:/ur10skku/ftdata_tcp": {
+      "received": 1708,
+      "enqueued": 1708,
+      "dropped": 0,
+      "written": 1708
+    },
+    "wrench:/ur10skku/ftdata_tcp_raw": {
+      "received": 1716,
+      "enqueued": 1716,
+      "dropped": 0,
+      "written": 1716
+    },
+    "events:/ur10skku/ctlMode": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "received": 2957,
+      "enqueued": 2957,
+      "dropped": 0,
+      "written": 2957
+    },
+    "wrench:/ur10skku/currentF": {
+      "received": 3030,
+      "enqueued": 3030,
+      "dropped": 0,
+      "written": 3030
+    },
+    "commands:/ur10skku/targetP": {
+      "received": 3073,
+      "enqueued": 3073,
+      "dropped": 0,
+      "written": 3073
+    },
+    "commands:/ur10skku/targetF": {
+      "received": 3081,
+      "enqueued": 3081,
+      "dropped": 0,
+      "written": 3081
+    },
+    "commands:/ur10skku/cmdMotion": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "legacy:legacy_latest_snapshot_not_measurement": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "commands:/singleArm_cmd/single_arm_command": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    }
+  },
+  "write_error_count": 0,
+  "writer_diagnostic_rows_note": "logger_writer events are additional to enqueued stream counts",
+  "write_errors": [],
+  "queue_pending": 0,
+  "drained": true,
+  "middleware_loss_count": null,
+  "physical_task_completion": "unknown"
+}

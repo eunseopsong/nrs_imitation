@@ -1,0 +1,110 @@
+
+================================================================================
+[RUN] obs_mode=single_cam
+[INFO] device             = cpu
+[INFO] dataset_dir        = datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form
+[INFO] num_episodes       = 42
+[INFO] camera_names       = ['cam0']
+[INFO] policy_obs         = cam0 RGB only
+[INFO] marker_dim         = 14
+[INFO] norm_mode          = minmax_m11
+[INFO] image_backbone     = dinov3, pretrained=True, frozen=True
+[INFO] dino               = model=vit_small_patch16_dinov3.lvd1689m, roi_pooling=attention, checkpoint=timm
+[INFO] batch_size         = 12
+[INFO] chunk_size         = 128
+[INFO] dataset_hz         = 30.0
+[INFO] chunk_sec          = 4.27 -> L=128
+[INFO] force_history      = True, sec=1.0, L=30
+[INFO] tcp_roi            = enabled=True, ref=424x240, center=(253,120), area_fraction=0.2500
+[TRAIN] Checkpoints will be saved under: checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1515
+[INFO] phase_resample     = enabled, on/off=3.0/1.2N, precontact=1.0s, weights(free,precontact,contact)=(1.0,5.0,1.0)
+[INFO] data meta: {'num_episodes_total': 42, 'num_train_episodes': 38, 'num_val_episodes': 4, 'num_train_samples': 1900, 'num_val_samples': 200, 'camera_names': ['cam0'], 'obs_mode': 'single_cam', 'marker_dim': 14, 'include_gripper': False, 'use_gripper_history': False, 'gripper_history_len': 0, 'gripper_history_channels': ['present_position', 'present_current_mA'], 'action_dim': 9, 'use_stain_mask': False, 'stain_mask_key': 'observations/images/stain_mask', 'stain_mask_threshold': 0.5, 'resample_each_epoch': True, 'use_force_observation': True}
+[DEMO_START] pose_mean(knn_density_mode) = [ 1.8009e+01, -2.4925e+00,  2.1416e+02, -1.6069e-01,  1.4245e-02,
+  2.3556e+00]  <- datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form/episode_29.hdf5
+[DEMO_START] pose_mean(arithmetic, for reference only) = [ 1.5419e+01,  1.7206e+00,  2.1008e+02, -5.5477e-02,  5.1995e-02,
+  2.3750e+00]
+[INFO] carried forward relative-frame stats from dataset: {'use_relative_position': True, 'relative_transform_version': 'stain_relative_v1', 'rotation_aligned': False, 'stain_origin_report': 'checkpoints/stain_relative_frame/stain_origin_90deg_single.json', 'source_dataset_dir': 'datasets/polishing/single_cam/20260821_90deg_only/imitation_form'}
+[INFO] saved dataset stats -> checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1515/dataset_stats.pkl
+[MODEL] params = 66.56M
+  0%|          | 0/500 [00:00<?, ?it/s]Epoch 0 | lr=1e-05
+
+Train 0:   0%|          | 0/159 [00:00<?, ?it/s][ATraceback (most recent call last):
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/eunseop/.local/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 619, in reduce_storage
+    df = multiprocessing.reduction.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 198, in DupFd
+    return resource_sharer.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 53, in __init__
+    self._id = _resource_sharer.register(send, close)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 76, in register
+    self._start()
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 126, in _start
+    self._listener = Listener(authkey=process.current_process().authkey)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 448, in __init__
+    self._listener = SocketListener(address, family, backlog)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 588, in __init__
+    self._socket.setsockopt(socket.SOL_SOCKET,
+PermissionError: [Errno 1] Operation not permitted
+Traceback (most recent call last):
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/eunseop/.local/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 619, in reduce_storage
+    df = multiprocessing.reduction.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 198, in DupFd
+    return resource_sharer.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 53, in __init__
+    self._id = _resource_sharer.register(send, close)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 76, in register
+    self._start()
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 126, in _start
+    self._listener = Listener(authkey=process.current_process().authkey)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 448, in __init__
+    self._listener = SocketListener(address, family, backlog)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 588, in __init__
+    self._socket.setsockopt(socket.SOL_SOCKET,
+PermissionError: [Errno 1] Operation not permitted
+Traceback (most recent call last):
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/eunseop/.local/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 619, in reduce_storage
+    df = multiprocessing.reduction.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 198, in DupFd
+    return resource_sharer.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 53, in __init__
+    self._id = _resource_sharer.register(send, close)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 76, in register
+    self._start()
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 126, in _start
+    self._listener = Listener(authkey=process.current_process().authkey)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 448, in __init__
+    self._listener = SocketListener(address, family, backlog)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 588, in __init__
+    self._socket.setsockopt(socket.SOL_SOCKET,
+PermissionError: [Errno 1] Operation not permitted
+Traceback (most recent call last):
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/queues.py", line 244, in _feed
+    obj = _ForkingPickler.dumps(obj)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 51, in dumps
+    cls(buf, protocol).dump(obj)
+  File "/home/eunseop/.local/lib/python3.10/site-packages/torch/multiprocessing/reductions.py", line 619, in reduce_storage
+    df = multiprocessing.reduction.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/reduction.py", line 198, in DupFd
+    return resource_sharer.DupFd(fd)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 53, in __init__
+    self._id = _resource_sharer.register(send, close)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 76, in register
+    self._start()
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/resource_sharer.py", line 126, in _start
+    self._listener = Listener(authkey=process.current_process().authkey)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 448, in __init__
+    self._listener = SocketListener(address, family, backlog)
+  File "/home/eunseop/miniconda3/envs/nrs_imitation/lib/python3.10/multiprocessing/connection.py", line 588, in __init__
+    self._socket.setsockopt(socket.SOL_SOCKET,
+PermissionError: [Errno 1] Operation not permitted

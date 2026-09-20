@@ -1,0 +1,28 @@
+{
+  "reference": {
+    "source_seq": null,
+    "source_stamp_ns": 1000000000,
+    "receipt_ros_ns": 1000000000,
+    "receipt_monotonic_ns": 101355603139001,
+    "stamp_basis": "synthetic_grid",
+    "source_clock": "synthetic_ros",
+    "frame_id": "synthetic_base",
+    "source": "synthetic_reference",
+    "validity": "valid",
+    "center_xy_mm": [
+      400,
+      500
+    ],
+    "direction_rad": null,
+    "reference_transform": "synthetic translation only; not calibration",
+    "logger_seq": 2,
+    "run_id": "SYNTHETIC_ON_20260917T163903_1789630743728988069_cccar3kz"
+  },
+  "mask": null,
+  "initial_image": null,
+  "final_image": null,
+  "calibration_ref": "metadata.json:camera_calibration_candidate",
+  "evaluation_roi": null,
+  "reason": "manual ROI required; no mask/canonicalization enabled by logger",
+  "run_id": "SYNTHETIC_ON_20260917T163903_1789630743728988069_cccar3kz"
+}
