@@ -1,0 +1,551 @@
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
+@@ -14,6 +14,7 @@
+ 
+ 
+ TRANSPORT_VERSION = 'e2_timed_topic_v1'
++C_POSE_PROFILE = 'c_pose_conditioning_20260926_v1'
+ 
+ 
+ def clock_id():
+@@ -57,6 +58,100 @@
+     pass
+ 
+ 
++class CPoseConditioner:
++    """C-only pose preparation; never changes plan clocks or force samples.
++
++    Restore the legacy 35-point pose smoothing, averaging orientation on SO(3)
++    rather than across rotation-vector branch cuts. Blend a replacement from
++    the previous reference and its velocity, then bound commanded acceleration.
++    R/T do not instantiate this class: their recorded execution remains intact.
++    """
++    def __init__(self, settings):
++        self.cfg = dict(settings)
++        self.plan = None
++        self.origin = None
++        self.bridge_at = None
++        self.bridge_pose = None
++        self.bridge_velocity = np.zeros(6)
++        self.velocity = np.zeros(6)
++
++    def accept(self, plan, now):
++        if plan.final:
++            raise ExecutionFault('C pose conditioning cannot modify a finite R/T plan')
++        if self.plan is not None and self.bridge_at is not None:
++            # Estimate the left derivative on the existing reference, including
++            # an unfinished bridge when plans arrive unusually close together.
++            previous = self.sample(now)
++            h = 1e-5
++            before = self.sample(now-h)
++            self.bridge_velocity[:3] = (previous[:3]-before[:3])/h
++            self.bridge_velocity[3:] = (
++                Rotation.from_rotvec(previous[3:])*Rotation.from_rotvec(before[3:]).inv()
++            ).as_rotvec()/h
++            self.bridge_pose, self.bridge_at = previous, now
++        action = plan.action.copy()
++        window = self.cfg['pose_smooth_window']
++        half = window//2
++        weights = np.ones(window)/window
++        padded = np.pad(action[:, :3], ((half, half), (0, 0)), mode='edge')
++        for axis in range(3):
++            action[:, axis] = np.convolve(padded[:, axis], weights, mode='valid')
++        # Batched Markley quaternion means: q and -q have the same outer
++        # product, so +179/-179 degree samples average near pi, never near zero.
++        q = Rotation.from_rotvec(action[:, 3:6]).as_quat()
++        outer = np.einsum('ni,nj->nij', q, q).reshape(-1, 16)
++        padded = np.pad(outer, ((half, half), (0, 0)), mode='edge')
++        means = np.stack([np.convolve(padded[:, j], weights, mode='valid')
++                          for j in range(16)], axis=1).reshape(-1, 4, 4)
++        _, vectors = np.linalg.eigh(means)
++        action[:, 3:6] = Rotation.from_quat(vectors[:, :, -1]).as_rotvec()
++        self.plan = TimedPlan(plan.plan_id, plan.generated_at, plan.time.copy(),
++                              action, plan.phase.copy(), plan.final)
++        self.origin = plan.generated_at
++
++    def start(self, now, pose):
++        self.origin = self.bridge_at = now
++        self.bridge_pose = np.asarray(pose, float).copy()
++        self.bridge_velocity[:] = 0.
++        self.velocity[:] = 0.
++
++    def sample(self, now):
++        target = self.plan.sample(now-self.origin)[0][:6].copy()
++        if self.bridge_at is None:
++            return target
++        elapsed = max(0., now-self.bridge_at)
++        u = min(1., elapsed/self.cfg['handover_s'])
++        if u >= 1.:
++            return target
++        weight = u*u*u*(10.+u*(-15.+6.*u))
++        anchor = self.bridge_pose.copy()
++        anchor[:3] += self.bridge_velocity[:3]*elapsed
++        anchor_rot = (Rotation.from_rotvec(self.bridge_velocity[3:]*elapsed)*
++                      Rotation.from_rotvec(anchor[3:]))
++        target[:3] = anchor[:3] + weight*(target[:3]-anchor[:3])
++        error = (Rotation.from_rotvec(target[3:])*anchor_rot.inv()).as_rotvec()
++        target[3:] = (Rotation.from_rotvec(weight*error)*anchor_rot).as_rotvec()
++        return target
++
++    def motion_step(self, error, proposed, period):
++        """Slew the already speed-limited motion, retaining state on replan.
++
++        The stopping-speed bound anticipates braking for a stationary target.
++        Acceleration is per base XYZ / spatial rotation-vector axis. Neither
++        the existing force gate nor the signed force-rate limit is touched.
++        """
++        if period <= 0.:
++            return np.zeros(6)
++        acceleration = np.r_[np.full(3, self.cfg['linear_acceleration_mm_s2']),
++                             np.full(3, self.cfg['angular_acceleration_rad_s2'])]
++        desired = proposed/period
++        braking = (np.sqrt((acceleration*period)**2 + 8.*acceleration*np.abs(error))
++                   - acceleration*period)/2.
++        desired = np.clip(desired, -braking, braking)
++        self.velocity += np.clip(desired-self.velocity, -acceleration*period, acceleration*period)
++        return self.velocity*period
++
++
+ class TimedExecution:
+     def __init__(self, settings):
+         self.cfg = dict(settings)
+@@ -67,6 +162,8 @@
+         self.contact = False
+         self.closed = False
+         self.endpoint_sent = False
++        profile = self.cfg.get('c_pose_conditioning')
++        self.conditioner = CPoseConditioner(profile) if profile is not None else None
+ 
+     def accept(self, plan, now):
+         if self.closed:
+@@ -78,6 +175,8 @@
+             raise ExecutionFault('stale plan or mismatched monotonic clock')
+         if self.plan is not None and self.plan.final:
+             raise ExecutionFault('finite R/T trajectory cannot be replaced or repeated')
++        if self.conditioner is not None:
++            self.conditioner.accept(plan, now)
+         self.plan, self.last_plan_id = plan, plan.plan_id
+         self.endpoint_sent = False
+         # First plan starts ONLY after observed Force mode. Subsequent C plans
+@@ -92,10 +191,21 @@
+         self.command = np.r_[np.asarray(pose, float)[:6], np.zeros(3)]
+         self.start_pose = self.command[:6].copy()
+         self.contact = False
++        if self.conditioner is not None:
++            self.conditioner.start(now, pose)
+ 
+     def stop(self):
+         self.closed = True
+         self.plan = None
++
++    def _check_workspace(self, action, pose):
++        delta = action[:3]-self.start_pose[:3]
++        limits = self.cfg['workspace_limits']
++        if (np.linalg.norm(delta[:2]) > limits['max_xy_from_start_mm'] or
++                -delta[2] > limits['max_z_down_from_start_mm'] or
++                delta[2] > limits['max_z_up_from_start_mm'] or
++                np.linalg.norm(action[:3]-pose[:3]) > limits['max_xyz_from_current_mm']):
++            raise ExecutionFault('requested action outside common workspace envelope')
+ 
+     def tick(self, now, pose, force, pose_age, force_age):
+         if self.closed or self.start_time is None or self.plan is None:
+@@ -120,18 +230,16 @@
+         if self.plan.final and elapsed >= self.plan.time[-1]:
+             self.endpoint_sent = True
+         raw, phase, index = self.plan.sample(elapsed)
+-        delta = raw[:3]-self.start_pose[:3]
+-        limits = self.cfg['workspace_limits']
+-        if (np.linalg.norm(delta[:2]) > limits['max_xy_from_start_mm'] or
+-                -delta[2] > limits['max_z_down_from_start_mm'] or
+-                delta[2] > limits['max_z_up_from_start_mm'] or
+-                np.linalg.norm(raw[:3]-pose[:3]) > limits['max_xyz_from_current_mm']):
+-            raise ExecutionFault('requested action outside common workspace envelope')
++        conditioned = raw.copy()
++        if self.conditioner is not None:
++            conditioned[:6] = self.conditioner.sample(now)
++        for action in (raw, conditioned) if self.conditioner is not None else (raw,):
++            self._check_workspace(action, pose)
+         if not self.contact and force[2] >= self.cfg['contact_on_N']:
+             self.contact = True
+         elif self.contact and force[2] <= self.cfg['contact_off_N']:
+             self.contact = False
+-        target = raw.copy()
++        target = conditioned.copy()
+         target[6:8] = 0.  # same disabled tangential commands as the pinned C
+         if not self.contact:
+             target[8] = 0.
+@@ -150,14 +258,23 @@
+         current_rot = Rotation.from_rotvec(self.command[3:6])
+         angular_error = (Rotation.from_rotvec(target[3:6])*current_rot.inv()).as_rotvec()
+         angular_step = np.clip(angular_error*min(1.,self.cfg['gain_hz']*period), -caps[3:6], caps[3:6])
++        if self.conditioner is not None:
++            motion = self.conditioner.motion_step(np.r_[target[:3]-self.command[:3], angular_error],
++                                                 np.r_[change[:3], angular_step], period)
++            change[:3], angular_step = motion[:3], motion[3:]
+         self.command += change
+         self.command[3:6] = (Rotation.from_rotvec(angular_step)*current_rot).as_rotvec()
+         self.command[6:8] = 0.
++        if self.conditioner is not None:
++            # Slew-limited braking can carry momentum beyond a moving target.
++            # Never publish that step outside the unchanged common envelope.
++            self._check_workspace(self.command, pose)
+         self.last_tick = now
+-        return dict(requested=raw, gated=target, sent=self.command.copy(), phase=phase,
++        return dict(requested=raw, conditioned=conditioned, gated=target, sent=self.command.copy(), phase=phase,
+                     plan_id=self.plan.plan_id, action_index=index, elapsed_s=elapsed,
+                     endpoint_lateness_s=max(0., elapsed-self.plan.time[-1]),
+-                    contact=self.contact, limited=bool(np.any(self.command != raw)), dt_s=dt)
++                    contact=self.contact, limited=bool(np.any(self.command != raw)), dt_s=dt,
++                    conditioning_profile=C_POSE_PROFILE if self.conditioner is not None else None)
+ 
+ 
+ class StopVerifier:
+@@ -193,10 +310,13 @@
+         return len(self.samples)>=3 and self.samples[-1][0]-self.samples[0][0] >= self.window
+ 
+ 
+-def executor_settings(config):
++def executor_settings(config, method=None):
+     """Only explicit runtime settings; defaults below are sourced control constants."""
+-    return dict(config['executor'], workspace_limits=config['common']['workspace_limits'],
+-                task_time_budget_s=config['common']['task_time_budget_s'])
++    settings = dict(config['executor'], workspace_limits=config['common']['workspace_limits'],
++                    task_time_budget_s=config['common']['task_time_budget_s'])
++    if method == 'il' and 'pose_conditioning' in config.get('il', {}):
++        settings['c_pose_conditioning'] = dict(config['il']['pose_conditioning'])
++    return settings
+ 
+ 
+ def validate_settings(config):
+@@ -229,4 +349,17 @@
+         value = limits.get(key)
+         if not isinstance(value,(int,float)) or not np.isfinite(value) or value <= 0:
+             errors.append('Invalid common.workspace_limits.'+key)
++    profile = config.get('il', {}).get('pose_conditioning')
++    if profile is not None:
++        if not isinstance(profile, dict):
++            return errors + ['Invalid il.pose_conditioning']
++        if profile.get('profile') != C_POSE_PROFILE:
++            errors.append('Unsupported il.pose_conditioning.profile')
++        window = profile.get('pose_smooth_window')
++        if isinstance(window, bool) or not isinstance(window, int) or not 3 <= window <= 127 or window % 2 != 1:
++            errors.append('il.pose_conditioning.pose_smooth_window must be an odd integer in [3, 127]')
++        for key in ('handover_s', 'linear_acceleration_mm_s2', 'angular_acceleration_rad_s2'):
++            value = profile.get(key)
++            if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value) or value <= 0:
++                errors.append('Invalid positive finite il.pose_conditioning.'+key)
+     return errors
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+@@ -43,7 +43,7 @@
+         fcntl.flock(self.lock_file,fcntl.LOCK_EX | fcntl.LOCK_NB)
+         self.identity = file_hash(self.config_path)
+         self.clock_identity = clock_id()
+-        self.settings = executor_settings(self.config)
++        self.settings = executor_settings(self.config, self.method)
+         self.engine = TimedExecution(self.settings)
+         self.state = 'waiting_feedback'
+         self.pose = self.force = None
+@@ -73,6 +73,7 @@
+         root = Path(self.get_parameter('act_root').value)
+         metadata = dict(method={'il':'C','rule':'R','replay':'T'}[self.method],
+             execution_method=self.method,transport=TRANSPORT_VERSION,session_id=self.session,
++            c_pose_conditioning=self.settings.get('c_pose_conditioning'),
+             code_root=str(root),config=self.config,config_sha256=self.identity,
+             controller_applied_force=None,raw_sensor_available=False,rpm_measured=None,
+             rpm_setpoint=self.config["common"].get("rpm_setpoint"),
+@@ -172,10 +173,13 @@
+                 raise ExecutionFault('frozen task reference changed')
+             self.reference=reference
+             p=TimedPlan(d['plan_id'],d['generated_at'],d['time'],d['action'],d['phase'],d['final'])
++            preparation_started=time.monotonic()
+             self.engine.accept(p,time.monotonic())
++            preparation_ms=1000.*(time.monotonic()-preparation_started)
+             self.provider_at=time.monotonic()
+             self.event('plan_received',plan_id=p.plan_id,elapsed_duration_s=float(p.time[-1]),
+                 source_plan_time=p.generated_at,reference_xy_mm=reference,
++                c_pose_conditioning=self.settings.get('c_pose_conditioning'),preparation_ms=preparation_ms,
+                 first_requested_pose=p.action[0,:6].tolist(),last_requested_pose=p.action[-1,:6].tolist())
+             if self.state=='ready':
+                 self.arm_at=time.monotonic();self.state='arming';self.send_mode('Force')
+@@ -245,9 +249,11 @@
+             position_unit='mm',orientation_unit='rotvec_rad',
+             force_unit=None if position_mode and stage=='node_sent' else 'N',raw_values=values.tolist(),
+             execution_status='sent_not_verified_executed' if stage=='node_sent' else 'requested_not_sent',
+-            limited=result['limited'],limiting_reason='common contact gate + legacy gain/rate limits',
++            limited=result['limited'],limiting_reason=('common contact gate + legacy gain/rate limits' +
++                (' + C pose smoothing/handover/acceleration' if result.get('conditioning_profile') else '')),
+             details=dict(elapsed_s=result['elapsed_s'],contact=result['contact'],phase=result['phase'],dt_s=result['dt_s'],
+                 endpoint_lateness_s=result['endpoint_lateness_s'],
++                conditioning_profile=result.get('conditioning_profile'),
+                 controller_mode=result.get('controller_mode','Force'),
+                 force_semantics='Position mode sends pose6 only' if position_mode else 'signed controller force target'))
+         row.update(zip(['x','y','z','rx','ry','rz','fx','fy','fz'],values.tolist()))
+@@ -370,7 +376,10 @@
+             self.command_id+=1
+             self.pub_command.publish(Float64MultiArray(data=result['sent'].tolist()))
+             if self.command_id==1:self.event('first_command_sent',processing_started=False)
+-            for stage,key in [('time_sampled','requested'),('contact_gated','gated'),('node_sent','sent')]:
++            stages=[('time_sampled','requested'),('contact_gated','gated'),('node_sent','sent')]
++            if result.get('conditioning_profile'):
++                stages.insert(1,('pose_conditioned','conditioned'))
++            for stage,key in stages:
+                 self.log_command(stage,result[key],result,now)
+         except Exception as exc:self.request_stop('safety_stop',details=str(exc))
+ 
+--- a/behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py
+@@ -92,6 +92,8 @@
+     info = ('RTC %s: existing e2_timed_topic_v1; config=%s; '
+             'execution_equivalence=unverified. This is not the proposed E1 service executor.'
+             % (args['method'], path))
++    profile = cfg.get('il', {}).get('pose_conditioning') if args['method'] == 'C' else None
++    info += ' C pose conditioning: ' + (profile['profile'] if profile else 'inactive') + '.'
+     if args['mode'] == 'check':
+         return [LogInfo(msg=info), LogInfo(msg='Configuration check passed; no nodes started. '
+                     'Hardware calibration and E1 protocol readiness are not certified.')]
+@@ -104,6 +106,7 @@
+     run_cfg['launch_context'] = dict(entry='rtc_timed.launch.py', method=args['method'],
+         legacy_config_path=str(path), legacy_config_sha256=file_hash(path),
+         checkpoint_argument=args['checkpoint'] or None, episode_argument=args['episode'] or None,
++        c_pose_conditioning=profile,
+         scope='existing timed executor only; common service E1 preparation incomplete')
+     log_root = ROOT / 'logs/rtc_launch_context'
+     log_root.mkdir(parents=True, exist_ok=True)
+--- a/experiments/e2_rule_replay_20260920/config.json
++++ b/experiments/e2_rule_replay_20260920/config.json
+@@ -280,7 +280,17 @@
+     "trajectory_hz": 30.0,
+     "force_history_len": 30,
+     "inference_mode": "timed_topic",
+-    "previous_e1_inference_mode": "service_stream"
++    "previous_e1_inference_mode": "service_stream",
++    "pose_conditioning": {
++      "profile": "c_pose_conditioning_20260926_v1",
++      "pose_smooth_window": 35,
++      "handover_s": 0.5,
++      "linear_acceleration_mm_s2": 25.0,
++      "angular_acceleration_rad_s2": 1.7453292519943295,
++      "scope": "C pose only; R/T, source time axes, signed force samples, common contact gate and existing gain/speed/force-rate limits unchanged",
++      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
++      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
++    }
+   },
+   "executor": {
+     "transport": "e2_timed_topic_v1",
+--- a/experiments/rtc_launch_20260926/README.md
++++ b/experiments/rtc_launch_20260926/README.md
+@@ -4,6 +4,14 @@
+ 기존 shell 실행 스크립트 없이 method=R/T/C를 선택할 수 있다.
+ 공통 service·controller interpolation을 사용하는 새 E1 실행기는 아직 구현하지 않았다.
+ 이 파일 추가로 실행 동등성·힘 법선 보정·recipe validation이 완료되는 것은 아니다.
++
++2026-09-26 C 진동 패치를 적용했다. 아래의 기존 C 명령은
++`c_pose_conditioning_20260926_v1`을 활성화한다. C에만 35점 위치/자세 평활,
++0.5초 재계획 연결, 위치/회전 가속도 제한을 적용한다. R/T와 공통 실행 설정,
++힘 목표·접촉 판정·힘 변화율은 유지한다. 오늘 R/T 10회의 입력 재생에서도
++이전 코드와 같은 9차원 명령이 나왔으며 기존 기록을 보존했다.
++첫 C는 1회 검증 실행으로 진동과 힘 응답을 확인한다. 실제 진동 해소는 아직 검증하지 않았다.
++패치 수치·비교 조건·테스트는 [C 패치 보고서](../../reports/20260926_C_execution_patch/README.md)에 있다.
+ 
+ 현재 프로젝트에서 패키지 빌드·설치를 마쳤다. 각 터미널에서 ROS 환경을 읽는다.
+ 
+@@ -82,7 +90,7 @@
+ 실행 도중 Ctrl-C는 manual_abort이며 service ACK 자체는 물리 정지 확인이 아니다.
+ 기존 제어기는 통신 단절 시 물리 정지를 보장하는 장치가 아니므로 기존 현장 중단 절차를 따른다.
+ 
+-원본 config를 덮어쓰지 않는다. `mode:=run`은 `logs/rtc_launch_context/RTC_<method>_*/config.json`에
++launch는 원본 config를 덮어쓰지 않는다. `mode:=run`은 `logs/rtc_launch_context/RTC_<method>_*/config.json`에
+ 실행용 복사본과 paper_experiment=E1, 구번호 source config 경로/hash, 명시 선택 인자,
+ execution_equivalence=unverified를 기록한다. provider/executor는 이 동일 복사본을 사용한다.
+ CSV/event는 `logs/inference_metrics`, 영상은 기존 `logs/polishing_removal`에 남는다.
+--- /dev/null
++++ b/behavior_ws/src/nrs_imitation/test/test_c_pose_conditioning.py
+@@ -0,0 +1,187 @@
++"""C motion regression tests; no ROS context or hardware calls."""
++import copy
++import json
++from pathlib import Path
++
++import numpy as np
++import pytest
++from scipy.spatial.transform import Rotation
++
++from nrs_imitation.e2_timed_execution import (
++    CPoseConditioner, ExecutionFault, TimedExecution, TimedPlan,
++    executor_settings, validate_settings,
++)
++
++ROOT = Path(__file__).resolve().parents[4]
++
++
++def config():
++    return json.loads((ROOT/'experiments/e2_rule_replay_20260920/config.json').read_text())
++
++
++def plan(plan_id=1, generated_at=10., shift=0.):
++    t = np.arange(128)/30.
++    a = np.zeros((128, 9))
++    a[:, 0] = 5.*t + 4.*np.cos(np.arange(128)*np.pi) + shift
++    a[:, 1] = -3.*t + shift
++    a[:, 5] = np.deg2rad(np.where(np.arange(128) % 2, -179., 179.))
++    a[:, 8] = 5.*np.sin(t*3.)
++    return TimedPlan(plan_id, generated_at, t, a, np.full(128, 'unknown'), False)
++
++
++def engine(p=None):
++    p = plan() if p is None else p
++    e = TimedExecution(executor_settings(config(), 'il'))
++    e.accept(p, 10.)
++    e.start(10., np.array([0., 0., 0., 0., 0., np.pi]))
++    return e
++
++
++def test_profile_is_only_injected_for_c_and_config_is_not_mutated():
++    c = config(); before = copy.deepcopy(c)
++    for method in [None, 'rule', 'replay']:
++        settings = executor_settings(c, method)
++        assert 'c_pose_conditioning' not in settings
++        assert TimedExecution(settings).conditioner is None
++    assert TimedExecution(executor_settings(c, 'il')).conditioner is not None
++    assert c == before
++
++
++def test_smoothing_does_not_change_input_times_forces_or_quaternion_branch():
++    p = plan(); original = p.action.copy(); times = p.time.copy()
++    conditioner = CPoseConditioner(config()['il']['pose_conditioning'])
++    conditioner.accept(p, 10.)
++    smoothed = conditioner.plan
++    np.testing.assert_array_equal(p.action, original)
++    np.testing.assert_array_equal(smoothed.time, times)
++    np.testing.assert_array_equal(smoothed.action[:, 6:], original[:, 6:])
++    np.testing.assert_array_equal(smoothed.phase, p.phase)
++    assert smoothed.generated_at == p.generated_at
++    assert np.max(np.abs(np.diff(smoothed.action[:, 0]))) < 1.
++    angles = (Rotation.from_rotvec(smoothed.action[:, 3:6])*
++              Rotation.from_rotvec([0., 0., np.pi]).inv()).magnitude()
++    assert np.max(angles) < np.deg2rad(1.01)
++
++
++def test_start_and_replacement_have_continuous_position_and_velocity():
++    e = engine(); conditioner = e.conditioner
++    np.testing.assert_allclose(conditioner.sample(10.), e.start_pose)
++    for now in [10.2, 10.3, 12., 14.]:
++        h = 1e-6
++        before = conditioner.sample(now)
++        velocity_before = (before[:3]-conditioner.sample(now-h)[:3])/h
++        e.accept(plan(e.last_plan_id+1, now, 30.), now)
++        after = conditioner.sample(now)
++        velocity_after = (conditioner.sample(now+h)[:3]-after[:3])/h
++        np.testing.assert_allclose(after[:3], before[:3], atol=1e-10)
++        assert (Rotation.from_rotvec(after[3:])*Rotation.from_rotvec(before[3:]).inv()).magnitude() < 1e-10
++        np.testing.assert_allclose(velocity_after, velocity_before, atol=.02)
++
++
++def test_command_acceleration_and_speed_remain_bounded_across_replan():
++    e = engine(); previous = e.command.copy(); velocity = np.zeros(6)
++    cfg = e.cfg; period = cfg['control_period_s']
++    accel = np.r_[np.full(3, 25.), np.full(3, np.deg2rad(100.))]
++    speed = np.r_[np.full(3, cfg['linear_speed_mm_s']), np.full(3, cfg['angular_speed_rad_s'])]
++    for i in range(1, 801):
++        now = 10.+i*period
++        if i == 450:
++            e.accept(plan(2, now, -30.), now)
++        r = e.tick(now, previous[:6], [0., 0., 7.], 0., 0.)
++        step = np.r_[r['sent'][:3]-previous[:3],
++                     (Rotation.from_rotvec(r['sent'][3:6])*
++                      Rotation.from_rotvec(previous[3:6]).inv()).as_rotvec()]
++        current = step/period
++        assert np.all(np.abs(current) <= speed+1e-8)
++        assert np.all(np.abs(current-velocity)/period <= accel+1e-6)
++        assert abs(r['sent'][8]-previous[8]) <= cfg['force_rate_N_s']*period+1e-10
++        previous, velocity = r['sent'], current
++
++
++def test_stationary_target_settles_after_acceleration_limited_motion():
++    p = plan(); p.action[:, :3] = [5., -5., 3.]
++    p.action[:, 3:6] = [0., 0., np.pi]; p.action[:, 8] = 0.
++    p = TimedPlan(1, 10., p.time, p.action, p.phase, False)
++    e = engine(p); positions = []
++    for i in range(1, 501):
++        r = e.tick(10.+i*.008, e.command[:6], [0., 0., 0.], 0., 0.)
++        positions.append(r['sent'][:3])
++    np.testing.assert_allclose(positions[-1], [5., -5., 3.], atol=.001)
++    assert np.max(np.ptp(np.asarray(positions)[-50:], axis=0)) < .001
++
++
++def test_force_commands_and_gate_are_identical_to_unpatched_c():
++    p = plan(); old = TimedExecution(executor_settings(config()))
++    old.accept(p, 10.); old.start(10., np.array([0., 0., 0., 0., 0., np.pi]))
++    patched = engine(p)
++    for i in range(500):
++        now = 10.+i*.008
++        force = [0., 0., 7. if i % 37 < 21 else .5]
++        before = old.tick(now, old.command[:6], force, 0., 0.)
++        after = patched.tick(now, old.command[:6], force, 0., 0.)
++        for stage in ['requested', 'gated', 'sent']:
++            np.testing.assert_array_equal(before[stage][6:], after[stage][6:])
++        assert before['contact'] == after['contact']
++        assert before['elapsed_s'] == after['elapsed_s']
++        np.testing.assert_array_equal(after['requested'], p.sample(now-10.)[0])
++
++
++def test_finite_replay_is_rejected_if_misrouted_to_c_conditioner():
++    e = TimedExecution(executor_settings(config(), 'il'))
++    p = plan(); p.final = True
++    with pytest.raises(ExecutionFault, match='finite R/T'):
++        e.accept(p, 10.)
++
++
++def test_raw_workspace_guard_cannot_be_hidden_by_smoothing():
++    p = plan(); p.action[1, 0] = 500.
++    e = engine(p)
++    e.tick(10.008, e.command[:6], [0., 0., 7.], 0., 0.)
++    with pytest.raises(ExecutionFault, match='workspace'):
++        e.tick(10.016, e.command[:6], [0., 0., 7.], 0., 0.)
++
++
++def test_pose_conditioning_does_not_extend_plan_horizon_or_watchdogs():
++    e = engine()
++    for i in range(530):
++        r = e.tick(10.+i*.008, e.command[:6], [0., 0., 7.], 0., 0.)
++    assert e.tick(14.24, e.command[:6], [0., 0., 7.], 0., 0.)['end'] == 'plan_underrun'
++    e = engine()
++    with pytest.raises(ExecutionFault, match='stale'):
++        e.tick(10.008, e.command[:6], [0., 0., 7.], 0., .3)
++
++
++def test_acceleration_limited_braking_cannot_leave_common_workspace():
++    p = plan(); p.action[:, :3] = 0.
++    e = engine(TimedPlan(1, 10., p.time, p.action, p.phase, False))
++    e.cfg['workspace_limits'] = dict(e.cfg['workspace_limits'], max_xy_from_start_mm=1.)
++    e.command[0] = .999
++    e.conditioner.velocity[0] = 10.
++    with pytest.raises(ExecutionFault, match='workspace'):
++        e.tick(10.008, e.command[:6].copy(), [0., 0., 7.], 0., 0.)
++
++
++def test_bridge_logs_c_conditioned_stage_and_preserves_r_t_stages(monkeypatch):
++    from test_e2_timed_execution import mock_bridge
++    for method in ['il', 'rule', 'replay']:
++        n, clock, _ = mock_bridge(monkeypatch)
++        n.method = method
++        if method == 'il':
++            n.settings = executor_settings(config(), 'il')
++            n.engine = engine()
++        stages = []
++        n.log_command = lambda stage, *args: stages.append(stage)
++        clock[0] = 10.008
++        n.tick()
++        expected = ['time_sampled', 'contact_gated', 'node_sent']
++        if method == 'il': expected.insert(1, 'pose_conditioned')
++        assert stages == expected
++        assert len(n.sent) == 1
++
++
++@pytest.mark.parametrize('key,value', [('pose_smooth_window', 2), ('pose_smooth_window', True),
++    ('handover_s', 0.), ('linear_acceleration_mm_s2', float('nan')),
++    ('angular_acceleration_rad_s2', -1.), ('profile', 'unknown')])
++def test_invalid_conditioning_settings_fail_preflight(key, value):
++    c = config(); c['il']['pose_conditioning'][key] = value
++    assert any('pose_conditioning' in message for message in validate_settings(c))

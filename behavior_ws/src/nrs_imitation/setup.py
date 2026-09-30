@@ -43,6 +43,7 @@ setup(
             'episode_playback = nrs_imitation.episode_playback:main',
             'overlay_video_recorder = nrs_imitation.overlay_video_recorder:main',
             'polishing_removal_recorder = nrs_imitation.polishing_removal_recorder:main',
+            'e2_executor = nrs_imitation.e2_executor_node:main',
 
             # Demonstration recording
             'hdf5_recorder_single_cam = nrs_imitation.hdf5_recorder_single_cam:main',

@@ -1,0 +1,192 @@
+{
+  "tests": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "140",
+      "time": "24.637",
+      "timestamp": "2026-09-27T18:49:00.081324+09:00",
+      "hostname": "nrs3"
+    }
+  ],
+  "mock_phase_results": [
+    {
+      "test": "test_A_F0_selection_range_allows_common_phase_commands[finish]",
+      "mock_only": true,
+      "phases": [
+        {
+          "phase": "approach",
+          "ticks": 12,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 0.0,
+          "sent_fz_max_N": 0.0
+        },
+        {
+          "phase": "approach_contact",
+          "ticks": 4,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 0.0,
+          "sent_fz_max_N": 0.0
+        },
+        {
+          "phase": "processing",
+          "ticks": 160,
+          "requested_fz_N": [
+            23.0
+          ],
+          "sent_fz_min_N": 0.23999999999997357,
+          "sent_fz_max_N": 22.999810804743287
+        },
+        {
+          "phase": "contact_gate",
+          "ticks": 6,
+          "requested_fz_N": [
+            23.0
+          ],
+          "sent_fz_min_N": 22.388141487193256,
+          "sent_fz_max_N": 22.759810804743314
+        },
+        {
+          "phase": "retract",
+          "ticks": 220,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 6.624035084481961e-08,
+          "sent_fz_max_N": 22.221564508730083
+        },
+        {
+          "phase": "release",
+          "ticks": 12,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 1.4286133028738484e-08,
+          "sent_fz_max_N": 5.8291508743442133e-08
+        }
+      ]
+    },
+    {
+      "test": "test_A_F0_selection_range_allows_common_phase_commands[abort]",
+      "mock_only": true,
+      "phases": [
+        {
+          "phase": "approach",
+          "ticks": 12,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 0.0,
+          "sent_fz_max_N": 0.0
+        },
+        {
+          "phase": "approach_contact",
+          "ticks": 4,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 0.0,
+          "sent_fz_max_N": 0.0
+        },
+        {
+          "phase": "processing",
+          "ticks": 160,
+          "requested_fz_N": [
+            23.0
+          ],
+          "sent_fz_min_N": 0.23999999999997357,
+          "sent_fz_max_N": 22.999810804743287
+        },
+        {
+          "phase": "contact_gate",
+          "ticks": 6,
+          "requested_fz_N": [
+            23.0
+          ],
+          "sent_fz_min_N": 22.388141487193256,
+          "sent_fz_max_N": 22.759810804743314
+        },
+        {
+          "phase": "retract",
+          "ticks": 220,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 6.624035084481961e-08,
+          "sent_fz_max_N": 22.221564508730083
+        },
+        {
+          "phase": "release",
+          "ticks": 12,
+          "requested_fz_N": [
+            0.0
+          ],
+          "sent_fz_min_N": 1.4286133028738484e-08,
+          "sent_fz_max_N": 5.8291508743442133e-08
+        }
+      ]
+    }
+  ],
+  "archived_BC_configs_equal_and_unchanged": 10,
+  "numerical_execution_settings_unchanged": true,
+  "runtime_code_contract_unchanged": true,
+  "F0_candidate_N": 23.0,
+  "F0_selection_range_N": [
+    23.0,
+    23.0
+  ],
+  "selection_range_applied_to": "F0 scalar preflight only",
+  "existing_command_frame": "controller_tcp",
+  "existing_command_axis": "+Fz",
+  "command_unit": "N",
+  "teacher_mean_reproduced_N": 23.01822610909061,
+  "real_protection_fields_and_approval_unchanged": true,
+  "F0_frozen": false,
+  "quality_validation": "pending",
+  "hardware_executed": false,
+  "spindle_executed": false,
+  "hardware_ready": false,
+  "remaining_hardware_blockers": [
+    "measured_force_abs_limits_N: three approved positive per-axis limits required",
+    "measured_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "sensor_raw_force_abs_limits_N: three approved positive per-axis limits required",
+    "sensor_raw_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "measured_wrench_frame: explicit protection frame required",
+    "acquisition_max_age_s: approved source-acquisition timeout required",
+    "limits_evidence: pinned evidence path + sha256 required",
+    "sensor_overload_evidence: pinned evidence path + sha256 required",
+    "workspace_evidence: pinned evidence path + sha256 required",
+    "automatic_stop_evidence: pinned evidence path + sha256 required",
+    "approach_exit_evidence: pinned evidence path + sha256 required",
+    "sensor_driver_deployment_evidence: pinned evidence path + sha256 required"
+  ],
+  "config_diff": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/config_changes.patch",
+  "full_diff": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/changes.patch",
+  "build_required": false,
+  "build_note": "Only configuration metadata and tests changed. Installed runtime sources and their contract hash are unchanged.",
+  "established_evidence_links": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/established_evidence_links.json",
+    "sha256": "7c26a8b911fe7b50d3e44713b2383c2ea2c52eb9b083cacb7096fde17de1dd8d"
+  },
+  "actual_device_readback": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/device_findings.json",
+    "sha256": "f177f23338206ea0c55e9d8bdbabc540bca383c1cca11ed7151fad5b72690e40"
+  },
+  "field_confirmation_table": {
+    "pdf": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/field_confirmation_one_page.pdf",
+      "sha256": "92a8ac76fbe42e1b92466f61d4fe6f3016232743f1088bccc678b1401144a720"
+    },
+    "csv": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/field_confirmation.csv",
+      "sha256": "c21f3ef7705d4a2eba109c8a9e5c5eb9767e9bed6e3ccb7fd27d58cfb12d59b6"
+    }
+  },
+  "followup_scope": "Read-only actual-device evidence; accepted F0, archived-setting comparison and 140 mock tests were not rerun."
+}

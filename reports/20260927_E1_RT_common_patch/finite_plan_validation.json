@@ -1,0 +1,28 @@
+{
+  "rule": {
+    "source_duration_s": 32.67224019282142,
+    "source_samples": 4091,
+    "pose_grid_hz": 30.0,
+    "pose_chunk_points": 128,
+    "pose_stride_points": 120,
+    "prepare_ms": 0.9336570074083284,
+    "tick_p99_ms": 0.15328796347603202,
+    "max_chunk_tick_ms": 0.8388659916818142,
+    "final_command_to_source_endpoint_distance_mm": 4.2525503813148374e-07,
+    "endpoint_reached_by_real_robot": null,
+    "original_clock_preserved": true
+  },
+  "replay": {
+    "source_duration_s": 14.910406589508057,
+    "source_samples": 443,
+    "pose_grid_hz": 30.0,
+    "pose_chunk_points": 128,
+    "pose_stride_points": 120,
+    "prepare_ms": 0.5680680042132735,
+    "tick_p99_ms": 0.1267588674090802,
+    "max_chunk_tick_ms": 0.8897840016288683,
+    "final_command_to_source_endpoint_distance_mm": 13.288092627266346,
+    "endpoint_reached_by_real_robot": null,
+    "original_clock_preserved": true
+  }
+}

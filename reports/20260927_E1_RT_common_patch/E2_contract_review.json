@@ -1,0 +1,15 @@
+{
+  "reviewed_at": "2026-09-27T14:58:55.738412+09:00",
+  "basis": "Explicit user request to share archived E1 C stabilization with E1 R/T. New path requires rtc_pose_conditioning; E2 configurations do not enable it. Common C numerical path replayed against five archived sources, 9662 ticks bitwise equal.",
+  "changed_E2_config_fields": [
+    "execution_contract_hash",
+    "cohort_id"
+  ],
+  "execution_settings_protocol_models_calibration_F0_unchanged": true,
+  "previous_contract": "0dc9c494fb1d2e0b8f00afadc8e38345d5736ec4480569a7980c11f0b4d14409",
+  "new_contract": "3bae7fde33664376a910393b7e2d7fa92baa3ebf1f51b42c011728162a7ecd86",
+  "previous_cohort": "E2_4c14bf2b2aa13bb3",
+  "new_cohort": "E2_baa3a8353fc8965e",
+  "evidence": "/home/eunseop/nrs_imitation/reports/20260927_E1_RT_common_patch/recorded_c_validation.json",
+  "hardware_executed": false
+}

@@ -6,6 +6,7 @@ import pickle
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+import uuid
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     LaunchConfiguration,
@@ -73,6 +74,10 @@ def _maybe_stain_origin(context, *_a, **_kw):
               "stats do not say use_relative_position=True -- launching it anyway.")
 
     detect_params = LaunchConfiguration("stain_origin_detect_params").perform(context) or report
+    e2_path = LaunchConfiguration("e2_config").perform(context)
+    if e2_path:
+        from nrs_imitation.e2_providers import load_config
+        detect_params = load_config(e2_path)["common"]["frozen_roi"]["detect_params_file"]
     # stain_origin_node runs from its own cwd -- a relative report path (as
     # stored by dataset_relativize) would not resolve there. Anchor it to the
     # project root and drop it if it still isn't a real file.
@@ -100,6 +105,24 @@ def _maybe_stain_origin(context, *_a, **_kw):
             }.items(),
         )
     ]
+
+
+def _e2_preflight(context, *_a, **_kw):
+    """Reject E2 before launching even recorders/reference nodes; legacy IL unchanged."""
+    method = LaunchConfiguration("execution_method").perform(context)
+    path = LaunchConfiguration("e2_config").perform(context)
+    if method == "il" and not path:
+        return []
+    from nrs_imitation.e2_providers import load_config, hardware_blockers
+    if not path:
+        raise RuntimeError("E2 requires e2_config; use scripts/e2_experiment.py dry-run")
+    enabled = LaunchConfiguration("e2_enable_hardware").perform(context).lower() == "true"
+    blockers = hardware_blockers(load_config(path), method, enabled)
+    if context.launch_configurations.get("inference_mode") != "timed_topic":
+        blockers.append("E2 requires inference_mode:=timed_topic")
+    if blockers:
+        raise RuntimeError("E2 preflight blocked before launching nodes:\n- " + "\n- ".join(blockers))
+    return []
 
 
 def generate_launch_description():
@@ -153,6 +176,10 @@ def generate_launch_description():
             # policy_class to BSPLINE requires passing a matching BSPLINE
             # ckpt_dir too (or "" to auto-select the latest one) -- inference_core
             # raises a clear error instead of silently loading mismatched weights.
+            DeclareLaunchArgument("execution_method", default_value="il"),
+            DeclareLaunchArgument("e2_config", default_value=""),
+            DeclareLaunchArgument("e2_session_id", default_value=uuid.uuid4().hex),
+            DeclareLaunchArgument("e2_enable_hardware", default_value="false"),
             DeclareLaunchArgument(
                 "ckpt_dir",
                 default_value=(
@@ -200,6 +227,9 @@ def generate_launch_description():
             # comparison (see scripts/compare_policy_runs.py).
             DeclareLaunchArgument("metrics_log_enable", default_value="false"),
             DeclareLaunchArgument("metrics_log_dir", default_value=""),
+            DeclareLaunchArgument("use_force_history", default_value="true"),
+            DeclareLaunchArgument("overlay_record_output_dir", default_value=os.path.expanduser('~/Videos/Screencasts')),
+            DeclareLaunchArgument("removal_output_dir", default_value='/home/eunseop/nrs_imitation/logs/polishing_removal'),
             DeclareLaunchArgument("metrics_run_tag", default_value=""),
             DeclareLaunchArgument("metrics_extra_telemetry_enable", default_value="false"),
             DeclareLaunchArgument("metrics_sample_hz", default_value="20.0"),
@@ -239,7 +269,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "inference_mode",
                 default_value="service_call",
-                choices=["service_call", "service_stream", "topic_publish"],
+                choices=["service_call", "service_stream", "topic_publish", "timed_topic"],
             ),
             # Each PTP9D call now carries ptp9d_segment_points consecutive
             # lookahead waypoints (ptp9d_segment_stride raw samples apart),
@@ -264,11 +294,16 @@ def generate_launch_description():
             # routine updates during steady contact.
             DeclareLaunchArgument("ptp9d_stream_force_min_interval_sec", default_value="0.1"),
             DeclareLaunchArgument("ptp9d_target_velocity_mm_s", default_value="10.0"),
+            OpaqueFunction(function=_e2_preflight),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(base_launch),
                 launch_arguments={
                     "ckpt_dir": ckpt_dir,
                     "act_root": act_root,
+                    "execution_method": LaunchConfiguration("execution_method"),
+                    "e2_config": LaunchConfiguration("e2_config"),
+                    "e2_session_id": LaunchConfiguration("e2_session_id"),
+                    "e2_enable_hardware": LaunchConfiguration("e2_enable_hardware"),
                     "policy_class": policy_class,
                     "ckpt_auto_subdir": ckpt_auto_subdir,
                     "metrics_log_enable": metrics_log_enable,
@@ -279,6 +314,8 @@ def generate_launch_description():
                     "policy_z_offset_mm": policy_z_offset_mm,
                     "overlay_record_enable": overlay_record_enable,
                     "overlay_record_fps": LaunchConfiguration("overlay_record_fps"),
+                    "overlay_record_output_dir": LaunchConfiguration("overlay_record_output_dir"),
+                    "removal_output_dir": LaunchConfiguration("removal_output_dir"),
                     "removal_viz_enable": removal_viz_enable,
                     "removal_viz_open_on_exit": removal_viz_open_on_exit,
                     "removal_heatmap_tail_sec": removal_heatmap_tail_sec,
@@ -332,7 +369,7 @@ def generate_launch_description():
                     "tcp_roi_area_fraction": "0.25",
                     "camera_preprocess_mode": "stabilize",
                     "chunk_size": "128",
-                    "use_force_history": "true",
+                    "use_force_history": LaunchConfiguration("use_force_history"),
                     "force_history_len": "30",
                     "flow_infer_steps": "10",
                     "flow_deterministic_noise": "true",

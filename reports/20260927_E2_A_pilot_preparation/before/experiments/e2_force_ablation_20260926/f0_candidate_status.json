@@ -1,0 +1,40 @@
+{
+  "status": "preliminary_not_calibrated_not_frozen",
+  "updated_at": "2026-09-27T14:49:50.433520+09:00",
+  "normal_force_N": null,
+  "command_fz_N": null,
+  "teacher_Fz_constant_candidate_N": 23.01822610909061,
+  "rounded_teacher_channel_candidate_N": 23.0,
+  "all_42_success_confirmed": true,
+  "existing_validated_constant_force_recipe": false,
+  "candidate_file": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_candidate/candidate.json",
+  "review": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_candidate/README.md",
+  "candidate_sha256": "fda702db71b8db0a670e61ec7e382157b4aea0f1c7963f167ee5778159f23f64",
+  "reasons": [
+    "Approximate processing boundaries need acceptance for final recipe selection.",
+    "Teacher force-axis/zero/calibration relation to current TCP target is not independently verified.",
+    "No validated constant-force operating range was supplied; observed teacher statistics are not operating limits.",
+    "Final numerical recipe/operator freeze confirmation has not been given."
+  ],
+  "validated_operating_range": null,
+  "E1_R_18N_reused": false,
+  "hardware_preflight_status": "blocked_pending_calibration_validation_and_freeze",
+  "baseline_validation": {
+    "updated_at": "2026-09-27T15:21:34.547037+09:00",
+    "baseline_review": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_baseline_review/review.json",
+    "unloaded_capture_integrity": "pass",
+    "baseline_calibrates_force_scale_or_sign": false,
+    "baseline_calibrates_operating_range": false,
+    "allowed_force_or_abort_limit_status": "operator_unknown",
+    "operator_evidence": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_baseline_review/operator_limit_confirmation.json",
+    "next_stage": "await_confirmed_operating_range_and_abort_criteria_before_force_application",
+    "F0_frozen": false
+  },
+  "offline_assumption": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_offline_assumption/offline_assumption.json",
+    "assumed_command_Fz_N": 23.0,
+    "status": "unverified_offline_only",
+    "verified_operating_range": false,
+    "hardware_config_changed": false
+  }
+}

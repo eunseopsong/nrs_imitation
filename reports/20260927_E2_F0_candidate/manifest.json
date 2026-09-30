@@ -1,0 +1,114 @@
+{
+  "created_at": "2026-09-27T14:49:50.433520+09:00",
+  "files": [
+    {
+      "path": "F0_candidate_review.pdf",
+      "bytes": 190371,
+      "sha256": "c5f420dbe7cb24955c81e4feb838979ec090a53831118862bee8d90503f73eeb"
+    },
+    {
+      "path": "README.md",
+      "bytes": 4798,
+      "sha256": "6cadf006ad9e0d05d3f3c3ebe6f95e82181a261e0aae0a9d815be1c67cf57271"
+    },
+    {
+      "path": "boundary_review_01.png",
+      "bytes": 2798175,
+      "sha256": "f59bb05b9ecd4e5d950b1ec0c84338f2153316a8e1a34d72d12f96da87522164"
+    },
+    {
+      "path": "boundary_review_02.png",
+      "bytes": 2836234,
+      "sha256": "a7d6c0eeaea0012e535ff8bd6fa48606dda2bb6c1f65b0f264b727c9c33624d8"
+    },
+    {
+      "path": "boundary_review_03.png",
+      "bytes": 2811176,
+      "sha256": "987be2cdaa2a89da32837df5467b079433458617115a8d3370f6b509e3de5037"
+    },
+    {
+      "path": "boundary_review_04.png",
+      "bytes": 2822433,
+      "sha256": "15bfbf1fda7e82003e00505ae6d6accc7e8a802916fcd161a70135355494b7ed"
+    },
+    {
+      "path": "boundary_review_05.png",
+      "bytes": 2792956,
+      "sha256": "cce0812f627c30386a046efb4c9116fe30976463dc493286ee4655f084a2e008"
+    },
+    {
+      "path": "boundary_review_06.png",
+      "bytes": 2791194,
+      "sha256": "b89bc89be31f71d984f58812b0e004d0badd768cd0fa7be222ee311f64132807"
+    },
+    {
+      "path": "boundary_review_07.png",
+      "bytes": 749206,
+      "sha256": "8b5cf6db08f2ddb627097c2b49b9eb0e8a4f24cf08169c75cb5308fbb04ade2e"
+    },
+    {
+      "path": "calculate_candidate.py",
+      "bytes": 7708,
+      "sha256": "3af51b4e82300a0704f236715e7b0ff7ffc7d731b0dbc07444b446ba54f4a177"
+    },
+    {
+      "path": "calculation.log",
+      "bytes": 1002,
+      "sha256": "e58e0960a1bfeb4b2644fd3029b4e1dfa1beb703640ed0197567dff7df00c547"
+    },
+    {
+      "path": "candidate.json",
+      "bytes": 5445,
+      "sha256": "fda702db71b8db0a670e61ec7e382157b4aea0f1c7963f167ee5778159f23f64"
+    },
+    {
+      "path": "candidate_overview.png",
+      "bytes": 53320,
+      "sha256": "d04c18b33b576bd13a30c08e6b7c487c7d7e37075886a5c193069398d3390430"
+    },
+    {
+      "path": "episode_means.csv",
+      "bytes": 9838,
+      "sha256": "3c9e7d1ea46828706abf37b528237c235478717da529ed2d12af60f0839e724a"
+    },
+    {
+      "path": "pose_phase_proposals.json",
+      "bytes": 50521,
+      "sha256": "b4560d8989e35f05399495d0495a47733caf06d620b2ba594aff097da7547b48"
+    },
+    {
+      "path": "prepare_review.py",
+      "bytes": 6783,
+      "sha256": "3911080d359e4f1159e6a243f06c24f17bb3ef2700fb7577cc0d3da0b2900010"
+    },
+    {
+      "path": "verification.json",
+      "bytes": 1490,
+      "sha256": "1432f0e357c0a16570d10e063dce208a5a148681690a7b11f3b1fa3c13323abf"
+    },
+    {
+      "path": "verify_candidate.py",
+      "bytes": 5837,
+      "sha256": "f8b3aa5ff5de61a954008e677b71d38552d214ab26f8445d4d8d28919e7c362c"
+    },
+    {
+      "path": "visual_review.json",
+      "bytes": 2713,
+      "sha256": "e1f19258552fc77bc162ce4584dfa8c370b4718b395c39904810de09eeb94fd3"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "sha256": "d2708b06ad137218b9f18667802c98f530de0e5b234072d88a5c74f2bae5f64b"
+    },
+    {
+      "path": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/teacher_preview/split.json",
+      "sha256": "92c10a1b54da08621da997e143fff26fa0160d84ef44410b53569c8188bdd082"
+    },
+    {
+      "path": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/config.json",
+      "sha256": "188a3845852c78aa2b7cec19c77b4bb95f6e99d4ec2e7d8b833cd47ba6158a4e"
+    }
+  ]
+}

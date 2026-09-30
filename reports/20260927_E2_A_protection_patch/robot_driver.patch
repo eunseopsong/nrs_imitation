@@ -1,0 +1,268 @@
+--- /dev/null
++++ b/Y2FT_AQ/include/Y2FT_AQ/FT_Acquisition.hpp
+@@ -0,0 +1,40 @@
++#pragma once
++// Pure packet provenance; no sockets, ROS, limits, or robot commands.
++#include <array>
++#include <chrono>
++#include <cmath>
++#include <cstdint>
++#include <cstring>
++
++struct FTAcquisition
++{
++    using Clock = std::chrono::steady_clock;
++    std::uint64_t sequence = 0;
++    bool valid = false;
++    bool invalid_packet_seen = false;  // latched across later valid packets
++    std::array<double, 6> raw{};  // sensor axes, before software zero/filter/gravity
++    Clock::time_point received_at{};
++
++    void received(const char* bytes, std::size_t size, Clock::time_point now)
++    {
++        ++sequence;
++        received_at = now;
++        valid = size >= 24;
++        if (!valid) { invalid_packet_seen = true; return; }
++        for (std::size_t i = 0; i < raw.size(); ++i) {
++            const auto* p = reinterpret_cast<const unsigned char*>(bytes + 4*i);
++            const std::uint32_t bits = (std::uint32_t(p[0]) << 24) |
++                (std::uint32_t(p[1]) << 16) | (std::uint32_t(p[2]) << 8) | p[3];
++            float value;
++            std::memcpy(&value, &bits, sizeof(value));
++            raw[i] = value;
++            valid = valid && std::isfinite(value);
++        }
++        invalid_packet_seen = invalid_packet_seen || !valid;
++    }
++
++    double age(Clock::time_point now) const
++    {
++        return std::chrono::duration<double>(now - received_at).count();
++    }
++};
+--- a/Y2FT_AQ/include/Y2FT_AQ/FT_EtherGet.hpp
++++ b/Y2FT_AQ/include/Y2FT_AQ/FT_EtherGet.hpp
+@@ -13,6 +13,7 @@
+ #include <cerrno>
+ #include <fcntl.h>
+ #include "Y2Matrix/YMatrix.hpp" // YMatrix library for matrix operations
++#include "Y2FT_AQ/FT_Acquisition.hpp"
+ 
+ #define MAX_RETRY 5
+ #define RECV_SIZE 50
+@@ -53,6 +54,8 @@
+         ~FT_EtherGet();
+         FTData FTGet();
+         bool FT_init(const unsigned int init_count_num);
++        const FTAcquisition& acquisition() const { return acquisition_; }
++        bool initialized() const { return init_flag; }
+ 
+     private:
+         std::string IP_;
+@@ -60,6 +63,7 @@
+         std::vector<double> init_force, init_moment;
+         int s; // socket file descriptor
+         FTData last_ftdata_;
++        FTAcquisition acquisition_;
+ 
+         bool init_flag = false;
+         unsigned int init_count = 0;
+--- a/Y2FT_AQ/src/FT_EtherGet.cpp
++++ b/Y2FT_AQ/src/FT_EtherGet.cpp
+@@ -89,7 +89,10 @@
+     }
+ 
+     if (init_count < init_count_num) {
++        const auto previous_sequence = acquisition_.sequence;
+         const FTData ftdata = FTGet();
++        // Polling cached values must not count as new zeroing samples.
++        if (acquisition_.sequence == previous_sequence || !acquisition_.valid) return false;
+         init_force[0] += ftdata.Fx / static_cast<double>(init_count_num);
+         init_force[1] += ftdata.Fy / static_cast<double>(init_count_num);
+         init_force[2] += ftdata.Fz / static_cast<double>(init_count_num);
+@@ -121,11 +124,14 @@
+ {
+     char recvData[RECV_SIZE] = {0};
+     const ssize_t bytesReceived = recvMsg(recvData, sizeof(recvData));
+-    if (bytesReceived < 24) {
++    if (bytesReceived < 0) {
+         return last_ftdata_;
+     }
+ 
+     const auto now = std::chrono::steady_clock::now();
++    acquisition_.received(recvData, static_cast<std::size_t>(bytesReceived), now);
++    // Report invalid packets separately; never inject NaN into the controller.
++    if (!acquisition_.valid) return last_ftdata_;
+     constexpr unsigned int expression_count = 3000;
+     if (have_last_stamp_) {
+         const auto dt_us = std::chrono::duration_cast<std::chrono::microseconds>(
+@@ -190,7 +196,7 @@
+         ssize_t bytesReceived = recvfrom(s, recvData, recvSize, 0,
+                                          (struct sockaddr *)&from, &fromLen);
+ 
+-        if (bytesReceived >= 24) {
++        if (bytesReceived >= 0) {
+             return bytesReceived;
+         } else if (bytesReceived < 0) {
+             if (errno == EAGAIN || errno == EWOULDBLOCK) {
+--- a/Y2FT_AQ/src/FTGetMain.cpp
++++ b/Y2FT_AQ/src/FTGetMain.cpp
+@@ -27,6 +27,7 @@
+ #include "Y2Filters/Gen_filter.hpp"
+ #include "geometry_msgs/msg/wrench_stamped.hpp"
+ #include "std_msgs/msg/float64_multi_array.hpp"
++#include "std_msgs/msg/string.hpp"
+ #include "std_srvs/srv/set_bool.hpp"
+ #include "ament_index_cpp/get_package_share_directory.hpp"
+ #include <yaml-cpp/yaml.h>
+@@ -189,6 +190,11 @@
+     // ----- Publisher / Subscriber -----
+     geometry_msgs::msg::WrenchStamped ft1_msg;
+     rclcpp::Publisher<geometry_msgs::msg::WrenchStamped>::SharedPtr ft1_pub;
++    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr acquisition_pub_;
++    std::uint64_t acquisition_published_sequence_ = 0;
++    std::int64_t acquisition_ros_ns_ = 0;
++    const std::string acquisition_boot_id_ = std::to_string(
++        std::chrono::steady_clock::now().time_since_epoch().count());
+ 
+     // Monitoring publishers (TCP / Base)
+     geometry_msgs::msg::WrenchStamped ft_tcp_msg_;
+@@ -287,6 +293,10 @@
+     // ----- Publisher (기존) -----
+     std::string ftdata_topic = robot_name + std::string("/ftdata");
+     ft1_pub = this->create_publisher<geometry_msgs::msg::WrenchStamped>(ftdata_topic, 10);
++    #if FT_SOURCE_MODE == 0
++    acquisition_pub_ = this->create_publisher<std_msgs::msg::String>(
++        robot_name + "/ft_acquisition", rclcpp::QoS(1).reliable());
++    #endif
+ 
+     // ----- Monitoring publishers -----
+     std::string ftdata_tcp_topic  = robot_name + std::string("/ftdata_tcp");   // TCP(local) 기준 (g-comp)
+@@ -646,6 +656,40 @@
+ 
+     // Raw 데이터 읽고 필터링
+     filtered_out = filtering(readFTSensor());
++
++    #if FT_SOURCE_MODE == 0
++    // Separate provenance channel: cached polls NEVER refresh sequence/stamp.
++    // Timestamp describes host UDP reception, not the sensor's internal ADC.
++    const auto& sample = FT1SensorGet.acquisition();
++    if (sample.sequence != acquisition_published_sequence_) {
++        const auto source_age = sample.age(std::chrono::steady_clock::now());
++        acquisition_ros_ns_ = this->now().nanoseconds() -
++            static_cast<std::int64_t>(source_age * 1e9);
++        std::ostringstream body;
++        body << std::setprecision(17)
++             << "{\"schema\":\"aft_ether_acquisition_v1\",\"boot_id\":\""
++             << acquisition_boot_id_ << "\",\"sequence\":" << sample.sequence
++             << ",\"source_ros_ns\":" << acquisition_ros_ns_
++             << ",\"valid\":" << ((sample.valid && !sample.invalid_packet_seen) ? "true" : "false")
++             << ",\"initialized\":" << (FT1SensorGet.initialized() ? "true" : "false")
++             << ",\"sensor_wrench\":";
++        if (sample.valid) {
++            body << '[';
++            for (std::size_t i = 0; i < sample.raw.size(); ++i) {
++                if (i) body << ',';
++                body << sample.raw[i];
++            }
++            body << ']';
++        } else {
++            body << "null";
++        }
++        body << '}';
++        std_msgs::msg::String message;
++        message.data = body.str();
++        acquisition_pub_->publish(message);
++        acquisition_published_sequence_ = sample.sequence;
++    }
++    #endif
+ 
+     // 센서 frame 힘/모멘트
+     SframeForce_[0][0]  = filtered_out.Fx;
+@@ -726,7 +770,12 @@
+     // ----------------------------
+     // 기존 publish (/ftdata): Base 기준 (full-rate)
+     // ----------------------------
+-    ft1_msg.header.stamp = this->now();
++    #if FT_SOURCE_MODE == 0
++    ft1_msg.header.stamp = rclcpp::Time(acquisition_ros_ns_);
++    ft1_msg.header.frame_id = "robot_base_acquired_v1";
++    #else
++    ft1_msg.header.stamp = this->now();
++    #endif
+     ft1_msg.wrench.force.x  = GcompForce_[0][0];
+     ft1_msg.wrench.force.y  = GcompForce_[1][0];
+     ft1_msg.wrench.force.z  = GcompForce_[2][0];
+--- a/Y2RobMotion/include/Y2RobMotion/robot_motion.hpp
++++ b/Y2RobMotion/include/Y2RobMotion/robot_motion.hpp
+@@ -63,6 +63,9 @@
+ 
+     /* FT Sensor States */
+     std::vector<double> ft1data;
++    std::int64_t ft1_source_ros_ns_ = 0;
++    bool ft1_source_contract_ = false;
++    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr currentF_provenance_pub_;
+ 
+     /* Control mode */
+     std::string control_mode; // Idling, Position, Custom
+--- a/Y2RobMotion/src/robot_motion.cpp
++++ b/Y2RobMotion/src/robot_motion.cpp
+@@ -1,4 +1,7 @@
+ #include "Y2RobMotion/robot_motion.hpp"
++#include <sstream>
++#include <iomanip>
++#include <cmath>
+ 
+ namespace fs = std::filesystem;
+ 
+@@ -111,6 +114,8 @@
+     currentJ_pub = node_->create_publisher<std_msgs::msg::Float64MultiArray>(currentJ_TP,1);
+     currentP_pub = node_->create_publisher<std_msgs::msg::Float64MultiArray>(currentP_TP,1);
+     currentF_pub = node_->create_publisher<std_msgs::msg::Float64MultiArray>(currentF_TP,1);
++    currentF_provenance_pub_ = node_->create_publisher<std_msgs::msg::String>(
++        robot_name + "/currentF_provenance", rclcpp::QoS(1).reliable());
+     currentMDK_pub = node_->create_publisher<std_msgs::msg::Float64MultiArray>(currentMDK_TP,1);
+     targetJ_pub = node_->create_publisher<std_msgs::msg::Float64MultiArray>(targetJ_TP,1);
+     targetP_pub = node_->create_publisher<std_msgs::msg::Float64MultiArray>(targetP_TP,1);
+@@ -314,6 +319,9 @@
+ /* ROS FT Sensor Callback */
+ void robot_motion::ftsensorCB(const geometry_msgs::msg::WrenchStamped::SharedPtr msg)
+ {
++    ft1_source_ros_ns_ = static_cast<std::int64_t>(msg->header.stamp.sec) * 1000000000LL
++        + msg->header.stamp.nanosec;
++    ft1_source_contract_ = msg->header.frame_id == "robot_base_acquired_v1";
+     ft1data[0] = msg->wrench.force.x;
+     ft1data[1] = msg->wrench.force.y;
+     ft1data[2] = msg->wrench.force.z;
+@@ -427,6 +435,30 @@
+     currentJ_pub->publish(currentJ_msg);
+     currentP_pub->publish(currentp_msg);
+     currentF_pub->publish(currentF_msg);
++    // Retain the source stamp while currentF is periodically republished.
++    // The legacy 6-value topic and control computations remain unchanged.
++    bool valid_wrench = true;
++    for (double value : ft1data) valid_wrench = valid_wrench && std::isfinite(value);
++    std::ostringstream provenance;
++    provenance << std::setprecision(17)
++        << "{\"schema\":\"y2_wrench_provenance_v1\",\"source_contract\":"
++        << (ft1_source_contract_ ? "true" : "false")
++        << ",\"source_ros_ns\":" << ft1_source_ros_ns_
++        << ",\"valid\":" << (valid_wrench ? "true" : "false") << ",\"base_wrench\":";
++    if (valid_wrench) {
++        provenance << '[';
++        for (std::size_t i = 0; i < ft1data.size(); ++i) {
++            if (i) provenance << ',';
++            provenance << ft1data[i];
++        }
++        provenance << ']';
++    } else {
++        provenance << "null";
++    }
++    provenance << '}';
++    std_msgs::msg::String provenance_msg;
++    provenance_msg.data = provenance.str();
++    currentF_provenance_pub_->publish(provenance_msg);
+     currentMDK_pub->publish(currentMDK_msg);
+ 
+     if (!config_.test_mode) {

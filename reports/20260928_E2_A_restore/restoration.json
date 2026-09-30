@@ -1,0 +1,88 @@
+{
+  "files": [
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/code/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py",
+      "destination": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py",
+      "sha256": "807a41f0fe9efa467ca3e3e8ac69f36ac9e8ae78264ed3c53fd55f5c994d6c52"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/code/behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py",
+      "destination": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py",
+      "sha256": "de1ef028fc75df841bded2104796c1e8901f9908e747ddbbcf0d0a8c0a43915e"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/code/behavior_ws/src/nrs_imitation/nrs_imitation/execution_metrics.py",
+      "destination": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/execution_metrics.py",
+      "sha256": "27c6509008297fbb408eb31da5aa8718f60de8a334e853891932b74c1a91c483"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/code/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py",
+      "destination": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py",
+      "sha256": "0536319ced4d781c0a01255a391aa524935ba396e0aa614b2fd974203ae381d5"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/code/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py",
+      "destination": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py",
+      "sha256": "40bc52e2990674106eda8e2aa4c3cd9d39053ec8809ce3617c8a0aa8c16c869d"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/code/source/models/flow_core.py",
+      "destination": "/home/eunseop/nrs_imitation/source/models/flow_core.py",
+      "sha256": "feae922fea3e41c16ef1346bd73531bc9daf815e9ab5b8b17e5221b76037a658"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/A_offline/180538_d27cf29a/provider_0/offline_OFF_20260927T180540_1790499940312350352_acuc__1d/artifacts/7_dataset.py",
+      "destination": "/home/eunseop/nrs_imitation/source/data/dataset.py",
+      "sha256": "9b247b152965953d20fd77dc584740386c353d5f5b40f4cf99e9a2f3825d43d6"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/pilot_driver/FT_Acquisition.hpp",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/include/Y2FT_AQ/FT_Acquisition.hpp",
+      "sha256": "e52cf42a90c7c215675295cea53335cbb0ccc05455448cec1e5653f34a7cf2f4"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/pilot_driver/FT_EtherGet.hpp",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/include/Y2FT_AQ/FT_EtherGet.hpp",
+      "sha256": "2859c083c4fc7a149f325eb15fe116665d990a5feeb2b7cddaa27b00bd0fac45"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/pilot_driver/FT_EtherGet.cpp",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FT_EtherGet.cpp",
+      "sha256": "a275cd1117ad71c03278a367e578b0703d5abf6f09dbad71336075691f1901b9"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/pilot_driver/FTGetMain.cpp",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FTGetMain.cpp",
+      "sha256": "731acf07703ec9590cdbc43d51aff096ebf22f8eb07e1aae94128768a4ce216a"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/pilot_driver/robot_motion.hpp",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/include/Y2RobMotion/robot_motion.hpp",
+      "sha256": "3536d3f5e4f57b08bc17fbdeaf665996ca1b397fb36f301af41c06e38871cb81"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/pilot_driver/robot_motion.cpp",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/src/robot_motion.cpp",
+      "sha256": "95ea92b06e6d32c02107bd47543c2915a31787edd0b9996e6f4f9bfbe24dad40"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e2_force_ablation_20260926/A/20260926_2129/policy_last.ckpt",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/registered_models/A_c05e06da163127f1/policy_best.ckpt",
+      "sha256": "c05e06da163127f15b31e1ed77cc083688d830dc87abc857fc0be5d7031c90d6"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260927/E2/E2_A_PILOT_01/A/E2_A_20260927T213228_5796a1d61945/artifacts/dataset_stats.pkl",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/registered_models/A_c05e06da163127f1/dataset_stats.pkl",
+      "sha256": "ffe37fe3040e2cbfbb769866aae09b496c98e167d5ac6a7a750942136dcadfbc"
+    },
+    {
+      "source": "/home/eunseop/nrs_imitation/results/20260928/E2/E2_clean_20260928T010315_56ae36_commissioning/E2_A_FIELD_20260928T151324_801230273/A/E2_FIELD_A_20260928T151325_e4c3156d8f05/artifacts/commissioning.json",
+      "destination": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/commissioning_request.json",
+      "sha256": "7dd12c116e73ee8db2775f87f97569d6e3f20d2eccba89495c3ee007137db94c"
+    }
+  ],
+  "config": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json",
+  "execution_contract_hash": "58d85d12cf39d176216c3312eaa8fb60aec1b7e656dda90192fff676f8c34391",
+  "cohort_id": "E2_40abfbcd23eaf2e9",
+  "hardware_executed": false
+}

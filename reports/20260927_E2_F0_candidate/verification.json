@@ -1,0 +1,51 @@
+{
+  "checked_at": "2026-09-27T14:48:18.396548+09:00",
+  "status": "pass",
+  "independent_clipped_sample_mean_N": 23.01822610909061,
+  "training_episodes": 38,
+  "held_out_episodes_used": false,
+  "objective": "Equal-episode time-normalized squared error",
+  "objective_at_optimum_N2": 40.527628347115524,
+  "objective_at_23N_N2": 40.52796053816803,
+  "objective_delta_for_plus_or_minus_1N_N2": 1.0,
+  "retained_samples_below_3N": 95,
+  "retained_samples_at_or_below_zero_N": 30,
+  "actual_software_channel_checks": {
+    "B": {
+      "input_Fz_N": [
+        -3.0,
+        23.0,
+        31.0
+      ],
+      "output_Fz_before_executor_N": [
+        -3.000000238418579,
+        23.0,
+        31.000001907348633
+      ],
+      "Fx_Fy_zero": true,
+      "actual_denormalization_and_postprocessor": true,
+      "robot_messages_sent": 0
+    },
+    "C": {
+      "input_Fz_N": [
+        -3.0,
+        23.0,
+        31.0
+      ],
+      "output_Fz_before_executor_N": [
+        -3.000000238418579,
+        23.0,
+        31.000001907348633
+      ],
+      "Fx_Fy_zero": true,
+      "actual_denormalization_and_postprocessor": true,
+      "robot_messages_sent": 0
+    }
+  },
+  "physical_calibration_verified": false,
+  "validated_operating_range": null,
+  "runtime_F0_still_unset": true,
+  "runtime_config_sha256": "188a3845852c78aa2b7cec19c77b4bb95f6e99d4ec2e7d8b833cd47ba6158a4e",
+  "candidate_sha256": "fda702db71b8db0a670e61ec7e382157b4aea0f1c7963f167ee5778159f23f64",
+  "hardware_executed": false
+}

@@ -1,0 +1,25 @@
+{
+  "status": "complete",
+  "retained": {
+    "B": 5,
+    "C": 5
+  },
+  "deleted": {
+    "B": 2,
+    "C": 0
+  },
+  "deleted_files": 105,
+  "source_run_files": 810,
+  "videos": 10,
+  "images_verified": 60,
+  "all_source_and_copy_hashes_match": true,
+  "all_normal_originals_unchanged": true,
+  "e1_unchanged": true,
+  "manifest_sha256": "4262472715f864d9051cbd1fa161a739514f7ea1c02312a9340e9654e4426434",
+  "finalized_at": "2026-09-26T21:21:26.319806+09:00",
+  "archive_files_including_manifest": 818,
+  "pdf_sha256": "19bb176ca28d918e373caa425e9e3a3985b8414470ac3611c19411961eb90d74",
+  "pdf_pages": 9,
+  "video_limitations": "C5 recorder started 4.223 s after execution_start; other runs 0.139–0.201 s. Videos are decodable, not complete pre-roll records.",
+  "BC_cleanup_and_report_complete": true
+}

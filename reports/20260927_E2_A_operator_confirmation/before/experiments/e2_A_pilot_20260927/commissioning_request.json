@@ -1,0 +1,32 @@
+{
+  "schema": "E2_A_commissioning_v1",
+  "status": "unconfirmed",
+  "approved_by": null,
+  "approved_at": null,
+  "scope_sha256": "fa263e166860f6db17ac7343f199c13881ebad075b321bae65de8a21c81867aa",
+  "command_frame": "controller_tcp",
+  "command_axis": "Fz",
+  "command_unit": "N",
+  "processing_command_fz_range_N": null,
+  "measured_force_abs_limits_N": null,
+  "measured_torque_abs_limits_Nm": null,
+  "measured_wrench_frame": null,
+  "acquisition_max_age_s": null,
+  "applicability_evidence": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_pilot_preparation/existing_command_convention.json",
+    "sha256": "be33f65a550dc403692741625b1f214b6713f3bcb74482179298d5ece0640133"
+  },
+  "command_direction_evidence": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_pilot_preparation/existing_command_convention.json",
+    "sha256": "be33f65a550dc403692741625b1f214b6713f3bcb74482179298d5ece0640133"
+  },
+  "limits_evidence": null,
+  "sensor_overload_evidence": null,
+  "workspace_evidence": null,
+  "automatic_stop_evidence": null,
+  "approach_exit_evidence": null,
+  "note": "Request template only. Unknown values stay null. Approval is insufficient without deployed protection support; source scope includes current tool/controller/task. Evidence objects require path and sha256. No values may be derived from F0/sensor rating/previous peaks/analysis 50 N.",
+  "sensor_raw_force_abs_limits_N": null,
+  "sensor_raw_torque_abs_limits_Nm": null,
+  "sensor_driver_deployment_evidence": null
+}

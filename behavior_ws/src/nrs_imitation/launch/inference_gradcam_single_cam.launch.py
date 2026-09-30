@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import uuid
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -152,6 +153,10 @@ def generate_launch_description():
     visualize_flow_vector = LaunchConfiguration("visualize_flow_vector")
 
     return LaunchDescription([
+        DeclareLaunchArgument("execution_method", default_value="il"),
+        DeclareLaunchArgument("e2_config", default_value=""),
+        DeclareLaunchArgument("e2_session_id", default_value=uuid.uuid4().hex),
+        DeclareLaunchArgument("e2_enable_hardware", default_value="false"),
         DeclareLaunchArgument("ckpt_dir", default_value=""),
         DeclareLaunchArgument("act_root", default_value="~/nrs_imitation"),
         DeclareLaunchArgument("policy_class", default_value="FLOW"),  # FLOW | BSPLINE | ACT | DIFFUSION
@@ -173,6 +178,8 @@ def generate_launch_description():
         # Record diagnostic image topics directly to ~/Videos/Screencasts.
         # No GUI is needed; the webm is finalized on shutdown.
         DeclareLaunchArgument("overlay_record_enable", default_value="true"),
+        DeclareLaunchArgument("overlay_record_output_dir", default_value='/home/eunseop/Videos/Screencasts'),
+        DeclareLaunchArgument("removal_output_dir", default_value='/home/eunseop/nrs_imitation/logs/polishing_removal'),
         DeclareLaunchArgument("overlay_record_fps", default_value="10.0"),
         # Polishing-removal visualization: records currentP/currentF for the
         # whole launch and, on shutdown, writes a Preston removal heatmap +
@@ -357,15 +364,26 @@ def generate_launch_description():
             output="screen",
             parameters=[{
                 "enable": ParameterValue(overlay_record_enable, value_type=bool),
+                "output_dir": ParameterValue(LaunchConfiguration("overlay_record_output_dir"), value_type=str),
                 "framerate": ParameterValue(LaunchConfiguration("overlay_record_fps"), value_type=float),
                 "policy_class": policy_class,
                 "run_tag": metrics_run_tag,
                 "modality_importance_topic": modality_importance_topic,
-                "flow_vector_overlay_topic": flow_vector_overlay_topic,
-                "record_modality_importance": ParameterValue(modality_importance_enable, value_type=bool),
+                # Nonlearned providers have no modality-attribution image.
+                # Record the real camera directly instead of waiting forever
+                # for neural diagnostic topics. IL's recording is unchanged.
+                "flow_vector_overlay_topic": PythonExpression([
+                    "'", flow_vector_overlay_topic, "' if '", LaunchConfiguration("execution_method"),
+                    "' == 'il' else '", image_topic, "'"
+                ]),
+                "record_modality_importance": ParameterValue(PythonExpression([
+                    "'", LaunchConfiguration("execution_method"), "' == 'il' and '",
+                    modality_importance_enable, "'.lower() == 'true'"
+                ]), value_type=bool),
                 "record_flow_vector_overlay": ParameterValue(flow_vector_overlay_enable, value_type=bool),
                 # tack the polishing-removal heatmap onto the end of the webm
                 "append_removal_heatmap": ParameterValue(removal_viz_enable, value_type=bool),
+                "removal_heatmap_glob": PythonExpression(["'", LaunchConfiguration('removal_output_dir'), "' + '/*/01_removal_heatmap.png'"]),
                 "removal_heatmap_tail_sec": ParameterValue(removal_heatmap_tail_sec, value_type=float),
             }],
         ),
@@ -377,6 +395,7 @@ def generate_launch_description():
             output="screen",
             parameters=[{
                 "enable": ParameterValue(removal_viz_enable, value_type=bool),
+                "output_dir": ParameterValue(LaunchConfiguration("removal_output_dir"), value_type=str),
                 "open_on_exit": ParameterValue(removal_viz_open_on_exit, value_type=bool),
                 "position_topic": pose_topic,
                 "force_topic": force_topic,
@@ -414,6 +433,19 @@ def generate_launch_description():
         ),
 
         Node(
+            package="nrs_imitation", executable="e2_executor", name="e2_executor",
+            output="screen", sigterm_timeout="20", sigkill_timeout="5",
+            condition=IfCondition(PythonExpression(["'", LaunchConfiguration("e2_config"), "' != ''"])),
+            parameters=[{
+                "e2_config": ParameterValue(LaunchConfiguration("e2_config"), value_type=str),
+                "e2_session_id": ParameterValue(LaunchConfiguration("e2_session_id"), value_type=str),
+                "e2_enable_hardware": ParameterValue(LaunchConfiguration("e2_enable_hardware"), value_type=bool),
+                "execution_method": ParameterValue(LaunchConfiguration("execution_method"), value_type=str),
+                "metrics_run_tag": metrics_run_tag, "act_root": act_root,
+            }],
+        ),
+
+        Node(
             package="nrs_imitation",
             executable="inference_single_cam",
             name="inference_single_cam",
@@ -422,7 +454,7 @@ def generate_launch_description():
                 "ckpt_dir": ckpt_dir,
                 "act_root": act_root,
                 "policy_class": policy_class,
-                "ckpt_auto_subdir": ckpt_auto_subdir,
+                "ckpt_auto_subdir": ParameterValue(ckpt_auto_subdir, value_type=str),
                 "metrics_log_enable": ParameterValue(metrics_log_enable, value_type=bool),
                 "metrics_log_dir": metrics_log_dir,
                 "metrics_run_tag": metrics_run_tag,
@@ -430,6 +462,10 @@ def generate_launch_description():
                 "metrics_repeat_id": ParameterValue(LaunchConfiguration("metrics_repeat_id"), value_type=str),
                 "metrics_rpm_setpoint": ParameterValue(LaunchConfiguration("metrics_rpm_setpoint"), value_type=str),
                 "metrics_rpm_assumed_constant": ParameterValue(LaunchConfiguration("metrics_rpm_assumed_constant"), value_type=bool),
+                "execution_method": ParameterValue(LaunchConfiguration("execution_method"), value_type=str),
+                "e2_config": ParameterValue(LaunchConfiguration("e2_config"), value_type=str),
+                "e2_session_id": ParameterValue(LaunchConfiguration("e2_session_id"), value_type=str),
+                "e2_enable_hardware": ParameterValue(LaunchConfiguration("e2_enable_hardware"), value_type=bool),
                 "metrics_context_file": ParameterValue(LaunchConfiguration("metrics_context_file"), value_type=str),
                 "metrics_queue_size": ParameterValue(LaunchConfiguration("metrics_queue_size"), value_type=int),
                 "metrics_snapshot_enable": ParameterValue(LaunchConfiguration("metrics_snapshot_enable"), value_type=bool),

@@ -65,7 +65,8 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from geometry_msgs.msg import Wrench
-from std_msgs.msg import Float32, Float64MultiArray, Int32
+from std_msgs.msg import Float32, Float64MultiArray, Int32, String
+import json
 from sensor_msgs.msg import Image
 from std_srvs.srv import Trigger
 from y2_rob_motion_interfaces.srv import SingleArmCommand
@@ -721,13 +722,14 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
         return None
 
     st = _pickle_load_compat(p)
+    state_size = 6 if st.get('policy_config', {}).get('motion_only', False) else 9
 
     if all(k in st for k in ["qpos_min", "qpos_max", "action_min", "action_max"]):
-        qmin = np.asarray(st["qpos_min"], dtype=np.float32).reshape(9)
-        qmax = np.asarray(st["qpos_max"], dtype=np.float32).reshape(9)
+        qmin = np.asarray(st["qpos_min"], dtype=np.float32).reshape(state_size)
+        qmax = np.asarray(st["qpos_max"], dtype=np.float32).reshape(state_size)
         amin = np.asarray(st["action_min"], dtype=np.float32).reshape(-1)
         amax = np.asarray(st["action_max"], dtype=np.float32).reshape(-1)
-        if amin.size not in (9, 10, 11) or amax.size != amin.size:
+        if amin.size not in ((6,) if state_size == 6 else (9, 10, 11)) or amax.size != amin.size:
             raise ValueError(
                 f"action min/max size must be 9, 10, or 11. got {amin.size}, {amax.size}"
             )
@@ -739,7 +741,7 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
             amin = _scale_xyz_prefix(amin, xyz_scale)
             amax = _scale_xyz_prefix(amax, xyz_scale)
 
-        qmin, qmax = _sanitize_range_minmax(qmin, qmax, expected_size=9)
+        qmin, qmax = _sanitize_range_minmax(qmin, qmax, expected_size=state_size)
         amin, amax = _sanitize_range_minmax(amin, amax, expected_size=amin.size)
 
         qmode = _canonical_norm_mode(
@@ -820,8 +822,8 @@ def _load_dataset_stats(ckpt_dir: str) -> Optional[StatsPack]:
 
 
 def _normalize_qpos(q: torch.Tensor, stats: StatsPack) -> torch.Tensor:
-    qa = torch.tensor(stats.qpos_a, dtype=torch.float32, device=q.device).view(1, 9)
-    qb = torch.tensor(stats.qpos_b, dtype=torch.float32, device=q.device).view(1, 9)
+    qa = torch.tensor(stats.qpos_a, dtype=torch.float32, device=q.device).view(1, -1)
+    qb = torch.tensor(stats.qpos_b, dtype=torch.float32, device=q.device).view(1, -1)
 
     if stats.qpos_mode in ["minmax_01", "minmax_m11"]:
         den = torch.clamp(qb - qa, min=1e-6)
@@ -1122,6 +1124,10 @@ class NodeCmdMotionInfer(Node):
         # -----------------------------
         # Parameters (paths / IO)
         # -----------------------------
+        self.declare_parameter("execution_method", "il")
+        self.declare_parameter("e2_config", "")
+        self.declare_parameter("e2_session_id", "")
+        self.declare_parameter("e2_enable_hardware", False)
         self.declare_parameter("ckpt_dir", "")  # empty -> auto latest checkpoint
         self.declare_parameter("act_root", DEFAULT_ACT_ROOT)
         self.declare_parameter("policy_class", "FLOW")  # ACT | DIFFUSION | FLOW | BSPLINE
@@ -1642,6 +1648,32 @@ class NodeCmdMotionInfer(Node):
         # -----------------------------
         # Read params
         # -----------------------------
+        self.execution_method = str(self.get_parameter("execution_method").value)
+        self.e2_config = str(self.get_parameter("e2_config").value)
+        self._e2_stopped = False
+        self._e2_actions = None
+        self._e2_transport = bool(self.e2_config)
+        self._e2_executor_state = "unknown"
+        self._e2_executor_receipt = -float("inf")
+        self._e2_start_clock_applied = False
+        self.e2_session_id = str(self.get_parameter("e2_session_id").value)
+        if self.execution_method not in ("il", "rule", "replay"):
+            raise ValueError("execution_method must be il, rule, or replay")
+        if self.e2_config or self.execution_method != "il":
+            from .e2_providers import load_config, hardware_blockers
+            if not self.e2_config:
+                raise ValueError("R/T require e2_config; use scripts/e2_experiment.py dry-run first")
+            self._e2_context = load_config(self.e2_config)
+            blockers = hardware_blockers(self._e2_context, self.execution_method,
+                bool(self.get_parameter("e2_enable_hardware").value))
+            if blockers:
+                raise RuntimeError("E2 preflight blocked before robot I/O:\n- " + "\n- ".join(blockers))
+            from .e2_providers import file_hash
+            from .e2_timed_execution import clock_id
+            if not self.e2_session_id:
+                raise ValueError("E2 requires a unique session ID from the launch")
+            self._e2_config_hash = file_hash(self.e2_config)
+            self._e2_clock_id = clock_id()
         self.ckpt_dir = str(self.get_parameter("ckpt_dir").value)
         self.act_root = os.path.expanduser(str(self.get_parameter("act_root").value))
         self.policy_class = str(self.get_parameter("policy_class").value).strip().upper()
@@ -2220,112 +2252,129 @@ class NodeCmdMotionInfer(Node):
                 f"[FLOW-NOISE] deterministic noise requested for policy_class={self.policy_class}; ignored."
             )
 
-        raw_ckpt_dir = self.ckpt_dir
-        self.ckpt_dir = _resolve_checkpoint_dir(
-            ckpt_dir=self.ckpt_dir,
-            act_root=self.act_root,
-            policy_class=self.policy_class,
-            ckpt_auto_subdir=self.ckpt_auto_subdir,
-        )
-        if not os.path.isdir(self.ckpt_dir) or not os.path.exists(os.path.join(self.ckpt_dir, "policy_best.ckpt")):
-            raise RuntimeError(
-                f"ckpt_dir invalid: {self.ckpt_dir} "
-                "(expected a directory containing policy_best.ckpt)"
-            )
-        if str(raw_ckpt_dir or "").strip():
-            self.get_logger().info(f"[CKPT] resolved ckpt_dir: {raw_ckpt_dir} -> {self.ckpt_dir}")
+        if self.execution_method != "il":
+            from .e2_providers import rule_actions, TimedActions
+            self.stats = None
+            self.action_dim = 9
+            self.normalize_qpos_enabled = self.denorm_action_enabled = False
+            self.demo_start_pose6 = np.asarray(self._e2_context["common"]["demo_start_pose6"], np.float32)
+            self._e2_actions = (rule_actions(self._e2_context["task"], self._e2_context["recipe"])
+                if self.execution_method == "rule" else TimedActions.load(self._e2_context["replay"]["template"]))
         else:
-            self.get_logger().info(f"[CKPT] ckpt_dir not provided -> auto latest: {self.ckpt_dir}")
-
-        # stats
-        self.stats = _load_dataset_stats(self.ckpt_dir)
-        if self.stats is None:
-            self.get_logger().warn("[STATS] dataset_stats.pkl missing/invalid -> disable normalize/denorm.")
-            self.normalize_qpos_enabled = False
-            self.denorm_action_enabled = False
-        else:
-            self.get_logger().info(
-                f"[STATS] Loaded dataset_stats.pkl from {self.ckpt_dir} | "
-                f"qpos_mode={self.stats.qpos_mode}, act_mode={self.stats.act_mode}"
+            raw_ckpt_dir = self.ckpt_dir
+            self.ckpt_dir = _resolve_checkpoint_dir(
+                ckpt_dir=self.ckpt_dir,
+                act_root=self.act_root,
+                policy_class=self.policy_class,
+                ckpt_auto_subdir=self.ckpt_auto_subdir,
             )
-            if abs(float(self.stats.xyz_scale) - 1.0) > 1e-12:
-                self.get_logger().warn(
-                    f"[STATS] Applied xyz_unit_scale={float(self.stats.xyz_scale):.6g} "
-                    "to qpos/action xyz stats for mm-compatible inference."
-                )
-            if self.stats.qpos_mode in ["minmax_01", "minmax_m11"]:
-                self.get_logger().info(
-                    f"[STATS] qpos_z_range=[{float(self.stats.qpos_a[2]):.3f},{float(self.stats.qpos_b[2]):.3f}] "
-                    f"action_z_range=[{float(self.stats.act_a[2]):.3f},{float(self.stats.act_b[2]):.3f}] "
-                    f"action_fz_range=[{float(self.stats.act_a[8]):.3f},{float(self.stats.act_b[8]):.3f}]"
-                )
-
-        self.action_dim = 11 if self.use_gripper else 9
-        if self.use_gripper and self.stats is None:
-            raise RuntimeError("use_gripper=True requires dataset_stats.pkl")
-        if self.stats is not None:
-            stats_action_dim = int(self.stats.act_a.size)
-            if stats_action_dim != self.action_dim:
+            if not os.path.isdir(self.ckpt_dir) or not os.path.exists(os.path.join(self.ckpt_dir, "policy_best.ckpt")):
                 raise RuntimeError(
-                    f"checkpoint action_dim={stats_action_dim} does not match "
-                    f"use_gripper={int(self.use_gripper)} expected action_dim={self.action_dim}"
+                    f"ckpt_dir invalid: {self.ckpt_dir} "
+                    "(expected a directory containing policy_best.ckpt)"
                 )
-            if self.use_gripper and (
-                self.stats.gripper_current_a is None or self.stats.gripper_current_b is None
-            ):
-                raise RuntimeError("use_gripper=True requires gripper_current_min/max in dataset_stats.pkl")
-            if self.use_gripper and (
-                self.stats.gripper_position_a is None or self.stats.gripper_position_b is None
-            ):
-                self.get_logger().warn(
-                    "[STATS] dataset_stats.pkl has no gripper_position_min/max; "
-                    "using raw gripper position for legacy checkpoint compatibility. "
-                    "New checkpoints must include normalized gripper position stats."
-                )
-            elif self.use_gripper:
-                self.get_logger().info(
-                    "[STATS] gripper observations normalized with "
-                    f"mode={self.stats.gripper_mode}, "
-                    f"position_range=[{float(self.stats.gripper_position_a[0]):.3f},"
-                    f"{float(self.stats.gripper_position_b[0]):.3f}], "
-                    f"current_range=[{float(self.stats.gripper_current_a[0]):.3f},"
-                    f"{float(self.stats.gripper_current_b[0]):.3f}]"
-                )
-
-        # demo-start pose for optional initial alignment
-        self.demo_start_pose6: Optional[np.ndarray] = None
-        if self.auto_move_to_demo_start:
-            demo_xyz_scale = float(self.stats.xyz_scale) if self.stats is not None else 1.0
-            self.demo_start_pose6 = _load_demo_start_pose_from_stats(self.ckpt_dir, xyz_scale=demo_xyz_scale)
-            if self.demo_start_pose6 is None:
-                self.get_logger().warn(
-                    "[DEMO_START] auto_move_to_demo_start=True, but demo_start_pose_mean "
-                    "was not found in dataset_stats.pkl. Alignment will be skipped."
-                )
-                self.auto_move_to_demo_start = False
+            if str(raw_ckpt_dir or "").strip():
+                self.get_logger().info(f"[CKPT] resolved ckpt_dir: {raw_ckpt_dir} -> {self.ckpt_dir}")
             else:
-                if self.orientation_lock_enable:
-                    original_demo_rotvec = self.demo_start_pose6[3:6].copy()
-                    self.demo_start_pose6[3:6] = self.orientation_lock_rotvec
+                self.get_logger().info(f"[CKPT] ckpt_dir not provided -> auto latest: {self.ckpt_dir}")
+
+            # stats
+            self.stats = _load_dataset_stats(self.ckpt_dir)
+            if self.stats is None:
+                self.get_logger().warn("[STATS] dataset_stats.pkl missing/invalid -> disable normalize/denorm.")
+                self.normalize_qpos_enabled = False
+                self.denorm_action_enabled = False
+            else:
+                self.get_logger().info(
+                    f"[STATS] Loaded dataset_stats.pkl from {self.ckpt_dir} | "
+                    f"qpos_mode={self.stats.qpos_mode}, act_mode={self.stats.act_mode}"
+                )
+                if abs(float(self.stats.xyz_scale) - 1.0) > 1e-12:
                     self.get_logger().warn(
-                        "[ORIENTATION-LOCK] enabled: measured orientation observation and "
-                        "predicted orientation command will be ignored; "
-                        f"fixed rotvec="
-                        f"{np.array2string(self.orientation_lock_rotvec, precision=7, separator=', ')}; "
-                        f"demo-start rotvec changed from "
-                        f"{np.array2string(original_demo_rotvec, precision=7, separator=', ')}"
+                        f"[STATS] Applied xyz_unit_scale={float(self.stats.xyz_scale):.6g} "
+                        "to qpos/action xyz stats for mm-compatible inference."
                     )
-                align_target = self.demo_start_pose6.astype(np.float32).copy()
-                align_target[2] += float(self.demo_start_z_offset_mm)
-                self.get_logger().info(
-                    "[DEMO_START] loaded demo_start_pose_mean "
-                    f"[x y z wx wy wz]={np.array2string(self.demo_start_pose6, precision=4, separator=', ')}"
-                )
-                self.get_logger().info(
-                    "[DEMO_START] alignment target = demo_start_pose_mean + optional world_Z_offset "
-                    f"({self.demo_start_z_offset_mm:.3f} mm): "
-                    f"{np.array2string(align_target, precision=4, separator=', ')}"
-                )
+                if self.stats.qpos_mode in ["minmax_01", "minmax_m11"]:
+                    self.get_logger().info(
+                        f"[STATS] qpos_z_range=[{float(self.stats.qpos_a[2]):.3f},{float(self.stats.qpos_b[2]):.3f}] "
+                        f"action_z_range=[{float(self.stats.act_a[2]):.3f},{float(self.stats.act_b[2]):.3f}] "
+                        + (f"action_fz_range=[{float(self.stats.act_a[8]):.3f},{float(self.stats.act_b[8]):.3f}]"
+                           if self.stats.act_a.size >= 9 else "force_action=not_predicted")
+                    )
+
+            self.action_dim = 11 if self.use_gripper else 9
+            self.motion_only = (getattr(self, '_e2_context', {}).get('schema') == 'E2_ABC_force_ablation_v1'
+                                and self._e2_context.get('condition') == 'A')
+            if self.motion_only:
+                self.action_dim = 6
+            if self.use_gripper and self.stats is None:
+                raise RuntimeError("use_gripper=True requires dataset_stats.pkl")
+            if self.stats is not None:
+                stats_action_dim = int(self.stats.act_a.size)
+                if stats_action_dim != self.action_dim:
+                    raise RuntimeError(
+                        f"checkpoint action_dim={stats_action_dim} does not match "
+                        f"use_gripper={int(self.use_gripper)} expected action_dim={self.action_dim}"
+                    )
+                if self.use_gripper and (
+                    self.stats.gripper_current_a is None or self.stats.gripper_current_b is None
+                ):
+                    raise RuntimeError("use_gripper=True requires gripper_current_min/max in dataset_stats.pkl")
+                if self.use_gripper and (
+                    self.stats.gripper_position_a is None or self.stats.gripper_position_b is None
+                ):
+                    self.get_logger().warn(
+                        "[STATS] dataset_stats.pkl has no gripper_position_min/max; "
+                        "using raw gripper position for legacy checkpoint compatibility. "
+                        "New checkpoints must include normalized gripper position stats."
+                    )
+                elif self.use_gripper:
+                    self.get_logger().info(
+                        "[STATS] gripper observations normalized with "
+                        f"mode={self.stats.gripper_mode}, "
+                        f"position_range=[{float(self.stats.gripper_position_a[0]):.3f},"
+                        f"{float(self.stats.gripper_position_b[0]):.3f}], "
+                        f"current_range=[{float(self.stats.gripper_current_a[0]):.3f},"
+                        f"{float(self.stats.gripper_current_b[0]):.3f}]"
+                    )
+
+            # demo-start pose for optional initial alignment
+            self.demo_start_pose6: Optional[np.ndarray] = None
+            if self.auto_move_to_demo_start:
+                demo_xyz_scale = float(self.stats.xyz_scale) if self.stats is not None else 1.0
+                self.demo_start_pose6 = _load_demo_start_pose_from_stats(self.ckpt_dir, xyz_scale=demo_xyz_scale)
+                if self.demo_start_pose6 is None:
+                    self.get_logger().warn(
+                        "[DEMO_START] auto_move_to_demo_start=True, but demo_start_pose_mean "
+                        "was not found in dataset_stats.pkl. Alignment will be skipped."
+                    )
+                    self.auto_move_to_demo_start = False
+                else:
+                    if self.orientation_lock_enable:
+                        original_demo_rotvec = self.demo_start_pose6[3:6].copy()
+                        self.demo_start_pose6[3:6] = self.orientation_lock_rotvec
+                        self.get_logger().warn(
+                            "[ORIENTATION-LOCK] enabled: measured orientation observation and "
+                            "predicted orientation command will be ignored; "
+                            f"fixed rotvec="
+                            f"{np.array2string(self.orientation_lock_rotvec, precision=7, separator=', ')}; "
+                            f"demo-start rotvec changed from "
+                            f"{np.array2string(original_demo_rotvec, precision=7, separator=', ')}"
+                        )
+                    align_target = self.demo_start_pose6.astype(np.float32).copy()
+                    align_target[2] += float(self.demo_start_z_offset_mm)
+                    self.get_logger().info(
+                        "[DEMO_START] loaded demo_start_pose_mean "
+                        f"[x y z wx wy wz]={np.array2string(self.demo_start_pose6, precision=4, separator=', ')}"
+                    )
+                    self.get_logger().info(
+                        "[DEMO_START] alignment target = demo_start_pose_mean + optional world_Z_offset "
+                        f"({self.demo_start_z_offset_mm:.3f} mm): "
+                        f"{np.array2string(align_target, precision=4, separator=', ')}"
+                    )
+
+        if self._e2_transport:
+            self._validate_e2_runtime()
 
         # ---------------------------------------------------------------
         # Stain-relative frame (stain_relative_frame package, step [5]).
@@ -2339,6 +2388,7 @@ class NodeCmdMotionInfer(Node):
         # ---------------------------------------------------------------
         self.rel_use_relative, self.rel_transform_version, self.obs_force_xy_zeroed = (
             _load_relative_frame_flags(self.ckpt_dir, act_root=self.act_root)
+            if self.execution_method == "il" else (True, "stain_relative_v1", False)
         )
         # Ablation override: force obs fx,fy to 0 (or keep them) regardless of
         # what the checkpoint stats say. "auto" (default) = follow the stats.
@@ -2378,8 +2428,12 @@ class NodeCmdMotionInfer(Node):
         # no subscription, no extra log line).
 
         # policy
-        self.policy = self._load_policy_and_ckpt_from_act_root()
-        self._setup_gradcam_hooks()
+        self.policy = None
+        if self.execution_method == "il":
+            self.policy = self._load_policy_and_ckpt_from_act_root()
+            self._setup_gradcam_hooks()
+        else:
+            self.gradcam_enable = self.modality_importance_enable = False
         self._setup_metrics_logger()
 
         # -----------------------------
@@ -2612,6 +2666,12 @@ class NodeCmdMotionInfer(Node):
                 f"max_rot={self.flow_step_max_rot_rad:.6f}rad, automatic_control=OFF"
             )
 
+        if self._e2_transport:
+            self._e2_plan_pub = self.create_publisher(String, "/e2/plan", 10)
+            self._e2_control_pub = self.create_publisher(String, "/e2/provider_control", 10)
+            self.create_subscription(String, "/e2/executor_status", self._on_e2_status, 1)
+            self.create_timer(0.2, self._e2_heartbeat)
+
         self.timer_control = None
         if not self.visualization_only:
             self.timer_control = self.create_timer(self.dt_control, self._on_control_timer)
@@ -2707,6 +2767,11 @@ class NodeCmdMotionInfer(Node):
         )
 
     def destroy_node(self):
+        if getattr(self, "_e2_transport", False) and not getattr(self, "_e2_stopped", False):
+            try:
+                self._e2_finish("manual_abort")
+            except Exception:
+                pass  # executor independently observes SIGINT/heartbeat loss
         worker = getattr(self, "_modality_importance_worker_thread", None)
         if (
             worker is not None
@@ -4180,6 +4245,13 @@ class NodeCmdMotionInfer(Node):
                     "Use the checkpoint's exact observation schema."
                 )
             args_override["use_force_observation"] = ckpt_use_force_observation
+            args_override['motion_only'] = bool(ckpt_policy_cfg.get('motion_only', False))
+            args_override['force_action'] = bool(ckpt_policy_cfg.get('force_action', True))
+            if args_override['motion_only'] != bool(getattr(self, 'motion_only', False)):
+                raise RuntimeError('Motion-only checkpoint requires the explicit E2 A adapter')
+            if args_override['motion_only']:
+                # The A checkpoint was trained with pose6 observations, too.
+                args_override['state_dim'] = 6
             for key in (
                 "image_backbone",
                 "dino_model_name",
@@ -4729,13 +4801,162 @@ class NodeCmdMotionInfer(Node):
     # ------------------------------------------------------------
     # Infer timer
     # ------------------------------------------------------------
+    def _postprocess_provider_action(self, seq_den):
+        """Shared native-unit boundary; C denormalizes BEFORE entering here."""
+        # Stain-relative checkpoint: the policy emits x,y in the stain
+        # frame. Convert the whole trajectory back to absolute base
+        # coordinates HERE, before anything downstream (z offset, safety
+        # clips, anchoring, PTP9D, overlays) touches it -- from this point
+        # on seq_den is absolute, exactly as an absolute-frame checkpoint's
+        # output already is. z / rotation / force pass through unchanged.
+        seq_den = self._srf_command_seq(seq_den)
+
+        if abs(self.policy_z_offset_mm) > 1e-9:
+            if self.action_type == "absolute":
+                seq_den[:, 2] += np.float32(self.policy_z_offset_mm)
+
+        if self.force_xy_cmd_enable:
+            lim_xy = abs(float(self.force_xy_hard_limit))
+            seq_den[:, 6:8] = np.clip(seq_den[:, 6:8], -lim_xy, lim_xy)
+        else:
+            seq_den[:, 6:8] = 0.0
+        if self.fz_hard_limit > 0.0:
+            seq_den[:, 8] = np.clip(seq_den[:, 8], -self.fz_hard_limit, self.fz_hard_limit)
+        self._metrics_call("postprocess", seq_den)
+        return seq_den
+
+    def _validate_e2_runtime(self):
+        """Reject launch overrides that would invalidate the pinned comparison."""
+        from .e2_providers import file_hash
+        cfg = self._e2_context
+        expected = dict(auto_move_to_demo_start=True, use_stain_mask=False, stain_canon_enable=False,
+            force_xy_cmd_enable=False, orientation_lock_enable=False, policy_z_offset_mm=0.,
+            demo_start_z_offset_mm=0., flow_local_anchor_enable=False,
+            pose_topic="/ur10skku/currentP", force_topic="/ur10skku/currentF", cmd_topic="/ur10skku/cmdMotion",
+            fz_hard_limit=cfg['executor']['fz_hard_limit_N'])
+        if self.execution_method == "il":
+            expected.update(policy_class="FLOW", use_force_observation=cfg['il']['use_force_observation'], normalize_qpos_enabled=True,
+                denorm_action_enabled=True, flow_noise_seed=cfg['il']['seed'], flow_deterministic_noise=True,
+                flow_infer_steps=cfg['il']['flow_infer_steps'], chunk_size=cfg['il']['chunk_size'],
+                force_history_len=cfg['il']['force_history_len'], trajectory_hz=cfg['il']['trajectory_hz'],
+                flow_replan_interval_steps=cfg['il']['replan_interval_steps'])
+            if file_hash(os.path.join(self.ckpt_dir, "policy_best.ckpt")) != cfg['il']['checkpoint_sha256']:
+                raise RuntimeError("E2 C launch checkpoint differs from pinned config")
+        for key, value in expected.items():
+            if getattr(self, key) != value:
+                raise RuntimeError(f"E2 runtime mismatch: {key}={getattr(self,key)!r}, expected {value!r}")
+        if self.demo_start_pose6 is None or not np.allclose(self.demo_start_pose6, cfg['common']['demo_start_pose6'], atol=1e-5, rtol=0):
+            raise RuntimeError("E2 common demo start differs from pinned C")
+
+    def _on_e2_status(self, msg):
+        try:
+            data = json.loads(msg.data)
+            if data.get("session_id") != self.e2_session_id:
+                return
+            if data.get("config_sha256") != self._e2_config_hash or data.get("clock_id") != self._e2_clock_id:
+                self._e2_finish("error")
+                return
+            if not 0 <= _monotonic() - float(data["sent_at"]) <= 0.5:
+                return
+            old = self._e2_executor_state
+            self._e2_executor_state = data["state"]
+            self._e2_executor_receipt = _monotonic()
+            if old != data["state"]:
+                self._metrics_call("event", "e2_executor_state", **data)
+            if data.get("started_at") is not None and not self._e2_start_clock_applied:
+                if self.plans and self._infer_plan_count == 1:
+                    self.plans[-1].t0 = float(data["started_at"])
+                self._e2_start_clock_applied = True
+            if data["state"] in ("stopped", "stop_failed"):
+                self._e2_stopped = True
+                self.plans.clear()
+                self._force_hist.clear()
+        except Exception as exc:
+            self.get_logger().error(f"[E2] executor status failed: {exc}")
+
+    def _e2_heartbeat(self):
+        if self._e2_transport and not self._e2_stopped:
+            self._e2_control_pub.publish(String(data=json.dumps(dict(
+                session_id=self.e2_session_id, event="heartbeat"))))
+
+    def _e2_publish_plan(self, plan):
+        if not getattr(self, "_e2_transport", False):
+            return
+        if self._e2_stopped:
+            return
+        count = len(plan.seq_den)
+        times = getattr(plan, "elapsed_time_s", np.arange(count, dtype=float) / self.trajectory_hz)
+        phases = getattr(plan, "provider_phase", np.full(count, "unknown"))
+        payload = dict(session_id=self.e2_session_id, config_sha256=self._e2_config_hash,
+            clock_id=self._e2_clock_id, method=self.execution_method, frame="robot_base",
+            plan_id=self._infer_plan_count, generated_at=float(plan.t0),
+            reference_xy_mm=np.asarray(self._srf.stain_origin, float).tolist(),
+            time=np.asarray(times).tolist(), action=plan.seq_den.tolist(),
+            phase=np.asarray(phases).tolist(), final=self.execution_method != "il")
+        self._e2_plan_pub.publish(String(data=json.dumps(payload, allow_nan=False)))
+        self._metrics_call("event", "timed_plan_sent", plan_id=self._infer_plan_count,
+            session_id=self.e2_session_id, duration_s=float(times[-1]),
+            physical_processing_started=False)
+
+    def _e2_append_prepared_plan(self):
+        """Publish native R/T plans after the shared transformation exactly once.
+
+        The common timed executor consumes the attached original timestamps.
+        It never flattens the final short interval onto a nominal sample grid.
+        """
+        if getattr(self, "_e2_stopped", False) or self.plans:
+            return
+        actions = self._e2_actions
+        if actions is None:
+            raise RuntimeError("Prepared E2 provider is missing")
+        self._metrics_call("infer_start", [])
+        seq = actions.action.copy()
+        self._metrics_call("prediction", seq)
+        seq = self._postprocess_provider_action(seq)
+        plan = Plan(t0=_monotonic(), seq_den=seq, local_anchor_applied=False)
+        plan.elapsed_time_s = actions.time.copy()
+        plan.provider_phase = actions.phase.copy()
+        self.plans.append(plan)
+        self._infer_plan_count += 1
+        self._metrics_call("plan", plan)
+        self._e2_publish_plan(plan)
+        self._metrics_call("event", "provider_prepared", execution_method=self.execution_method,
+            original_duration_s=float(actions.time[-1]), timestamp_consumption="e2_timed_executor")
+
+    def _e2_finish(self, reason):
+        if reason not in ("manual_abort", "timeout", "safety_stop", "error", "normal_completion"):
+            raise ValueError("Unknown termination reason")
+        # Only the separate executor may assert a verified controlled hold.
+        if reason == "normal_completion":
+            raise RuntimeError("Cannot assert normal completion without robot stop/retract feedback")
+        self._e2_stopped = True
+        self.plans.clear()
+        self._force_hist.clear()
+        if getattr(self, "_e2_transport", False):
+            self._e2_control_pub.publish(String(data=json.dumps(dict(
+                session_id=self.e2_session_id, event="abort", reason=reason))))
+        else:
+            self._ptp9d_stream_stop()
+        self._metrics_call("event", reason, physical_task_completion="unknown",
+            stop_semantics="executor cancel requested; completion reported by executor feedback verifier")
+
     def _on_infer_timer(self):
+        if getattr(self, "_e2_transport", False):
+            if self._e2_executor_state not in ("ready", "arming", "running"):
+                return
+            if _monotonic() - self._e2_executor_receipt > 0.5:
+                return
+        if getattr(self, "_e2_stopped", False):
+            return
         if not self._srf_ready():
             return
         if self.auto_move_to_demo_start and not self._demo_start_align_done:
             return
 
         if self.stage == Stage.PRELOAD:
+            return
+        if getattr(self, "execution_method", "il") != "il":
+            self._e2_append_prepared_plan()
             return
 
         # FLOW/BSPLINE produce a time-indexed trajectory, not a one-step action.
@@ -4838,7 +5059,8 @@ class NodeCmdMotionInfer(Node):
             # orientation a constant, non-informative channel. Only live XYZ,
             # force/force history, and images vary during this ablation.
             policy_pose6[3:6] = self.orientation_lock_rotvec
-        q_np = np.concatenate([policy_pose6, f3], axis=0).astype(np.float32)
+        q_np = (policy_pose6.copy() if getattr(self, 'motion_only', False) else
+                np.concatenate([policy_pose6, f3], axis=0)).astype(np.float32)
         q_t = torch.from_numpy(q_np).unsqueeze(0).to(self.device, dtype=torch.float32)
 
         if self.normalize_qpos_enabled and self.stats is not None:
@@ -4960,27 +5182,10 @@ class NodeCmdMotionInfer(Node):
 
             seq_den = seq.detach().cpu().numpy().astype(np.float32)
             self._metrics_call("prediction", seq_den)
-
-            # Stain-relative checkpoint: the policy emits x,y in the stain
-            # frame. Convert the whole trajectory back to absolute base
-            # coordinates HERE, before anything downstream (z offset, safety
-            # clips, anchoring, PTP9D, overlays) touches it -- from this point
-            # on seq_den is absolute, exactly as an absolute-frame checkpoint's
-            # output already is. z / rotation / force pass through unchanged.
-            seq_den = self._srf_command_seq(seq_den)
-
-            if abs(self.policy_z_offset_mm) > 1e-9:
-                if self.action_type == "absolute":
-                    seq_den[:, 2] += np.float32(self.policy_z_offset_mm)
-
-            if self.force_xy_cmd_enable:
-                lim_xy = abs(float(self.force_xy_hard_limit))
-                seq_den[:, 6:8] = np.clip(seq_den[:, 6:8], -lim_xy, lim_xy)
-            else:
-                seq_den[:, 6:8] = 0.0
-            if self.fz_hard_limit > 0.0:
-                seq_den[:, 8] = np.clip(seq_den[:, 8], -self.fz_hard_limit, self.fz_hard_limit)
-            self._metrics_call("postprocess", seq_den)
+            if getattr(self, 'motion_only', False):
+                from .e2_ablation import motion_to_contract
+                seq_den = motion_to_contract(seq_den)
+            seq_den = self._postprocess_provider_action(seq_den)
 
         except Exception as e:
             self.get_logger().error(f"[INFER] policy forward failed: {e}")
@@ -5014,6 +5219,7 @@ class NodeCmdMotionInfer(Node):
         )
         self._infer_plan_count += 1
         self._metrics_call("plan", self.plans[-1])
+        self._e2_publish_plan(self.plans[-1])
 
         if (
             self._ptp9d_track_active
@@ -5589,7 +5795,7 @@ class NodeCmdMotionInfer(Node):
         self._ctrl_no_plan_last_log = 0.0
         self._infer_plan_count = 0
 
-        self._ptp9d_track_active = self.track_use_ptp9d_service
+        self._ptp9d_track_active = self.track_use_ptp9d_service and not getattr(self, "_e2_transport", False)
         self._ptp9d_inflight = False
         if self._ptp9d_track_active and self.ptp9d_use_stream:
             self._ptp9d_stream_stop()  # defensive: clears any stale queue/thread
@@ -5601,6 +5807,8 @@ class NodeCmdMotionInfer(Node):
         native PTP path (singleArm_cmd/single_arm_command service) instead of
         this node's own smoothstep + admittance position servo.
         """
+        if getattr(self, "_e2_transport", False):
+            self._e2_heartbeat()
         self._ptp_alignment_requested = True
 
         if self.demo_start_pose6 is None:
@@ -5724,7 +5932,8 @@ class NodeCmdMotionInfer(Node):
         self.get_logger().info(f"[DEMO_START] measured TCP alignment verified: {details}")
         self._metrics_call("event", "alignment_verified", **details)
 
-        if not self.ptp_switch_to_force_mode:
+        if not self.ptp_switch_to_force_mode or getattr(self, "_e2_transport", False):
+            # E2's executor owns Force arming and waits for observed ctlMode.
             self._finish_ptp_alignment()
             return
 
@@ -6388,6 +6597,15 @@ class NodeCmdMotionInfer(Node):
     # Control timer
     # ------------------------------------------------------------
     def _on_control_timer(self):
+        if getattr(self, "_e2_transport", False):
+            # This node owns only the pre-existing verified start alignment.
+            # The separate process exclusively owns every E2 tracking command.
+            if self._demo_start_align_done:
+                return
+            if self._e2_executor_state != "ready" or _monotonic() - self._e2_executor_receipt > 0.5:
+                return
+        if getattr(self, "_e2_stopped", False):
+            return
         self._metrics_call("stage")
         now_t = _monotonic()
 

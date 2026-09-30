@@ -1,0 +1,67 @@
+{
+  "script": "/home/eunseop/nrs_imitation/run_A_pilot.sh",
+  "launch_arguments_valid": true,
+  "hardware_executed": false,
+  "hardware_ready": false,
+  "status": "field_configuration_required",
+  "model_result": "/home/eunseop/nrs_imitation/results/20260927/E2/A_offline/180538_d27cf29a/attempt.json",
+  "model": {
+    "checkpoint": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/registered_models/A_c05e06da163127f1/policy_best.ckpt",
+    "checkpoint_sha256": "c05e06da163127f15b31e1ed77cc083688d830dc87abc857fc0be5d7031c90d6",
+    "selected_epoch_zero_based": 499,
+    "loaded_weights_exactly_match_checkpoint": true,
+    "state_dim": 6,
+    "action_dim": 6,
+    "force_observation": false,
+    "force_history": false,
+    "force_action": false,
+    "force_supervision_channels": 0,
+    "force_prediction_logged_as_null": true,
+    "force_perturbation_invariant": true,
+    "dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form/episode_35.hdf5",
+    "sample_index": 191,
+    "output_shape": [
+      128,
+      6
+    ],
+    "transport_shape": [
+      128,
+      9
+    ],
+    "ros_context_initialized": false,
+    "hardware_io": false
+  },
+  "candidate_F0_N": 23.0,
+  "gate_and_slew_limits_preserved": true,
+  "configuration_unchanged": true,
+  "hardware_blockers": [
+    "commissioning status/approved_by/approved_at: actual approval required",
+    "processing_command_fz_range_N: approved signed range must contain candidate F0",
+    "measured_force_abs_limits_N: three approved positive per-axis limits required",
+    "measured_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "sensor_raw_force_abs_limits_N: three approved positive per-axis limits required",
+    "sensor_raw_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "measured_wrench_frame: explicit protection frame required",
+    "acquisition_max_age_s: approved source-acquisition timeout required",
+    "limits_evidence: pinned evidence path + sha256 required",
+    "sensor_overload_evidence: pinned evidence path + sha256 required",
+    "workspace_evidence: pinned evidence path + sha256 required",
+    "automatic_stop_evidence: pinned evidence path + sha256 required",
+    "approach_exit_evidence: pinned evidence path + sha256 required",
+    "sensor_driver_deployment_evidence: pinned evidence path + sha256 required"
+  ],
+  "tests": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "129",
+      "time": "22.946",
+      "timestamp": "2026-09-27T18:08:10.061298+09:00",
+      "hostname": "nrs3"
+    }
+  ],
+  "controller_readback": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_run_entry/controller_readback.json",
+  "build_succeeded": true
+}

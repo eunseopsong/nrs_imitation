@@ -1,0 +1,8 @@
+{
+  "recorded_at": "2026-09-27T15:21:34.547037+09:00",
+  "operator_statement": "미확인",
+  "question": "장비·공구의 허용 접촉힘 범위 또는 현장 힘 중단 기준",
+  "validated_operating_range_N": null,
+  "operator_force_abort_limit_N": null,
+  "F0_approved": false
+}

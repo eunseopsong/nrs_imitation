@@ -1,0 +1,58 @@
+## stain-relative-frame-depth-calib...origin/stain-relative-frame-depth-calib [ahead 1]
+ M behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py
+ M behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
+ M behavior_ws/src/nrs_imitation/nrs_imitation/execution_metrics.py
+ M behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+ M behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py
+ M behavior_ws/src/nrs_imitation/setup.py
+?? behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+?? behavior_ws/src/nrs_imitation/nrs_imitation/e2_offline.py
+?? behavior_ws/src/nrs_imitation/nrs_imitation/e2_providers.py
+?? behavior_ws/src/nrs_imitation/nrs_imitation/e2_return_home.py
+?? behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
+?? behavior_ws/src/nrs_imitation/test/test_e2_experiment.py
+?? behavior_ws/src/nrs_imitation/test/test_e2_force_reference.py
+?? behavior_ws/src/nrs_imitation/test/test_e2_return_home.py
+?? behavior_ws/src/nrs_imitation/test/test_e2_timed_execution.py
+?? experiments/e2_rule_replay_20260920/
+?? logs/inference_metrics/C_force_obs_ON_E1_20260916_20260920T171543_1789892143797241432_44ejekfy/
+?? logs/inference_metrics/C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys/
+?? logs/inference_metrics/E2_line_C_r01_20260920T201313_1789902793252210481_tp7jw3r4/
+?? logs/inference_metrics/E2_line_C_r01_20260920T201422_1789902862705332180_75h5dukq/
+?? logs/inference_metrics/E2_line_C_r01_executor_20260920T201310_1789902790957592437_gwzlij3x/
+?? logs/inference_metrics/E2_line_C_r01_executor_20260920T201420_1789902860394556982_3l8f6539/
+?? logs/inference_metrics/E2_line_R_validation_01_20260920T193706_1789900626809495303_30baotxf/
+?? logs/inference_metrics/E2_line_R_validation_01_20260920T193809_1789900689746913453_aniz8dxq/
+?? logs/inference_metrics/E2_line_R_validation_01_executor_20260920T193706_1789900626155554261_vz0l6caz/
+?? logs/inference_metrics/E2_line_R_validation_01_executor_20260920T193809_1789900689088918015_cmvz8lfp/
+?? logs/inference_metrics/E2_line_R_validation_02_20260920T195742_1789901862021461952_xn1pda_2/
+?? logs/inference_metrics/E2_line_R_validation_02_20260920T195831_1789901911305395787_s29uawok/
+?? logs/inference_metrics/E2_line_R_validation_02_executor_20260920T195741_1789901861336855737_6mkkvgst/
+?? logs/inference_metrics/E2_line_R_validation_02_executor_20260920T195830_1789901910681378337_w5_mo1k8/
+?? logs/inference_metrics/E2_line_T_r01_20260920T200952_1789902592572098223_7i5etnae/
+?? logs/inference_metrics/E2_line_T_r01_20260920T201024_1789902624350383099_ag10l0jt/
+?? logs/inference_metrics/E2_line_T_r01_executor_20260920T200951_1789902591946603950_6jn0vnwl/
+?? logs/inference_metrics/E2_line_T_r01_executor_20260920T201023_1789902623731930402_xpzzpqr3/
+?? logs/inference_metrics/IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_/
+?? logs/polishing_removal/C_force_obs_ON_E1_20260916_20260920_171629/
+?? logs/polishing_removal/C_force_obs_ON_E1_20260916_20260920_171813/
+?? logs/polishing_removal/E2_line_C_r01_20260920_201328/
+?? logs/polishing_removal/E2_line_C_r01_20260920_201449/
+?? logs/polishing_removal/E2_line_R_validation_01_20260920_193725/
+?? logs/polishing_removal/E2_line_R_validation_01_20260920_193916/
+?? logs/polishing_removal/E2_line_R_validation_02_20260920_195748/
+?? logs/polishing_removal/E2_line_R_validation_02_20260920_195922/
+?? logs/polishing_removal/E2_line_T_r01_20260920_200959/
+?? logs/polishing_removal/E2_line_T_r01_20260920_201046/
+?? logs/polishing_removal/IL_minus_F_E1_off_20260920_162424/
+?? reports/20260920_e2_c_vibration/
+?? reports/20260920_force_observation_comparison/
+?? results/
+?? scripts/archive_bc_20260920.py
+?? scripts/e2_experiment.py
+?? scripts/e2_force_reference_from_e1.py
+?? scripts/e2_prepare_rule_candidate.py
+?? scripts/export_ral_e1_e2_20260920.py
+?? scripts/render_e1_e2_ppt_slides.py
+?? scripts/render_ral_paper_tables.py
+?? scripts/write_bc_result_workbook.py

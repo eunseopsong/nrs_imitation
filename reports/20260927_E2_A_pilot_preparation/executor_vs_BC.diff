@@ -1,0 +1,55 @@
+--- results/20260926/E2/B/E2_B_20260926T205903_fc196a96a836/launch_context/artifacts/code/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
++++ behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+@@ -24,7 +24,7 @@
+                                 ExecutionFault, StopVerifier, executor_settings, clock_id)
+ from .execution_metrics import ExecutionRecorder, stamp, pose_fields
+ from .e2_return_home import ReturnHome
+-from .e2_ablation import is_ablation, scheduled_force
++from .e2_ablation import is_ablation, prepare_A_force
+ 
+ 
+ class E2Executor(Node):
+@@ -39,6 +39,8 @@
+         self.ablation = is_ablation(self.config)
+         blockers = hardware_blockers(self.config,self.method,self.get_parameter('e2_enable_hardware').value)
+         if blockers: raise RuntimeError('E2 executor preflight: '+ '; '.join(blockers))
++        self.a_processing_force = (prepare_A_force(self.config)
++            if self.ablation and self.config['condition'] == 'A' else None)
+         self.session = self.get_parameter('e2_session_id').value
+         if not self.session: raise ValueError('A unique e2_session_id is required')
+         self.lock_file = open('/tmp/nrs_e2_executor_ur10skku.lock','a')
+@@ -78,6 +80,7 @@
+         metadata = dict(method={'il':'C','rule':'R','replay':'T'}[self.method],
+             execution_method=self.method,transport=TRANSPORT_VERSION,session_id=self.session,
+             c_pose_conditioning=self.settings.get('c_pose_conditioning'),
++            rtc_pose_conditioning=self.config.get('rtc_pose_conditioning'),
+             code_root=str(root),config=self.config,config_sha256=self.identity,
+             controller_applied_force=None,raw_sensor_available=False,rpm_measured=None,
+             rpm_setpoint=self.config["common"].get("rpm_setpoint"),
+@@ -96,6 +99,8 @@
+                 execution_contract_hash=self.config['execution_contract_hash'],
+                 run=self.config.get('run'), predicted_force='not_predicted' if self.config['condition']=='A' else 'policy',
+                 force_sign_provenance=self.config['calibration'],
++                trial_stage=self.config.get('trial_stage', 'main'),
++                external_F0=self.config['f0'], commissioning=self.config.get('pilot'),
+                 warnings=['Filtered base wrench is not automatically calibrated contact normal force',
+                           'sent target is not controller-applied target'])
+         log_root = (Path(self.config['run']['directory'])/'executor' if self.ablation else root/'logs/inference_metrics')
+@@ -284,7 +289,7 @@
+             force_unit=None if position_mode and stage=='node_sent' else 'N',raw_values=values.tolist(),
+             execution_status='sent_not_verified_executed' if stage=='node_sent' else 'requested_not_sent',
+             limited=result['limited'],limiting_reason=('common contact gate + legacy gain/rate limits' +
+-                (' + C pose smoothing/handover/acceleration' if result.get('conditioning_profile') else '')),
++                (' + pose smoothing/handover/acceleration' if result.get('conditioning_profile') else '')),
+             details=dict(elapsed_s=result['elapsed_s'],contact=result['contact'],phase=result['phase'],dt_s=result['dt_s'],
+                 endpoint_lateness_s=result['endpoint_lateness_s'],
+                 conditioning_profile=result.get('conditioning_profile'),
+@@ -409,7 +414,7 @@
+                 raise ExecutionFault('provider heartbeat lost')
+             if self.mode!='Force' or now-self.mode_at>self.settings['feedback_max_age_s']:
+                 raise ExecutionFault('controller Force mode lost or stale')
+-            external = (scheduled_force(self.config['f0'],self.processing)
++            external = ((self.a_processing_force if self.processing else 0.)
+                         if self.ablation and self.config['condition']=='A' else None)
+             result=self.engine.tick(now,self.pose,self.force,now-self.pose_at,now-self.force_at,
+                                     external_force_fz=external)

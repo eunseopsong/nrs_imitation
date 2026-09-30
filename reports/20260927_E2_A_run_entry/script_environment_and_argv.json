@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "launch",
+    "nrs_imitation",
+    "e2_abc.launch.py",
+    "mode:=run",
+    "condition:=A",
+    "session:=E2_A_PILOT_01",
+    "config:=/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json"
+  ],
+  "conda": "nrs_imitation",
+  "ros": "humble",
+  "hardware_io": false
+}

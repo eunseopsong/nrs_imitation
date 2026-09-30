@@ -1,0 +1,15 @@
+{
+  "schema": "E2_offline_force_assumption_v1",
+  "status": "unverified_offline_only",
+  "created_at": "2026-09-27T15:23:57.564499+09:00",
+  "operator_request": "그냥 임의의 값으로 채워줘",
+  "assumed_command_Fz_N": 23.0,
+  "source": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_candidate/candidate.json",
+  "source_sha256": "fda702db71b8db0a670e61ec7e382157b4aea0f1c7963f167ee5778159f23f64",
+  "assumption": "Reuse rounded teacher Fz candidate numerically as a controller target for software calculation only; physical teacher/TCP equivalence remains unverified.",
+  "physical_force_calibration_verified": false,
+  "validated_operating_range_N": null,
+  "physical_abort_limit_N": null,
+  "F0_frozen": false,
+  "hardware_authorized_by_this_file": false
+}

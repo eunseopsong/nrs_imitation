@@ -1,0 +1,110 @@
+{
+  "checked_at": "2026-09-27T14:12:21.734087+09:00",
+  "purpose": "Audit existing F0 evidence and minimize missing operator information; no recipe or runtime changes.",
+  "dataset": {
+    "episodes": 42,
+    "train": 38,
+    "validation": 4,
+    "all_saved": true,
+    "all_force_matches_source": true,
+    "all_source_indices_identity": true,
+    "record_end_reasons": {
+      "joystick_end": 42
+    },
+    "force_contact_start_metadata_count": 42,
+    "force_contact_end_metadata_count": 0,
+    "explicit_processing_success_frame_calibration_attributes": [],
+    "duration_range_s": [
+      10.140463829040527,
+      15.644475221633911
+    ]
+  },
+  "confirmed_from_files": [
+    "Teacher force topic was /ftsensor/measured_Cvalue, geometry_msgs/Wrench, no frame_id field.",
+    "Source recording identifies stage1 force EMA alpha 0.2, unchanged 30 Hz sample-time/source-index mapping, XY forces preserved.",
+    "The saved action/force is the source filtered ft vector; it is not independently measured controller applied target.",
+    "A candidate should use the 38 training episodes after processing/success confirmation, not held-out evaluation or E2 B/C outcomes.",
+    "Current teacher source/config includes zero subtraction, contact axis remapping, and differential gravity compensation.",
+    "EMA-mode force_contact_on_idx is automatically threshold-detected and force_contact_off_idx is always absent; these are not manual processing markers.",
+    "Existing user E1 C deployment confirmation already establishes use of the current TCP target convention; do not request it again.",
+    "Robot FT startup log immediately before the E2 B/C session reports gravity requested=true and matrix_loaded=true; historical zero pose and teacher calibration hash are still absent from the teaching HDF5."
+  ],
+  "calibration_artifacts": {
+    "teaching": {
+      "path": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_ft_aq2/config/spindle_gravity.yaml",
+      "calibration_id": "2026.08.16 22:43",
+      "mass_kg": 1.644025092694,
+      "fit_force_rms_n": 0.332882190074,
+      "sha256": "88c5dc32f1185fd3558b95b3a2331c2b2622adc2661be82f64190376b72d2eb9"
+    },
+    "local_robot_copy": {
+      "path": "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml",
+      "calibration_id": "2026.08.16 21:08",
+      "mass_kg": 1.604914492353,
+      "fit_force_rms_n": 0.406469014066,
+      "sha256": "17fcba7ba68ed57a486067f6df7d161782816ac57dbc79d735eea46ffe57560b"
+    },
+    "matching_artifact": false,
+    "note": "Teacher file is 2026-08-16 22:43; actual remote robot file is 2026-09-01 21:32. Local dev_ws robot YAML is an older copy and is not deployment readback. Different calibration versions do not by themselves invalidate the data or identify a numeric force mapping.",
+    "remote_robot": {
+      "host": "nrs_forcecon@192.168.0.151",
+      "path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml",
+      "calibration_id": "2026.09.01 21:32",
+      "mass_kg": 1.653312742937,
+      "fit_force_rms_n": 0.507919837283,
+      "sha256": "699eb9d59c6776be2336ebf2469780dc9e614e8ac6b9189443239f9cab662cb2",
+      "frame": "tcp",
+      "enabled": true,
+      "snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_evidence/remote_spindle_gravity.yaml"
+    }
+  },
+  "missing_from_files": [
+    "Operator-confirmed normal/successful teaching episodes.",
+    "Actual processing intervals (approach/retract not included). Video is available for review; raw threshold starts cannot substitute for this annotation.",
+    "The teaching session does not record its loaded calibration identity/zero pose or a verified teacher-axis to TCP/surface-normal mapping. Current source and robot startup evidence clarify the pipeline but do not establish that historical mapping alone.",
+    "A separately validated constant-force recipe/operating interval, or subsequent review of a teacher-derived candidate."
+  ],
+  "questions_to_operator": [
+    "Were the 42 selected 90-degree teaching runs normal completed ink-removal demonstrations?",
+    "Was any constant TCP force independently validated for this same task? If yes, give value and the corresponding task/setup; otherwise derive candidate from teaching."
+  ],
+  "operator_does_not_need_to_supply": [
+    "model paths",
+    "train/validation split",
+    "filter coefficients already in HDF5",
+    "calibration file values or matrices already stored",
+    "F0 number calculated from memory"
+  ],
+  "hardware_config_mutated": false,
+  "F0_frozen": false,
+  "F0_numeric_candidate_generated": false,
+  "hardware_executed": false,
+  "current_execution_contract": "0dc9c494fb1d2e0b8f00afadc8e38345d5736ec4480569a7980c11f0b4d14409",
+  "current_cohort": "E2_4c14bf2b2aa13bb3",
+  "sources_sha256": {
+    "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5": "743ef3d85892a98afd89ad553641a9a44488e51e64753810877ec336e71d91b5",
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_ft_aq2/src/FT_Processing.cpp": "0e517050d819e4e96ab47f729b6c02742a22cbcfb39ebd4d16f50bea4211ad0c",
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_ft_aq2/src/CAN_reader.cpp": "362c45751bf6f11ced8cec8e88a5934d052e24e36fe2a6f75b7f8d2b0fc42505",
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_ft_aq2/config/config.yaml": "1538f3722f11d234628bd8c23c788985926f1b13d62a95382710396f846fab09",
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_ft_aq2/config/spindle_gravity.yaml": "88c5dc32f1185fd3558b95b3a2331c2b2622adc2661be82f64190376b72d2eb9",
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml": "17fcba7ba68ed57a486067f6df7d161782816ac57dbc79d735eea46ffe57560b",
+    "/home/eunseop/nrs_imitation/behavior_ws/src/vr_calibration/README.md": "933babce83d6d88d99291944de9fbca68da9d1ff1b87a6711d2bdf73b5c662c8",
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/stage1_filtering.py": "4097cd09a71840d72e5e5fc29062967f873fd0a9529bd4577bb5fd97bb5be7f4",
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/force_control.cpp": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f",
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+    "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/config.json": "188a3845852c78aa2b7cec19c77b4bb95f6e99d4ec2e7d8b833cd47ba6158a4e",
+    "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/teacher_preview/split.json": "92c10a1b54da08621da997e143fff26fa0160d84ef44410b53569c8188bdd082",
+    "/home/eunseop/nrs_imitation/results/20260926/Codex_E2_ABC_Force_Ablation_Prompt_20260926.txt": "e99b8caf3d71df1e31908cd4f0909aae38fc170838c393942988952f4416e224",
+    "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form/relativize_manifest.json": "e623423d464b191518e5f61403d78e736b8722360eec51e71920ddf04f9b1275",
+    "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260821_90deg_only/split_manifest.json": "f2163661d5e4de2142d7842ee14a2db428c5ceb88351063e66fd13d5caa0a00d",
+    "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/imitation_form/conversion_summary.json": "8fe2d5f61481c8325a1745abe400d9fd39752c23b7d475a87a844ae68d81bc38"
+  },
+  "remote_readback_at": "2026-09-27T14:17:42.041728+09:00",
+  "remote_sensor_process_currently_running": false,
+  "inspected_preview_episodes": [
+    "episode_0.hdf5",
+    "episode_38.hdf5"
+  ],
+  "preview_inference": "Uniformly sampled images and force traces show approach/process/retract structure; no exact phase times or success labels have been approved from these previews.",
+  "preview_is_phase_annotation": false
+}

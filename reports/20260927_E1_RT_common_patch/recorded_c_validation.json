@@ -1,0 +1,34 @@
+{
+  "status": "pass",
+  "runs": [
+    {
+      "run": "RTC_C_20260926T184357",
+      "ticks": 2117,
+      "all_9d_stages_bitwise_equal": true
+    },
+    {
+      "run": "RTC_C_20260926T184521",
+      "ticks": 1704,
+      "all_9d_stages_bitwise_equal": true
+    },
+    {
+      "run": "RTC_C_20260926T184622",
+      "ticks": 2003,
+      "all_9d_stages_bitwise_equal": true
+    },
+    {
+      "run": "RTC_C_20260926T184724",
+      "ticks": 1901,
+      "all_9d_stages_bitwise_equal": true
+    },
+    {
+      "run": "RTC_C_20260926T184820",
+      "ticks": 1937,
+      "all_9d_stages_bitwise_equal": true
+    }
+  ],
+  "total_ticks": 9662,
+  "comparison": "Archived C engine vs current code, same archived inputs and recorded contact decisions.",
+  "hardware_executed": false,
+  "physical_response_inferred": false
+}

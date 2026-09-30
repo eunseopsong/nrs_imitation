@@ -1,0 +1,125 @@
+2026-09-26T16:19:03+09:00
+6.8.0-138-generic
+192.168.0.47 dev enp2s0 src 192.168.0.151 uid 1000 
+    cache 
+192.168.0.150 dev enp2s0 src 192.168.0.151 uid 1000 
+    cache 
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    RX:  bytes packets errors dropped  missed   mcast           
+     534062100 2752470      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+     534062100 2752470      0       0       0       0 
+2: enp1s0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc mq state DOWN mode DEFAULT group default qlen 1000
+    link/ether 00:07:32:ab:4b:e7 brd ff:ff:ff:ff:ff:ff
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+3: enp2s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000
+    link/ether 00:07:32:ab:4b:e8 brd ff:ff:ff:ff:ff:ff
+    RX:  bytes packets errors dropped  missed   mcast           
+     673234314 1311004      0     320       0   39376 
+    TX:  bytes packets errors dropped carrier collsns           
+     179397540  837876      0       0       0       0 
+4: wlx9cefd5fd1bcd: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP mode DORMANT group default qlen 1000
+    link/ether 9c:ef:d5:fd:1b:cd brd ff:ff:ff:ff:ff:ff
+    RX:  bytes packets errors dropped  missed   mcast           
+        739301    4273      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+         38221     336      0       0       0       0 
+    PID     TID CLS RTPRIO %CPU COMMAND
+  20502   20502  TS      -  1.1 ur_ros2_control
+  20502   20566  TS      -  0.0 ur_ros2_control
+  20502   20567  TS      -  0.0 ur_ros2_control
+  20502   20576  TS      -  0.0 ur_ros2_control
+  20502   20632  TS      -  0.0 ur_ros2_control
+  20502   20633  TS      -  0.0 ur_ros2_control
+  20502   20634  TS      -  0.0 ur_ros2_control
+  20502   20635  TS      -  0.0 ur_ros2_control
+  20502   20636  TS      -  0.1 ur_ros2_control
+  20502   20637  TS      -  0.3 ur_ros2_control
+  20502   20650  TS      -  0.0 ur_ros2_control
+  20502   20651  TS      -  0.0 ur_ros2_control
+  20502   20652  TS      -  4.2 ur_ros2_control
+  20502   20653  TS      -  1.1 ur_ros2_control
+  20502   20654  TS      -  1.1 ur_ros2_control
+  20502   20655  TS      -  1.1 ur_ros2_control
+  20502   20656  TS      -  0.5 ur_ros2_control
+  20502   20657  TS      -  0.0 ur_ros2_control
+  20502   20658  TS      -  0.0 ur_ros2_control
+  20502   20659  TS      -  1.8 ur_ros2_control
+  20502   20660  TS      -  3.3 ur_ros2_control
+  20502   20661  TS      -  0.0 ur_ros2_control
+  20502   20662  TS      -  0.0 ur_ros2_control
+  20502   20663  TS      -  0.7 ur_ros2_control
+  20502   20664  TS      -  0.4 ur_ros2_control
+  20502   20665  TS      -  0.0 ur_ros2_control
+  20502   20666  TS      -  0.0 ur_ros2_control
+  20502   20667  TS      -  0.0 ur_ros2_control
+  20502   20675  TS      -  0.3 ur_ros2_control
+  20502   20676  TS      -  1.0 ur_ros2_control
+  20502   20677  TS      -  0.4 ur_ros2_control
+  20502   20681  TS      -  0.4 ur_ros2_control
+  20502   20682  TS      -  0.7 ur_ros2_control
+  20773   20773  TS      - 11.2 singleArm_motio
+  20773   20774  TS      -  0.0 singleArm_motio
+  20773   20775  TS      -  0.0 singleArm_motio
+  20773   20783  TS      -  0.0 singleArm_motio
+  20773   20791  TS      - 10.8 singleArm_motio
+  20773   20792  TS      - 10.8 singleArm_motio
+  20773   20793  TS      - 10.8 singleArm_motio
+  20803   20803  TS      -  0.8 singleArm_cmd
+  20803   20834  TS      -  0.0 singleArm_cmd
+  20803   20835  TS      -  0.0 singleArm_cmd
+  20803   20843  TS      -  0.0 singleArm_cmd
+  20803   20844  TS      -  0.4 singleArm_cmd
+  20803   20845  TS      -  0.5 singleArm_cmd
+  20803   20846  TS      -  0.5 singleArm_cmd
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_20502_1790406962609.log
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_11407_1790405741336.log
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_146660_1789902829123.log
+[INFO] [1790406965.232496908] [controller_manager]: Loading controller 'speed_scaling_state_broadcaster'
+[INFO] [1790406965.378206162] [speed_scaling_state_broadcaster]: Loading UR SpeedScalingStateBroadcaster with tf_prefix: 
+[INFO] [1790406965.391329476] [controller_manager]: Configuring controller 'forward_effort_controller'
+[INFO] [1790406965.393108780] [forward_effort_controller]: configure successful
+[INFO] [1790406965.401830128] [controller_manager]: Configuring controller 'speed_scaling_state_broadcaster'
+[INFO] [1790406965.402088474] [speed_scaling_state_broadcaster]: Publisher rate set to : 100.0 Hz
+[INFO] [1790406965.431728946] [controller_manager]: Loading controller 'force_mode_controller'
+[INFO] [1790406965.471212642] [controller_manager]: Configuring controller 'force_mode_controller'
+[INFO] [1790406965.484693450] [controller_manager]: Loading controller 'force_torque_sensor_broadcaster'
+[INFO] [1790406965.603174307] [controller_manager]: Configuring controller 'force_torque_sensor_broadcaster'
+[INFO] [1790406965.614995182] [controller_manager]: Loading controller 'passthrough_trajectory_controller'
+[INFO] [1790406965.726364311] [controller_manager]: Configuring controller 'passthrough_trajectory_controller'
+[INFO] [1790406965.784551726] [controller_manager]: Loading controller 'tcp_pose_broadcaster'
+[INFO] [1790406965.868416392] [controller_manager]: Loading controller 'freedrive_mode_controller'
+[INFO] [1790406966.018635469] [controller_manager]: Configuring controller 'tcp_pose_broadcaster'
+[INFO] [1790406966.038954061] [controller_manager]: Configuring controller 'freedrive_mode_controller'
+[INFO] [1790406966.077510718] [controller_manager]: Loading controller 'tool_contact_controller'
+[INFO] [1790406966.161579722] [controller_manager]: Loading controller 'ur_configuration_controller'
+[INFO] [1790406966.298833706] [controller_manager]: Configuring controller 'tool_contact_controller'
+[INFO] [1790406966.327087661] [controller_manager]: Configuring controller 'ur_configuration_controller'
+[INFO] [1790406966.378759281] [controller_manager]: Loading controller 'friction_model_controller'
+[INFO] [1790406966.527974740] [controller_manager]: Configuring controller 'friction_model_controller'
+[INFO] [1790406966.577753141] [controller_manager]: Loading controller 'forward_position_controller'
+[INFO] [1790406966.673463368] [controller_manager]: Configuring controller 'forward_position_controller'
+[INFO] [1790406966.674016758] [forward_position_controller]: configure successful
+[INFO] [1790406966.684239887] [forward_position_controller]: activate successful
+[INFO] [1790406966.774035881] [controller_manager]: Switch controller timeout is set to 0, using default 1s!
+[INFO] [1790406972.859773846] [UR_Client_Library:]: Robot requested program
+[INFO] [1790406972.860377620] [UR_Client_Library:]: Sent program to robot
+[INFO] [1790406973.344578392] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790406974.720594809] [UR_Client_Library:]: Connection to reverse interface dropped.
+[INFO] [1790406975.243461664] [UR_Client_Library:]: Robot requested program
+[INFO] [1790406975.243640982] [UR_Client_Library:]: Sent program to robot
+[INFO] [1790406976.432302342] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790406976.444796759] [forward_position_controller]: activate successful
+controller_manager:
+  ros__parameters:
+    update_rate: 125  # Hz
+some avg10=10.80 avg60=10.96 avg300=10.76 total=169938506
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+some avg10=0.00 avg60=0.00 avg300=0.00 total=166
+full avg10=0.00 avg60=0.00 avg300=0.00 total=161
+some avg10=0.00 avg60=0.00 avg300=0.00 total=13771973
+full avg10=0.00 avg60=0.00 avg300=0.00 total=11779217

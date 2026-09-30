@@ -1,0 +1,267 @@
+{
+  "date": "2026-09-26",
+  "timeline": [
+    {
+      "launch_log": "/home/eunseop/.ros/log/2026-09-20-19-57-40-302061-nrs3-538729/launch.log",
+      "start_unix": 1789901860.7815838,
+      "drop_unix": 1789901861.024697,
+      "delta_ms": 243.113,
+      "start_kst": "2026-09-20T19:57:40.781+09:00",
+      "drop_kst": "2026-09-20T19:57:41.024+09:00"
+    },
+    {
+      "launch_log": "/home/eunseop/.ros/log/2026-09-20-20-09-50-915654-nrs3-556828/launch.log",
+      "start_unix": 1789902591.3979166,
+      "drop_unix": 1789902591.6194327,
+      "delta_ms": 221.516,
+      "start_kst": "2026-09-20T20:09:51.397+09:00",
+      "drop_kst": "2026-09-20T20:09:51.619+09:00"
+    },
+    {
+      "launch_log": "/home/eunseop/.ros/log/2026-09-26-16-12-42-665961-nrs3-117466/launch.log",
+      "start_unix": 1790406763.4946923,
+      "drop_unix": 1790406763.7281935,
+      "delta_ms": 233.501,
+      "start_kst": "2026-09-26T16:12:43.494+09:00",
+      "drop_kst": "2026-09-26T16:12:43.728+09:00"
+    },
+    {
+      "launch_log": "/home/eunseop/.ros/log/2026-09-26-16-13-15-512844-nrs3-118373/launch.log",
+      "start_unix": 1790406796.361669,
+      "drop_unix": 1790406796.6068754,
+      "delta_ms": 245.206,
+      "start_kst": "2026-09-26T16:13:16.361+09:00",
+      "drop_kst": "2026-09-26T16:13:16.606+09:00"
+    },
+    {
+      "launch_log": "/home/eunseop/.ros/log/2026-09-26-16-13-48-520604-nrs3-119284/launch.log",
+      "start_unix": 1790406829.35801,
+      "drop_unix": 1790406829.5975542,
+      "delta_ms": 239.544,
+      "start_kst": "2026-09-26T16:13:49.358+09:00",
+      "drop_kst": "2026-09-26T16:13:49.597+09:00"
+    }
+  ],
+  "runtime_comparisons": [
+    {
+      "old_metadata": "/home/eunseop/nrs_imitation/logs/inference_metrics/E2_line_R_validation_02_20260920T195831_1789901911305395787_s29uawok/metadata.json",
+      "new_metadata": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T161243_20260926T161244_1790406764652641561_mm5k1jfk/metadata.json",
+      "old_parameter_count": 295,
+      "new_parameter_count": 295,
+      "changed": {
+        "e2_config": {
+          "old": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/config.json",
+          "new": "/home/eunseop/nrs_imitation/logs/rtc_launch_context/RTC_R_5786zhm3/config.json"
+        },
+        "e2_session_id": {
+          "old": "cd3439028adb4af48a66178f967687bd",
+          "new": "fadd67eac28a4a4c8c1e321374251422"
+        },
+        "metrics_context_file": {
+          "old": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/config.json",
+          "new": "/home/eunseop/nrs_imitation/logs/rtc_launch_context/RTC_R_5786zhm3/config.json"
+        },
+        "metrics_run_tag": {
+          "old": "E2_line_R_validation_02",
+          "new": "RTC_R_20260926T161243"
+        }
+      },
+      "unchanged_sections": [
+        "resolved_runtime",
+        "checkpoint",
+        "normalizer",
+        "sampling"
+      ],
+      "provider_prepared_count": 0
+    },
+    {
+      "old_metadata": "/home/eunseop/nrs_imitation/logs/inference_metrics/E2_line_R_validation_02_20260920T195831_1789901911305395787_s29uawok/metadata.json",
+      "new_metadata": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T161315_20260926T161317_1790406797513998642_2dcf64z_/metadata.json",
+      "old_parameter_count": 295,
+      "new_parameter_count": 295,
+      "changed": {
+        "e2_config": {
+          "old": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/config.json",
+          "new": "/home/eunseop/nrs_imitation/logs/rtc_launch_context/RTC_R_13nnxes8/config.json"
+        },
+        "e2_session_id": {
+          "old": "cd3439028adb4af48a66178f967687bd",
+          "new": "e8a9e1275ca749bd99138f9ee5a644f7"
+        },
+        "metrics_context_file": {
+          "old": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/config.json",
+          "new": "/home/eunseop/nrs_imitation/logs/rtc_launch_context/RTC_R_13nnxes8/config.json"
+        },
+        "metrics_run_tag": {
+          "old": "E2_line_R_validation_02",
+          "new": "RTC_R_20260926T161315"
+        }
+      },
+      "unchanged_sections": [
+        "resolved_runtime",
+        "checkpoint",
+        "normalizer",
+        "sampling"
+      ],
+      "provider_prepared_count": 0
+    },
+    {
+      "old_metadata": "/home/eunseop/nrs_imitation/logs/inference_metrics/E2_line_R_validation_02_20260920T195831_1789901911305395787_s29uawok/metadata.json",
+      "new_metadata": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T161348_20260926T161350_1790406830500213916_itnon2rw/metadata.json",
+      "old_parameter_count": 295,
+      "new_parameter_count": 295,
+      "changed": {
+        "e2_config": {
+          "old": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/config.json",
+          "new": "/home/eunseop/nrs_imitation/logs/rtc_launch_context/RTC_R_zz34tu4m/config.json"
+        },
+        "e2_session_id": {
+          "old": "cd3439028adb4af48a66178f967687bd",
+          "new": "09ec87a7d532405487269cdec19c7d4f"
+        },
+        "metrics_context_file": {
+          "old": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/config.json",
+          "new": "/home/eunseop/nrs_imitation/logs/rtc_launch_context/RTC_R_zz34tu4m/config.json"
+        },
+        "metrics_run_tag": {
+          "old": "E2_line_R_validation_02",
+          "new": "RTC_R_20260926T161348"
+        }
+      },
+      "unchanged_sections": [
+        "resolved_runtime",
+        "checkpoint",
+        "normalizer",
+        "sampling"
+      ],
+      "provider_prepared_count": 0
+    }
+  ],
+  "pre_patch_hash_comparison": {
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py": {
+      "before": "4132fae4b60eaf0c44c70e65a3d6bedc1023750ba98d408986874dadb9a5df6f",
+      "now": "4132fae4b60eaf0c44c70e65a3d6bedc1023750ba98d408986874dadb9a5df6f",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/e2_providers.py": {
+      "before": "a5a55bc6a56382f39a6ddb070320f9eee699236f9ed318a3f1adb82d74da0e2c",
+      "now": "a5a55bc6a56382f39a6ddb070320f9eee699236f9ed318a3f1adb82d74da0e2c",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py": {
+      "before": "83e4fc7c5d6181fb2e264a4b597d599cad1ee2bd6563d467e32509706f17c226",
+      "now": "83e4fc7c5d6181fb2e264a4b597d599cad1ee2bd6563d467e32509706f17c226",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py": {
+      "before": "f435b84e2cf3b2bae644e152ca3cd65294d7da2dc851eaf40ac6c13de4744751",
+      "now": "f435b84e2cf3b2bae644e152ca3cd65294d7da2dc851eaf40ac6c13de4744751",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/e2_return_home.py": {
+      "before": "38be756f607e44f0f84d92b86082c6bfd4db70ca1e3c6b0f1103538930c40be9",
+      "now": "38be756f607e44f0f84d92b86082c6bfd4db70ca1e3c6b0f1103538930c40be9",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py": {
+      "before": "6573d57de7ad32a8c8dfe9066eb313f09f738b0e317d3b3498ac39690b3b03b7",
+      "now": "6573d57de7ad32a8c8dfe9066eb313f09f738b0e317d3b3498ac39690b3b03b7",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/execution_metrics.py": {
+      "before": "27c6509008297fbb408eb31da5aa8718f60de8a334e853891932b74c1a91c483",
+      "now": "27c6509008297fbb408eb31da5aa8718f60de8a334e853891932b74c1a91c483",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py": {
+      "before": "ce8dd00b7a03d952c2f05fcbb069d2dbee6ad2a68a8767fe7b9fab5c05c0ed5c",
+      "now": "ce8dd00b7a03d952c2f05fcbb069d2dbee6ad2a68a8767fe7b9fab5c05c0ed5c",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py": {
+      "before": "453eac8d7f5012d9b747c49a2e19cce125a04f90b9c5099046ee4217524f6476",
+      "now": "453eac8d7f5012d9b747c49a2e19cce125a04f90b9c5099046ee4217524f6476",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/source/data/dataset.py": {
+      "before": "a4e9954d70a0547542fe75a14280bf2c1c876e9a1c86564e430cb85513564b42",
+      "now": "a4e9954d70a0547542fe75a14280bf2c1c876e9a1c86564e430cb85513564b42",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/source/custom/_imitation_form_converter.py": {
+      "before": "f12a444f97dd7754b32c1ac6933fb6841d17e6e4994291fd0414160ba62e14d1",
+      "now": "f12a444f97dd7754b32c1ac6933fb6841d17e6e4994291fd0414160ba62e14d1",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/scripts/e2_experiment.py": {
+      "before": "24262af3790e28b0fdd72f48537767268b06ac4f6f0644a5ab3b7d87bc32fa11",
+      "now": "24262af3790e28b0fdd72f48537767268b06ac4f6f0644a5ab3b7d87bc32fa11",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/config.json": {
+      "before": "6eaeba35d1a8daaeb53d45bb48d4f0ce193315f142c271c0386937ab40afcee8",
+      "now": "6eaeba35d1a8daaeb53d45bb48d4f0ce193315f142c271c0386937ab40afcee8",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": {
+      "before": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+      "now": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": {
+      "before": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+      "now": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": {
+      "before": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+      "now": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/force_control.cpp": {
+      "before": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f",
+      "now": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/include/Y2RobMotion/robot_command.hpp": {
+      "before": "5ded54bf4de8cbcb0eab3b2bbf3811e1708eb5dc7f258e490d6f74791acfaeab",
+      "now": "5ded54bf4de8cbcb0eab3b2bbf3811e1708eb5dc7f258e490d6f74791acfaeab",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": {
+      "before": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+      "now": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/y2_rob_motion_interfaces/srv/SingleArmCommand.srv": {
+      "before": "480a2b670bb10226ff7445d64a3e4234f1138b82e2ddaece9594e2be7db02e26",
+      "now": "480a2b670bb10226ff7445d64a3e4234f1138b82e2ddaece9594e2be7db02e26",
+      "unchanged": true
+    },
+    "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/src/FTGetMain.cpp": {
+      "before": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc",
+      "now": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc",
+      "unchanged": true
+    },
+    "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_ft_aq2/src/FT_Processing.cpp": {
+      "before": "0e517050d819e4e96ab47f729b6c02742a22cbcfb39ebd4d16f50bea4211ad0c",
+      "now": "0e517050d819e4e96ab47f729b6c02742a22cbcfb39ebd4d16f50bea4211ad0c",
+      "unchanged": true
+    },
+    "/home/eunseop/Downloads/Codex_E1_RTC_Execution_and_Force_Profile_Evaluation_Prompt.txt": {
+      "before": "4a0e5aaa7a47f077c8587ec722a8a8aeb9f2a8a3e9890f7f7237066dd8f889ce",
+      "now": "4a0e5aaa7a47f077c8587ec722a8a8aeb9f2a8a3e9890f7f7237066dd8f889ce",
+      "unchanged": true
+    }
+  },
+  "clock_note": "Cross-host wall clock; both hosts report NTP synchronized, event-time offset not independently measured",
+  "hardware_started_by_agent": false,
+  "controller_parameters_changed": false,
+  "launch_or_policy_modified": false,
+  "diagnosis": "Reverse-interface disconnection near node startup also occurred on 2026-09-20; no increased neural workload identified in this patch; exact cause remains unconfirmed",
+  "remaining_uncertainty": [
+    "No CPU/GPU/network peak recording during failures",
+    "No robot-side stop reason captured",
+    "DDS discovery/control scheduling latency are hypotheses"
+  ]
+}

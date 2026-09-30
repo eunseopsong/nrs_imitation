@@ -1,0 +1,393 @@
+{
+  "common_window_s": 37.5,
+  "runs": {
+    "ON_baseline": {
+      "run_id": "rel_single_90deg_best_20260920T160636_1789887996648993205_r3lvdifh",
+      "path": "/home/eunseop/nrs_imitation/logs/inference_metrics/rel_single_90deg_best_20260920T160636_1789887996648993205_r3lvdifh",
+      "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/20260910_90deg_rel_single/20260910_1606/policy_best.ckpt",
+      "force_observation": "ON",
+      "origin_xy_mm": [
+        436.37457757032405,
+        365.9475070878941
+      ],
+      "run_duration_s": 42.67736943,
+      "policy_duration_s": 37.541840274,
+      "first_plan_receipt_ns": 9520540698313,
+      "inference_count": 9,
+      "inference_latency_ms": [
+        332.247177,
+        58.406371,
+        60.288023,
+        60.731544,
+        59.22891,
+        58.296569,
+        57.796599,
+        57.707177,
+        58.060515
+      ],
+      "warm_inference_median_ms": 58.35147,
+      "service_responses": 459,
+      "service_failures": 0,
+      "precontact_force_zero_events": 15,
+      "errors": 0,
+      "logger_drained": true,
+      "logger_write_errors": [],
+      "logger_drops": 0,
+      "counts": {
+        "events": {
+          "received": 971,
+          "enqueued": 971,
+          "dropped": 0,
+          "written": 971
+        },
+        "tcp_pose": {
+          "received": 739,
+          "enqueued": 739,
+          "dropped": 0,
+          "written": 739
+        },
+        "wrench": {
+          "received": 740,
+          "enqueued": 740,
+          "dropped": 0,
+          "written": 740
+        },
+        "commands": {
+          "received": 1817,
+          "enqueued": 1817,
+          "dropped": 0,
+          "written": 1817
+        },
+        "legacy": {
+          "received": 410,
+          "enqueued": 410,
+          "dropped": 0,
+          "written": 410
+        },
+        "roi": {
+          "received": 1,
+          "enqueued": 1,
+          "dropped": 0,
+          "written": 1
+        },
+        "snapshot": {
+          "received": 2,
+          "enqueued": 2,
+          "dropped": 0,
+          "written": 2
+        }
+      },
+      "common_force": {
+        "covered_s": 37.461623153999994,
+        "rows": 653,
+        "mean_N": 11.109910928232297,
+        "std_N": 15.982926068831913,
+        "peak_N": 108.09104781515316,
+        "peak_t_s": 7.455096915,
+        "excluded_gap_s": 0.0,
+        "time_ge_3N_s": 18.79400955,
+        "fraction_ge_3N": 0.501687005732245,
+        "mean_when_ge_3N": 21.439933127390116,
+        "time_ge_5N_s": 17.889308656,
+        "fraction_ge_5N": 0.47753693379646994,
+        "mean_when_ge_5N": 22.324042071903172,
+        "time_ge_10N_s": 15.641465575999998,
+        "fraction_ge_10N": 0.41753304472953323,
+        "mean_when_ge_10N": 24.458635529660356,
+        "time_ge_50N_s": 1.0889009600000001,
+        "fraction_ge_50N": 0.02906710570237883,
+        "mean_when_ge_50N": 81.23427672567104,
+        "time_ge_80N_s": 0.5762038370000004,
+        "fraction_ge_80N": 0.015381176481096383,
+        "mean_when_ge_80N": 96.02328839093917,
+        "last_sent_at_peak_N": -1.365647554397583,
+        "last_sent_at_peak_age_s": 0.7153889900000001
+      },
+      "middle_10_25s_force": {
+        "covered_s": 14.944449503,
+        "rows": 262,
+        "mean_N": 18.77876899935682,
+        "std_N": 7.1834252029606445,
+        "peak_N": 58.05053481064598,
+        "peak_t_s": 16.582871483,
+        "excluded_gap_s": 0.0,
+        "time_ge_3N_s": 14.888302278,
+        "fraction_ge_3N": 0.996242937888831,
+        "mean_when_ge_3N": 18.83880752342069,
+        "time_ge_5N_s": 14.705725224,
+        "fraction_ge_5N": 0.9840258900836677,
+        "mean_when_ge_5N": 19.016858017360786,
+        "time_ge_10N_s": 13.258427911999997,
+        "fraction_ge_10N": 0.8871807495711672,
+        "mean_when_ge_10N": 20.249916520447762,
+        "time_ge_50N_s": 0.05605086899999989,
+        "fraction_ge_50N": 0.0037506144999685702,
+        "mean_when_ge_50N": 58.05053481064598,
+        "time_ge_80N_s": 0.0,
+        "fraction_ge_80N": 0.0,
+        "mean_when_ge_80N": null
+      },
+      "plateau_15_25s_force": {
+        "covered_s": 9.927407667999999,
+        "rows": 174,
+        "mean_N": 18.174499008954506,
+        "std_N": 7.000263098246292,
+        "peak_N": 58.05053481064598,
+        "peak_t_s": 16.582871483,
+        "excluded_gap_s": 0.0,
+        "time_ge_3N_s": 9.927407667999999,
+        "fraction_ge_3N": 1.0,
+        "mean_when_ge_3N": 18.174499008954506,
+        "time_ge_5N_s": 9.927407667999999,
+        "fraction_ge_5N": 1.0,
+        "mean_when_ge_5N": 18.174499008954506,
+        "time_ge_10N_s": 9.089999509999997,
+        "fraction_ge_10N": 0.9156468449765286,
+        "mean_when_ge_10N": 19.107143668144072,
+        "time_ge_50N_s": 0.05605086899999989,
+        "fraction_ge_50N": 0.005646073061014129,
+        "mean_when_ge_50N": 58.05053481064598,
+        "time_ge_80N_s": 0.0,
+        "fraction_ge_80N": 0.0,
+        "mean_when_ge_80N": null
+      },
+      "common_xy_path_mm": 205.01993232258724,
+      "common_xyz_span_mm": {
+        "x": 55.70256477784028,
+        "y": 57.452333936809396,
+        "z": 41.84991935718793
+      },
+      "common_z_min_mm": 172.34949976283923,
+      "final_z_mm": 197.0329297463368,
+      "force_command_burst_9_10_5s": {
+        "requests": 8,
+        "zero_requests": 3,
+        "zero_nonzero_switches": 5
+      },
+      "negative_sent_force_requests": 15,
+      "commanded_fz_range_N": [
+        -3.6901535987854,
+        24.42836570739746
+      ],
+      "sampling": {
+        "max_hz_per_source": 20.0,
+        "zero_means_unlimited": true,
+        "streams": [
+          "tcp_pose",
+          "wrench",
+          "controller_targets",
+          "legacy"
+        ],
+        "commands_and_events": "node_sent, policy_prediction and events are not downsampled",
+        "note": "receipt-time sampling; skipped samples are not middleware loss; cannot resolve high-frequency force peaks"
+      },
+      "extra_telemetry_enabled": false
+    },
+    "OFF_E1": {
+      "run_id": "IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_",
+      "path": "/home/eunseop/nrs_imitation/logs/inference_metrics/IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_",
+      "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531/policy_best.ckpt",
+      "force_observation": "OFF",
+      "origin_xy_mm": [
+        440.91951610623715,
+        368.2058845868596
+      ],
+      "run_duration_s": 43.544083692,
+      "policy_duration_s": 38.572310654,
+      "first_plan_receipt_ns": 10545142680250,
+      "inference_count": 10,
+      "inference_latency_ms": [
+        168.275648,
+        59.244575,
+        60.371116,
+        57.269354,
+        56.578469,
+        56.244668,
+        56.211024,
+        58.021758,
+        57.199029,
+        55.378356
+      ],
+      "warm_inference_median_ms": 57.199029,
+      "service_responses": 479,
+      "service_failures": 0,
+      "precontact_force_zero_events": 21,
+      "errors": 0,
+      "logger_drained": true,
+      "logger_write_errors": [],
+      "logger_drops": 0,
+      "counts": {
+        "events": {
+          "received": 1020,
+          "enqueued": 1020,
+          "dropped": 0,
+          "written": 1020
+        },
+        "tcp_pose": {
+          "received": 759,
+          "enqueued": 759,
+          "dropped": 0,
+          "written": 759
+        },
+        "wrench": {
+          "received": 759,
+          "enqueued": 759,
+          "dropped": 0,
+          "written": 759
+        },
+        "commands": {
+          "received": 1961,
+          "enqueued": 1961,
+          "dropped": 0,
+          "written": 1961
+        },
+        "legacy": {
+          "received": 425,
+          "enqueued": 425,
+          "dropped": 0,
+          "written": 425
+        },
+        "snapshot": {
+          "received": 2,
+          "enqueued": 2,
+          "dropped": 0,
+          "written": 2
+        },
+        "roi": {
+          "received": 1,
+          "enqueued": 1,
+          "dropped": 0,
+          "written": 1
+        }
+      },
+      "common_force": {
+        "covered_s": 37.47083915,
+        "rows": 655,
+        "mean_N": 12.631583422056512,
+        "std_N": 16.716135714920988,
+        "peak_N": 105.79782866082012,
+        "peak_t_s": 7.585313132,
+        "excluded_gap_s": 0.0,
+        "time_ge_3N_s": 17.609743150999996,
+        "fraction_ge_3N": 0.4699586011539855,
+        "mean_when_ge_3N": 26.288025700205175,
+        "time_ge_5N_s": 17.180042424,
+        "fraction_ge_5N": 0.4584909976322214,
+        "mean_when_ge_5N": 26.856837108257206,
+        "time_ge_10N_s": 16.431517934,
+        "fraction_ge_10N": 0.438514810629748,
+        "mean_when_ge_10N": 27.773620500111804,
+        "time_ge_50N_s": 0.9204714819999991,
+        "fraction_ge_50N": 0.024565008494078493,
+        "mean_when_ge_50N": 83.860629889204,
+        "time_ge_80N_s": 0.6242123700000004,
+        "fraction_ge_80N": 0.01665861731842214,
+        "mean_when_ge_80N": 93.57419330904581,
+        "last_sent_at_peak_N": -3.1930267810821533,
+        "last_sent_at_peak_age_s": 0.3534901329999993
+      },
+      "middle_10_25s_force": {
+        "covered_s": 14.936086167000001,
+        "rows": 262,
+        "mean_N": 23.488973002546675,
+        "std_N": 6.128939626067835,
+        "peak_N": 43.601973013537126,
+        "peak_t_s": 12.242269851,
+        "excluded_gap_s": 0.0,
+        "time_ge_3N_s": 14.485063342,
+        "fraction_ge_3N": 0.9698031452177548,
+        "mean_when_ge_3N": 24.15108181559568,
+        "time_ge_5N_s": 14.328352603,
+        "fraction_ge_5N": 0.9593110566446292,
+        "mean_when_ge_5N": 24.374536837810304,
+        "time_ge_10N_s": 14.160254717,
+        "fraction_ge_10N": 0.9480565764467713,
+        "mean_when_ge_10N": 24.573422607804815,
+        "time_ge_50N_s": 0.0,
+        "fraction_ge_50N": 0.0,
+        "mean_when_ge_50N": null,
+        "time_ge_80N_s": 0.0,
+        "fraction_ge_80N": 0.0,
+        "mean_when_ge_80N": null
+      },
+      "plateau_15_25s_force": {
+        "covered_s": 9.976235381000002,
+        "rows": 175,
+        "mean_N": 23.96218225965342,
+        "std_N": 2.6093581578085687,
+        "peak_N": 30.989269386117723,
+        "peak_t_s": 16.345701714,
+        "excluded_gap_s": 0.0,
+        "time_ge_3N_s": 9.976235381000002,
+        "fraction_ge_3N": 1.0,
+        "mean_when_ge_3N": 23.96218225965342,
+        "time_ge_5N_s": 9.976235381000002,
+        "fraction_ge_5N": 1.0,
+        "mean_when_ge_5N": 23.96218225965342,
+        "time_ge_10N_s": 9.976235381000002,
+        "fraction_ge_10N": 1.0,
+        "mean_when_ge_10N": 23.96218225965342,
+        "time_ge_50N_s": 0.0,
+        "fraction_ge_50N": 0.0,
+        "mean_when_ge_50N": null,
+        "time_ge_80N_s": 0.0,
+        "fraction_ge_80N": 0.0,
+        "mean_when_ge_80N": null
+      },
+      "common_xy_path_mm": 190.35285541008022,
+      "common_xyz_span_mm": {
+        "x": 47.603249855244655,
+        "y": 54.18947940605682,
+        "z": 41.815425422193385
+      },
+      "common_z_min_mm": 172.3985159560811,
+      "final_z_mm": 209.73106575269912,
+      "force_command_burst_9_10_5s": {
+        "requests": 31,
+        "zero_requests": 15,
+        "zero_nonzero_switches": 30
+      },
+      "negative_sent_force_requests": 7,
+      "commanded_fz_range_N": [
+        -5.0643463134765625,
+        25.05428504943848
+      ],
+      "sampling": {
+        "max_hz_per_source": 20.0,
+        "zero_means_unlimited": true,
+        "streams": [
+          "tcp_pose",
+          "wrench",
+          "controller_targets",
+          "legacy"
+        ],
+        "commands_and_events": "node_sent, policy_prediction and events are not downsampled",
+        "note": "receipt-time sampling; skipped samples are not middleware loss; cannot resolve high-frequency force peaks"
+      },
+      "extra_telemetry_enabled": false
+    }
+  },
+  "runtime_parameter_diff": {
+    "ckpt_dir": [
+      "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/20260910_90deg_rel_single/20260910_1606",
+      "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531"
+    ],
+    "metrics_run_tag": [
+      "rel_single_90deg_best",
+      "IL_minus_F_E1_off"
+    ],
+    "use_force_observation": [
+      true,
+      false
+    ]
+  },
+  "limitations": [
+    "Different training runs/checkpoints; not a matched E1 ON/OFF comparison",
+    "OFF disables policy force observations only; force actions/controller remain active",
+    "No confirmed specimen reset/equal stain preparation; specimen_id=default in both",
+    "20Hz maximum receipt sampling cannot resolve all force peaks or contact-gate transitions",
+    "Fz is base-axis feedback, not a verified surface-normal force or pressure",
+    "Sent force is a service request, not verified controller-applied force; no tracking-error claim",
+    "No verified RPM, removal calibration, fixed image evaluation ROI or completed-task signal"
+  ]
+}

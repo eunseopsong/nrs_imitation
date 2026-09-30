@@ -1,0 +1,121 @@
+{
+  "generated_at": "2026-09-26T18:38:49.652498+09:00",
+  "scope": "C-only patch; retain today R/T without reruns",
+  "tests": {
+    "passed": 93,
+    "failed": 0,
+    "environment": "ROS Humble overlays; system Python; PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
+    "modules": [
+      "test_c_pose_conditioning.py",
+      "test_e2_timed_execution.py",
+      "test_e2_return_home.py",
+      "test_rtc_launch.py",
+      "test_e2_experiment.py",
+      "test_e2_force_reference.py"
+    ]
+  },
+  "installed_C_check": "passed; profile c_pose_conditioning_20260926_v1 printed; no nodes started",
+  "installed_modules_resolve_to_modified_source": true,
+  "package_rebuild_required": false,
+  "active_profile_by_method": {
+    "R": null,
+    "T": null,
+    "C": "c_pose_conditioning_20260926_v1"
+  },
+  "R_T_recorded_replays": 10,
+  "R_T_compared_ticks": 29745,
+  "R_T_commands_bitwise_equal": true,
+  "common_executor_common_recipe_replay_settings_unchanged": true,
+  "original_recorded_input_files_sha256_verified": 61,
+  "C_offline_results": {
+    "run": "RTC_C_20260926T175131",
+    "before": {
+      "first4s_abrupt_direction_reversals_XYZ_over_1mm_s": [
+        10,
+        8,
+        0
+      ],
+      "first4s_full_direction_reversals_with_1mm_s_deadband": [
+        13,
+        12,
+        0
+      ],
+      "max_abs_axis_speed_mm_s": [
+        10.0,
+        10.0,
+        10.000000000001563
+      ],
+      "max_abs_axis_acceleration_mm_s2": [
+        2499.9999999997513,
+        2499.9999999997513,
+        1886.6964377484503
+      ],
+      "max_plan_preparation_ms": 0.0042279998524463736,
+      "tick_ms_p50_p95_p99_max": [
+        0.06005500017636223,
+        0.07659399943804601,
+        0.11066425008721126,
+        1.25187100002222
+      ]
+    },
+    "after": {
+      "first4s_abrupt_direction_reversals_XYZ_over_1mm_s": [
+        0,
+        0,
+        0
+      ],
+      "first4s_full_direction_reversals_with_1mm_s_deadband": [
+        1,
+        2,
+        0
+      ],
+      "max_abs_axis_speed_mm_s": [
+        10.0,
+        10.0,
+        10.000000000001563
+      ],
+      "max_abs_axis_acceleration_mm_s2": [
+        25.000000000829914,
+        25.000000000845034,
+        25.000000000425167
+      ],
+      "max_plan_preparation_ms": 0.4555400000754162,
+      "tick_ms_p50_p95_p99_max": [
+        0.11820100007753354,
+        0.13968450048196246,
+        0.1964977500392706,
+        0.3832829997918452
+      ]
+    },
+    "handovers": [
+      {
+        "at_s": 4.093764807000298,
+        "position_discontinuity_mm": 0.0,
+        "rotation_discontinuity_rad": 2.168404344971009e-19
+      },
+      {
+        "at_s": 8.302500185000099,
+        "position_discontinuity_mm": 0.0,
+        "rotation_discontinuity_rad": 1.110494075168278e-16
+      },
+      {
+        "at_s": 12.492907114000445,
+        "position_discontinuity_mm": 0.0,
+        "rotation_discontinuity_rad": 0.0
+      }
+    ],
+    "compared_ticks": 1776
+  },
+  "robot_run": false,
+  "robot_service_calls": false,
+  "remote_controller_modified": false,
+  "physical_vibration_clearance_verified": false,
+  "files_sha256": {
+    "behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py": "920952babfb60a879b17f2f35504ae8b0e305fdaee99d7a13a58d4c6271a5021",
+    "behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py": "67fa1c4288a386ab69ade02ed4f3c9db0ec693566d763a5f14bfea7804f188bb",
+    "behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py": "032c5c137637dcede5a8ea7697aeaa10307cff7f917c41321314d222a3f3d2a7",
+    "experiments/e2_rule_replay_20260920/config.json": "522a75cc9b121451fa45ee21fadc4504a361aa651e9aed4f2ab410d4f78501af",
+    "experiments/rtc_launch_20260926/README.md": "a40f34033213311cc99717763749492c13a115aeedf810b85f4a3a86d786dd1f",
+    "behavior_ws/src/nrs_imitation/test/test_c_pose_conditioning.py": "ca7abeb74d460792df73f23781d6470564e7647f3d59da79d70329d0bd59d410"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "status": "real_hardware_not_ready",
+  "hardware_io": false,
+  "physical_safety_validated": false,
+  "F0_frozen": false,
+  "quality_validation": "pending",
+  "candidate_F0_N": 23.0,
+  "related_regression_tests": 198,
+  "final_targeted_tests": 61,
+  "offline_result": "/home/eunseop/nrs_imitation/results/20260927/E2/A_offline/163052_5e493826",
+  "installed_check_no_nodes": true,
+  "protected_files_unchanged": 2526,
+  "blocker_report": {
+    "status": "blocked",
+    "reasons": [
+      "pilot protection unavailable: measured_force_abs_limits_N / measured_torque_abs_limits_Nm have no automatic runtime monitor",
+      "pilot protection unavailable: acquisition_max_age_s cannot be enforced; FT_EtherGet reuses last data and currentF has no acquisition timestamp",
+      "pilot protection unavailable: sensor_overload_evidence has no deployed saturation/overload fault path",
+      "pilot protection unavailable: workspace_evidence needs actual TCP and start-alignment coverage; timed executor checks requested/sent poses",
+      "commissioning status/approved_by/approved_at: actual approval required",
+      "processing_command_fz_range_N: approved signed range must contain candidate F0",
+      "measured_force_abs_limits_N: three approved positive per-axis limits required",
+      "measured_torque_abs_limits_Nm: three approved positive per-axis limits required",
+      "measured_wrench_frame: explicit protection frame required",
+      "acquisition_max_age_s: approved source-acquisition timeout required",
+      "limits_evidence: pinned evidence path + sha256 required",
+      "sensor_overload_evidence: pinned evidence path + sha256 required",
+      "workspace_evidence: pinned evidence path + sha256 required",
+      "automatic_stop_evidence: pinned evidence path + sha256 required",
+      "approach_exit_evidence: pinned evidence path + sha256 required"
+    ]
+  },
+  "execution_contract_hash": "79123187fe1c38aa7d0d0837104d2a6ff0df959f030ae96c36e1e10299b6d68c",
+  "pilot_cohort": "E2_cbe518a55f20f1da",
+  "master_cohort": "E2_8f7f2d910d538f68",
+  "model_sha256": "c05e06da163127f15b31e1ed77cc083688d830dc87abc857fc0be5d7031c90d6"
+}

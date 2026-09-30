@@ -1,0 +1,118 @@
+{
+  "created_at": "2026-09-27T15:03:08.773136+09:00",
+  "files": [
+    {
+      "path": "E2_contract_review.json",
+      "sha256": "86bdf1ae18edc9adbb6e7785622982159d819858eeef8e764dcf1107ae08fbb1",
+      "bytes": 862
+    },
+    {
+      "path": "README.md",
+      "sha256": "6f30824c394a317f98c8c8a362d5f4078e1ae20e283e674396267bfc1d2ab384",
+      "bytes": 4137
+    },
+    {
+      "path": "R_launch_check.log",
+      "sha256": "dfcc0c621505c847ed783bf22e27c42182b7283d24922836a6d641363243e00e",
+      "bytes": 641
+    },
+    {
+      "path": "T_launch_check.log",
+      "sha256": "7fa6df4317f7a85ec65f16bc2385ccf9c3afdeac0f11f6f6cd142e21a2ba4163",
+      "bytes": 641
+    },
+    {
+      "path": "before/behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py",
+      "sha256": "032c5c137637dcede5a8ea7697aeaa10307cff7f917c41321314d222a3f3d2a7",
+      "bytes": 9298
+    },
+    {
+      "path": "before/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py",
+      "sha256": "6da458de963f4fd72015757cf76adff013997147b1927f9605f252a4c17ecc72",
+      "bytes": 29562
+    },
+    {
+      "path": "before/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py",
+      "sha256": "56c1b8cad28fe0fd359e18ed237368411f6ed9debd7896f1ac1ef1042edb7f8d",
+      "bytes": 19478
+    },
+    {
+      "path": "before/experiments/e2_force_ablation_20260926/config.json",
+      "sha256": "188a3845852c78aa2b7cec19c77b4bb95f6e99d4ec2e7d8b833cd47ba6158a4e",
+      "bytes": 20014
+    },
+    {
+      "path": "before/experiments/rtc_launch_20260926/README.md",
+      "sha256": "a40f34033213311cc99717763749492c13a115aeedf810b85f4a3a86d786dd1f",
+      "bytes": 6266
+    },
+    {
+      "path": "changes.patch",
+      "sha256": "89aa872b865483368d4e3ada97c0ad832fd8fbc999f433ca6052bd6858f93c2a",
+      "bytes": 40352
+    },
+    {
+      "path": "finite_plan_validation.json",
+      "sha256": "058170467c1b6bb3f9a9dd9be534d3f19c060163122c4985feb7323a5a95489a",
+      "bytes": 912
+    },
+    {
+      "path": "full_tests.log",
+      "sha256": "f53c529e1137de4eca3939e2348faaa2e43d200fcf0a94ba1b6460b49b1ee051",
+      "bytes": 1761
+    },
+    {
+      "path": "full_tests.xml",
+      "sha256": "b0b2b14b598d4719ab0c6af409bc16154f5a9b1555b7d1e4a319325dfa86bbdd",
+      "bytes": 22004
+    },
+    {
+      "path": "protected_before.json",
+      "sha256": "e5f15a5e5c183e5467da3bedf9af7c5f164d2a54b34d2cfc8bc2477ff0f00174",
+      "bytes": 43411
+    },
+    {
+      "path": "recorded_c_validation.json",
+      "sha256": "c6fefc8b31f76183df15d22f7a60d5cf1751a097885deea1d542a9881b031d49",
+      "bytes": 808
+    },
+    {
+      "path": "targeted_tests.xml",
+      "sha256": "8dc8035a00c0e6ea19ceca97ca00711daecf3056a6da0ccc31ba61366914be47",
+      "bytes": 5606
+    },
+    {
+      "path": "test_environment_initial.log",
+      "sha256": "d7177831626dad91d92a5521e5e6b505cf9215616c190caff3ee2c0e58d10f13",
+      "bytes": 3610
+    },
+    {
+      "path": "validate_recorded_c.py",
+      "sha256": "08f1d8b7ffa60c79b0570e6cc78d245e9f2fae40fb552e0557aaaf7fa324df76",
+      "bytes": 4131
+    },
+    {
+      "path": "validation.json",
+      "sha256": "c0159213dd224fdd6312e50cd506d72ad102b6ba6c8ebdab0f7e9e8a58af9d56",
+      "bytes": 2456
+    }
+  ],
+  "active_files": [
+    {
+      "path": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py",
+      "sha256": "2b10ecc482ed6fb99e10a37ee31c959f5b3d4f80b0a9393cc29802fe690ab64f"
+    },
+    {
+      "path": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py",
+      "sha256": "c8ac68df964287d5b1171596fca938d1dc886264e763ed7e1ed4389238f4db2d"
+    },
+    {
+      "path": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py",
+      "sha256": "4eee5d92a47f79f8dd6cb06a4cd7441a16629fe86655802d26ce938857615bdf"
+    },
+    {
+      "path": "/home/eunseop/nrs_imitation/experiments/e1_rt_common_20260927/config.json",
+      "sha256": "f1b351339ce0c2f7dacc66421dd9c561592c205aff063488b141ad05711e27c9"
+    }
+  ]
+}

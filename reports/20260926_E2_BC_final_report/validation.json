@@ -1,0 +1,37 @@
+{
+  "output": "/home/eunseop/nrs_imitation/results/20260926/E2_BC_final_report_20260926.pdf",
+  "pages": 9,
+  "page_titles": [
+    "B/C 실험 데이터 최종 보고서",
+    "실행 조건과 비교 범위",
+    "10회 실행별 수치",
+    "실측 힘과 TCP 궤적",
+    "명령 전송과 접촉 판정",
+    "B 초기·종료 이미지",
+    "C 초기·종료 이미지",
+    "기록·영상 검증과 보관 목록",
+    "해석 범위와 후속 A 실험"
+  ],
+  "bytes": 1382030,
+  "pdf_sha256": "19bb176ca28d918e373caa425e9e3a3985b8414470ac3611c19411961eb90d74",
+  "counts_by_condition": {
+    "B": 5,
+    "C": 5
+  },
+  "font": "Embedded NanumGothic TrueType",
+  "text_bounds_checked": true,
+  "video_initial_delay_C5_s": 4.223343849182129,
+  "raw_data_modified": false,
+  "metrics_csv_sha256": "920c8baec1361d743803f6f2ebcda73cacbfd7a28888dc5d5ff8ef119acc135d",
+  "metrics_json_sha256": "534c0926667b31232c802d557f9071f04584fcdb2689f130d628faae20eddef7",
+  "pdfinfo_pages_verified": 9,
+  "korean_text_extraction_passed": true,
+  "visually_reviewed_pages": [
+    1,
+    2,
+    4,
+    5,
+    8,
+    9
+  ]
+}

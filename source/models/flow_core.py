@@ -631,6 +631,11 @@ class FlowRGBPolicy(nn.Module):
         self.cfg = dict(cfg)
         self.num_queries = int(cfg.get("num_queries", 200))
         self.action_dim = int(cfg.get("action_dim", 9))
+        if cfg.get('motion_only', False) and (
+                self.action_dim != 6 or int(cfg.get('state_dim',9)) != 6 or
+                cfg.get('use_force_history',True) or cfg.get('use_force_observation',True) or
+                cfg.get('force_action',True)):
+            raise ValueError('motion_only requires pose6 state/action and no force observation/history/action')
         self.flow_train_eps = float(cfg.get("flow_train_eps", 1e-4))
         self.flow_infer_steps = int(cfg.get("flow_infer_steps", 10))
         self.flow_loss_type = str(cfg.get("flow_loss_type", "mse")).lower()
@@ -669,6 +674,16 @@ class FlowRGBPolicy(nn.Module):
         marker: Optional[torch.Tensor] = None,
         stain_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        # Enforce the stored observation contract at the model boundary too.
+        # Clone before masking: qpos/history may alias caller-owned targets.
+        if self.cfg.get("motion_only", False):
+            qpos = qpos[..., :6]
+            force_history = None
+        elif not self.cfg.get("use_force_observation", True):
+            qpos = qpos.clone()
+            qpos[..., 6:9] = 0.
+            if force_history is not None:
+                force_history = torch.zeros_like(force_history)
         return self.obs_encoder(
             qpos=qpos,
             image=self._normalize_image(image),

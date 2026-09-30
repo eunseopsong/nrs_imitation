@@ -1,0 +1,34 @@
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_129384_1789900649515.log:[WARN] [1789900651.427540255] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_129617_1789900660218.log:[WARN] [1789900662.149041053] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_129617_1789900660218.log:[INFO] [1789900672.417926564] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_129617_1789900660218.log:[INFO] [1789901861.024697036] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_138536_1789901876736.log:[WARN] [1789901878.917762916] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_138536_1789901876736.log:[INFO] [1789901886.103960803] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_143501_1789902533219.log:[WARN] [1789902535.656157511] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_143501_1789902533219.log:[INFO] [1789902537.725788155] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_143501_1789902533219.log:[INFO] [1789902591.619432713] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_144254_1789902605444.log:[WARN] [1789902607.390995345] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_144254_1789902605444.log:[INFO] [1789902612.874834319] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_145174_1789902690176.log:[WARN] [1789902692.385588602] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_145419_1789902701484.log:[WARN] [1789902701.947175921] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_145419_1789902701484.log:[INFO] [1789902707.359090033] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_146660_1789902829123.log:[WARN] [1789902831.537381098] [controller_manager]: Could not enable FIFO RT scheduling policy
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_146660_1789902829123.log:[INFO] [1789902836.114030442] [UR_Client_Library:]: Connection to reverse interface dropped.
+/home/nrs_forcecon/.ros/log/ur_ros2_control_node_146660_1789902829123.log:[INFO] [1789902838.713744489] [UR_Client_Library:]: Connection to reverse interface dropped.
+export ROS_LOCALHOST_ONLY=1 ## Environment setup from RISE LAB
+export ROS_DOMAIN_ID=30
+export ROS_LOCALHOST_ONLY=0
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e  /home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp
+540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211  /home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp
+7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e  /home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp
+[WARN] [1790406962.697132399] [controller_manager]: [Deprecated] Passing the robot description parameter directly to the control_manager node is deprecated. Use '~/robot_description' topic from 'robot_state_publisher' instead.
+[WARN] [1790406964.229481134] [UR_Client_Library:]: Stream is connected but failed to read from it. Re-attempting to read!
+[ERROR] [1790406964.815635137] [URPositionHardwareInterface]: The calibration parameters of the connected robot don't match the ones from the given kinematics config file. Please be aware that this can lead to critical inaccuracies of tcp positions. Use the ur_calibration tool to extract the correct calibration from the robot and pass that into the description. See [https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/main/ur_calibration/README.md] for details.
+[WARN] [1790406964.819737085] [controller_manager]: Could not enable FIFO RT scheduling policy
+[WARN] [1790406964.820863533] [UR_Client_Library:]: Your system/user seems not to be setup for FIFO scheduling. We recommend using a lowlatency kernel with FIFO scheduling. See https://docs.universal-robots.com/Universal_Robots_ROS_Documentation/doc/ur_client_library/doc/real_time.html for details.
+[WARN] [1790406964.957992834] [scaled_joint_trajectory_controller]: [Deprecated]: "allow_nonzero_velocity_at_trajectory_end" is set to true. The default behavior will change to false.
+[WARN] [1790406965.020586659] [joint_trajectory_controller]: [Deprecated]: "allow_nonzero_velocity_at_trajectory_end" is set to true. The default behavior will change to false.
+[INFO] [1790406973.344578392] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790406974.720594809] [UR_Client_Library:]: Connection to reverse interface dropped.
+[INFO] [1790406976.432302342] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.

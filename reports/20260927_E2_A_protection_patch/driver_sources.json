@@ -1,0 +1,35 @@
+{
+  "deployed": false,
+  "files": [
+    {
+      "relative": "Y2FT_AQ/include/Y2FT_AQ/FT_Acquisition.hpp",
+      "before_sha256": null,
+      "after_sha256": "e52cf42a90c7c215675295cea53335cbb0ccc05455448cec1e5653f34a7cf2f4"
+    },
+    {
+      "relative": "Y2FT_AQ/include/Y2FT_AQ/FT_EtherGet.hpp",
+      "before_sha256": "218309f2d5f9893ec64f9316bdcbc3a1dc673818b2c24e2fe62408393e8316ac",
+      "after_sha256": "2859c083c4fc7a149f325eb15fe116665d990a5feeb2b7cddaa27b00bd0fac45"
+    },
+    {
+      "relative": "Y2FT_AQ/src/FT_EtherGet.cpp",
+      "before_sha256": "ba7b4a7bf050ba49581fd30847c402e7ec4fd9f4566bc354ba4c60761b92accf",
+      "after_sha256": "a275cd1117ad71c03278a367e578b0703d5abf6f09dbad71336075691f1901b9"
+    },
+    {
+      "relative": "Y2FT_AQ/src/FTGetMain.cpp",
+      "before_sha256": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc",
+      "after_sha256": "a4548f4b5e0b63bc0a052453b01bb72108b35d5934dadcc0998423f343986cff"
+    },
+    {
+      "relative": "Y2RobMotion/include/Y2RobMotion/robot_motion.hpp",
+      "before_sha256": "70552873e916f2ba0f2e9734230b1e244ec49455d27dd50b29578d205ca1dd1d",
+      "after_sha256": "3536d3f5e4f57b08bc17fbdeaf665996ca1b397fb36f301af41c06e38871cb81"
+    },
+    {
+      "relative": "Y2RobMotion/src/robot_motion.cpp",
+      "before_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+      "after_sha256": "0c0c108c0e8ace930ec98471864bf4b1a31251fb466f107fd686b12bbabbab35"
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+--- before/experiments/e2_A_pilot_20260927/config.json
++++ experiments/e2_A_pilot_20260927/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_1a177ac6efb27bad",
++  "cohort_id": "E2_869fef1b8a643f06",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -354,7 +354,9 @@
+     "freeze_evidence": null,
+     "working_phase_only": true,
+     "calibration_hash": "f7299187c1bb27e271ef13b3ecf14c428727535e0874a57feb296ceb4fb6a117",
+-    "interpretation": "Offline signed controller-Fz hypothesis from rounded teacher candidate, NOT a validated operating value or abort limit"
++    "interpretation": "Processing-only scalar candidate in the existing controller_tcp +Fz command convention (N). Rounded teacher-channel mean; not a time-series command envelope, measured-load abort limit, or physically calibrated normal force.",
++    "source_kind": "rounded_training_teacher_channel_mean",
++    "source_label": "교시 평균에 근거한 사용자 허용 후보"
+   },
+   "reference": {
+     "status": "unresolved",
+@@ -399,7 +401,7 @@
+     "quality_validation": "pending",
+     "commissioning_record": {
+       "path": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/commissioning_request.json",
+-      "sha256": "920df6e1fc927f0fb2e1c4d1ac5e4a50ed242e5cdb4b918a9fac15a36014119b"
++      "sha256": "26d886bcc35825bdb892d3bca344ab0812b7c1290a7008a53bd0e2d2666cabb8"
+     },
+     "required_driver_sources": {
+       "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/include/Y2FT_AQ/FT_Acquisition.hpp": "e52cf42a90c7c215675295cea53335cbb0ccc05455448cec1e5653f34a7cf2f4",
+--- before/experiments/e2_A_pilot_20260927/commissioning_request.json
++++ experiments/e2_A_pilot_20260927/commissioning_request.json
+@@ -36,5 +36,11 @@
+   "approval_evidence": {
+     "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_operator_confirmation/operator_statement.json",
+     "sha256": "80836ece824cf05472c45e103cee5150894e1d47b435c8702687e4469fecde39"
++  },
++  "processing_command_fz_range_scope": "f0_parameter_selection_only",
++  "processing_command_fz_range_note": "Checks only config.f0.command_fz_N at preflight. Approach/retract request zero; gate and 30 N/s slew determine the sent series. This range does not constrain sensor readings or replace measured-load protection.",
++  "execution_settings_evidence": {
++    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/settings_basis.json",
++    "sha256": "e10df78c6021b531e1b9e50b537ad40139e7b0cd2881f347177b3b2c7ce5e16b"
+   }
+ }

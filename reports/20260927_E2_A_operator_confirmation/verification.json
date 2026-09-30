@@ -1,0 +1,57 @@
+{
+  "operator_confirmation_recorded": true,
+  "processing_command_fz_range_N": [
+    23.0,
+    23.0
+  ],
+  "changed_config_fields": [
+    "cohort_id",
+    "execution_contract_hash",
+    "pilot"
+  ],
+  "executor_postprocessor_models_F0_source_unchanged": true,
+  "F0_frozen": false,
+  "quality_validation": "pending",
+  "hardware_executed": false,
+  "hardware_ready": false,
+  "remaining_hardware_blockers": [
+    "measured_force_abs_limits_N: three approved positive per-axis limits required",
+    "measured_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "sensor_raw_force_abs_limits_N: three approved positive per-axis limits required",
+    "sensor_raw_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "measured_wrench_frame: explicit protection frame required",
+    "acquisition_max_age_s: approved source-acquisition timeout required",
+    "limits_evidence: pinned evidence path + sha256 required",
+    "sensor_overload_evidence: pinned evidence path + sha256 required",
+    "workspace_evidence: pinned evidence path + sha256 required",
+    "automatic_stop_evidence: pinned evidence path + sha256 required",
+    "approach_exit_evidence: pinned evidence path + sha256 required",
+    "sensor_driver_deployment_evidence: pinned evidence path + sha256 required"
+  ],
+  "execution_contract_ready": true,
+  "model_ready": {
+    "A": true,
+    "B": true,
+    "C": true
+  },
+  "unchanged_checkpoint_loading_check": "/home/eunseop/nrs_imitation/results/20260927/E2/A_offline/180538_d27cf29a/attempt.json",
+  "tests": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "136",
+      "time": "23.593",
+      "timestamp": "2026-09-27T18:27:06.854337+09:00",
+      "hostname": "nrs3"
+    }
+  ],
+  "controller_readback": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_operator_confirmation/controller_readback.json",
+  "robot_patch_deployed": false,
+  "installed_module_is_source_symlink": true,
+  "run_entry": "/home/eunseop/nrs_imitation/run_A_pilot.sh",
+  "run_command_currently_blocked": true,
+  "build_succeeded": true,
+  "build_log": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_operator_confirmation/build.log"
+}

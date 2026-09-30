@@ -1,0 +1,251 @@
+--- before/behavior_ws/src/nrs_imitation/nrs_imitation/e2_offline.py
++++ after/behavior_ws/src/nrs_imitation/nrs_imitation/e2_offline.py
+@@ -81,3 +81,90 @@
+         self.pub_cmd = NS(publish=lambda m: self.sent_messages.append(list(m.data)))
+         for name in ("_log_flow_vector_delta", "_run_gradcam_debug", "_run_modality_importance_debug", "_publish_flow_vector_overlay_frame"):
+             setattr(self, name, lambda *a, **kw: None)  # debug-only; policy path is real
++
++
++def registered_A_sample(config, output):
++    """Actual registered weights + inference adapter; synthetic transport only.
++
++    Keep prediction/feedback logs, including a second inference with perturbed
++    measured force. This does not approve F0 or initialize a ROS context.
++    """
++    import csv
++    import json
++    import h5py
++    from sensor_msgs.msg import Image
++    from std_msgs.msg import Float64MultiArray
++    from .e2_ablation import select_condition, model_errors, read_stats, digest
++
++    cfg = select_condition(config, 'A')
++    errors = model_errors(cfg)
++    if errors:
++        raise ValueError('; '.join(errors))
++    checkpoint = Path(cfg['models']['A']['checkpoint'])
++    stats = read_stats(checkpoint.with_name('dataset_stats.pkl'))
++    pc = stats['policy_config']
++    for key, expected in dict(state_dim=6, action_dim=6, motion_only=True,
++                              force_action=False, use_force_observation=False,
++                              use_force_history=False).items():
++        assert pc[key] == expected, key
++    torch.set_num_threads(2)
++    loader = OfflineNode(Path(output)/'loader', force_on=False)
++    loader.ckpt_dir = str(checkpoint.parent)
++    loader.motion_only = True; loader.action_dim = 6; loader.chunk_size = 128
++    loader.use_force_history = False; loader.flow_infer_steps = 10
++    loader.params.update(ckpt_dir=loader.ckpt_dir, use_force_history=False,
++                         use_force_observation=False, chunk_size=128)
++    policy = loader._load_policy_and_ckpt_from_act_root()
++    ck = torch.load(checkpoint, map_location='cpu', weights_only=False)
++    assert ck['epoch'] == 499
++    actual, saved = policy.state_dict(), ck['model_state_dict']
++    assert actual.keys() == saved.keys()
++    assert all(torch.equal(actual[k], v) for k, v in saved.items())
++    del ck, actual, saved
++    episode = stats['split_episode_files']['validation'][0]
++    path = ROOT/'datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form'/episode
++    with h5py.File(path) as f:
++        index = len(f['observations/position'])//2
++        pose = np.asarray(f['observations/position'][index], float)[:6]
++        frame = np.asarray(f['observations/images/cam0'][index], np.uint8)
++    pose[:2] += [400., 500.]  # explicitly synthetic frozen stain translation
++    predictions = []
++    for i, force in enumerate(([1., 2., 3.], [-73., 51., -99.])):
++        node = OfflineNode(Path(output)/('provider_'+str(i)), policy, force_on=False)
++        node.ckpt_dir = str(checkpoint.parent); node.motion_only = True
++        node.action_dim = 6; node.chunk_size = 128; node.use_force_history = False
++        node.flow_infer_steps = 10; node.resize_hw = 0; node._e2_context = cfg
++        node.stats = core._load_dataset_stats(node.ckpt_dir)
++        node.params.update(ckpt_dir=node.ckpt_dir, chunk_size=128, flow_infer_steps=10,
++                           resize_hw=0, use_force_history=False, use_force_observation=False)
++        node._metrics = InferenceMetrics(node)
++        try:
++            node._on_pose(Float64MultiArray(data=pose.tolist()))
++            for _ in range(30):
++                node._on_force(Float64MultiArray(data=list(force)+[0., 0., 0.]))
++            node._on_img(Image(height=frame.shape[0], width=frame.shape[1], encoding='rgb8',
++                               step=frame.shape[1]*3, data=frame.tobytes()))
++            node._on_infer_timer()
++            assert not node.errors and len(node.plans) == 1, node.errors
++            action = node.plans[-1].seq_den.copy()
++            assert action.shape == (128, 9) and np.isfinite(action).all()
++            assert np.all(action[:, 6:] == 0.)
++            predictions.append(action)
++        finally:
++            node._metrics.close()
++        with (node._metrics.recorder.path/'commands.csv').open() as f:
++            rows = [r for r in csv.DictReader(f) if r['command_stage'] == 'policy_prediction']
++        assert len(rows) == 128
++        assert all(len(json.loads(r['raw_values'])) == 6 and r['fz'] == '' and
++                   json.loads(r['details'])['predicted_force'] is None for r in rows)
++        summary = json.loads((node._metrics.recorder.path/'summary.json').read_text())
++        assert summary['drained'] and summary['write_error_count'] == 0
++        assert all(v['dropped'] == 0 for v in summary['counts'].values())
++    np.testing.assert_array_equal(*predictions)
++    return predictions[0], pose, dict(checkpoint=str(checkpoint), checkpoint_sha256=digest(checkpoint),
++        selected_epoch_zero_based=499, loaded_weights_exactly_match_checkpoint=True,
++        state_dim=6, action_dim=6, force_observation=False, force_history=False,
++        force_action=False, force_supervision_channels=0, force_prediction_logged_as_null=True,
++        force_perturbation_invariant=True, dataset=str(path), sample_index=index,
++        output_shape=[128, 6], transport_shape=[128, 9],
++        ros_context_initialized=False, hardware_io=False)
+--- before/behavior_ws/src/nrs_imitation/nrs_imitation/e2_ablation.py
++++ after/behavior_ws/src/nrs_imitation/nrs_imitation/e2_ablation.py
+@@ -14,6 +14,7 @@
+     'behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py',
+     'behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py',
+     'behavior_ws/src/nrs_imitation/nrs_imitation/e2_ablation.py',
++    'behavior_ws/src/nrs_imitation/nrs_imitation/e2_pilot.py',
+     'behavior_ws/src/nrs_imitation/nrs_imitation/e2_run_context.py',
+     'behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py',
+     'behavior_ws/src/nrs_imitation/nrs_imitation/e2_providers.py',
+@@ -77,6 +78,11 @@
+         f0={k: config['f0'].get(k) for k in ('status', 'command_fz_N', 'normal_force_N',
+             'candidate_sha256', 'calibration_hash', 'validated_command_range_N')},
+         reference={k: config['reference'].get(k) for k in ('status', 'sha256')})
++    if 'trial_stage' in config or 'pilot' in config:
++        identity['trial_stage'] = config.get('trial_stage', 'main')
++        pilot = config.get('pilot', {})
++        identity['pilot'] = {k: v for k, v in pilot.items() if k != 'commissioning_record'}
++        identity['commissioning_sha256'] = (pilot.get('commissioning_record') or {}).get('sha256')
+     return 'E2_' + object_hash(identity)[:16]
+ 
+ 
+@@ -149,7 +155,15 @@
+     if (not config.get('calibration', {}).get('execution_convention_verified') or
+             not config.get('calibration', {}).get('execution_convention_evidence')):
+         errors.append('current controller/tool force command convention not verified for E2')
+-    if c == 'A':
++    stage = config.get('trial_stage', 'main')
++    if stage not in ('pilot', 'main'):
++        errors.append('trial_stage must be pilot or main')
++    if stage == 'pilot' and c != 'A':
++        errors.append('this pilot contract supports motion-only A only')
++    if c == 'A' and stage == 'pilot':
++        from .e2_pilot import pilot_errors
++        errors.extend(pilot_errors(config))
++    elif c == 'A':
+         f0 = config.get('f0', {})
+         if f0.get('status') != 'frozen' or not isinstance(f0.get('command_fz_N'), (int, float)):
+             errors.append('A F0 is not calibrated and frozen; real execution blocked')
+@@ -159,6 +173,11 @@
+             errors.append('A F0 calibration changed since freeze')
+         elif not f0.get('candidate') or not Path(f0['candidate']).is_file() or digest(f0['candidate'])!=f0.get('candidate_sha256'):
+             errors.append('A F0 source artifact identity changed/missing')
++        from .e2_pilot import commissioning_errors, evidence_errors
++        errors.extend(commissioning_errors(config))
++        errors.extend(evidence_errors(f0.get('pilot_result_evidence'), 'f0.pilot_result_evidence'))
++        if config.get('pilot', {}).get('quality_validation') != 'reviewed':
++            errors.append('main A requires review of actual pilot results; pilot readiness is not main approval')
+     return errors
+ 
+ 
+@@ -176,6 +195,14 @@
+     if f0.get('status') != 'frozen' or not np.isfinite(f0.get('command_fz_N', np.nan)):
+         raise ValueError('processing A requires frozen external F0')
+     return float(f0['command_fz_N'])
++
++
++def prepare_A_force(config):
++    """Preflight once, then reuse the approved scalar with the common phase gate."""
++    if config.get('trial_stage', 'main') == 'pilot':
++        from .e2_pilot import pilot_force
++        return pilot_force(config, True)
++    return scheduled_force(config['f0'], True)
+ 
+ 
+ def readiness(config):
+--- before/behavior_ws/src/nrs_imitation/nrs_imitation/e2_run_context.py
++++ after/behavior_ws/src/nrs_imitation/nrs_imitation/e2_run_context.py
+@@ -45,6 +45,10 @@
+         surface_reuse=reuse,surface_process=cfg['protocol']['surface_process'],directory=str(folder),
+         specimen_state_assumption=selected['protocol'].get('specimen_state_assumption'),
+         created_at=datetime.now().astimezone().isoformat(),cohort_id=cfg['cohort_id'])
++    if 'trial_stage' in selected:
++        selected['run'].update(trial_stage=selected['trial_stage'],
++            quality_validation=selected.get('pilot', {}).get('quality_validation'),
++            F0_frozen=selected.get('f0', {}).get('status') == 'frozen')
+     selected['common'].update(specimen_id=specimen,region_id=region,block_id=block,repeat_id=run_id,
+                               specimen_state_assumption=selected['run']['specimen_state_assumption'])
+     snapshot_artifacts(selected,folder)
+@@ -74,6 +78,20 @@
+         if info.get(pathkey):
+             local=copy_file(info[pathkey],key+'.json',info.get(hashkey))
+             if local:info[pathkey]=local
++    commissioning = cfg.get('pilot', {}).get('commissioning_record')
++    if commissioning and commissioning.get('path'):
++        local = copy_file(commissioning['path'], 'commissioning.json', commissioning.get('sha256'))
++        if local:
++            # Keep referenced evidence too, without rewriting the signed record.
++            try:
++                record = read(local)
++                for key, ref in record.items():
++                    if key.endswith('_evidence') and isinstance(ref, dict) and ref.get('path'):
++                        copy_file(ref['path'], Path('commissioning_evidence')/key/Path(ref['path']).name,
++                                  ref.get('sha256'))
++            except (OSError, ValueError):
++                pass  # Preflight reports invalid evidence; failed attempts survive.
++            commissioning['path'] = local
+     model=cfg['models'][cfg['condition']]
+     if model.get('checkpoint'):
+         copy_file(Path(model['checkpoint']).with_name('dataset_stats.pkl'),'dataset_stats.pkl',model.get('normalizer_sha256'))
+--- before/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
++++ after/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+@@ -24,7 +24,7 @@
+                                 ExecutionFault, StopVerifier, executor_settings, clock_id)
+ from .execution_metrics import ExecutionRecorder, stamp, pose_fields
+ from .e2_return_home import ReturnHome
+-from .e2_ablation import is_ablation, scheduled_force
++from .e2_ablation import is_ablation, prepare_A_force
+ 
+ 
+ class E2Executor(Node):
+@@ -39,6 +39,8 @@
+         self.ablation = is_ablation(self.config)
+         blockers = hardware_blockers(self.config,self.method,self.get_parameter('e2_enable_hardware').value)
+         if blockers: raise RuntimeError('E2 executor preflight: '+ '; '.join(blockers))
++        self.a_processing_force = (prepare_A_force(self.config)
++            if self.ablation and self.config['condition'] == 'A' else None)
+         self.session = self.get_parameter('e2_session_id').value
+         if not self.session: raise ValueError('A unique e2_session_id is required')
+         self.lock_file = open('/tmp/nrs_e2_executor_ur10skku.lock','a')
+@@ -97,6 +99,8 @@
+                 execution_contract_hash=self.config['execution_contract_hash'],
+                 run=self.config.get('run'), predicted_force='not_predicted' if self.config['condition']=='A' else 'policy',
+                 force_sign_provenance=self.config['calibration'],
++                trial_stage=self.config.get('trial_stage', 'main'),
++                external_F0=self.config['f0'], commissioning=self.config.get('pilot'),
+                 warnings=['Filtered base wrench is not automatically calibrated contact normal force',
+                           'sent target is not controller-applied target'])
+         log_root = (Path(self.config['run']['directory'])/'executor' if self.ablation else root/'logs/inference_metrics')
+@@ -410,7 +414,7 @@
+                 raise ExecutionFault('provider heartbeat lost')
+             if self.mode!='Force' or now-self.mode_at>self.settings['feedback_max_age_s']:
+                 raise ExecutionFault('controller Force mode lost or stale')
+-            external = (scheduled_force(self.config['f0'],self.processing)
++            external = ((self.a_processing_force if self.processing else 0.)
+                         if self.ablation and self.config['condition']=='A' else None)
+             result=self.engine.tick(now,self.pose,self.force,now-self.pose_at,now-self.force_at,
+                                     external_force_fz=external)
+--- before/experiments/e2_force_ablation_20260926/config.json
++++ after/experiments/e2_force_ablation_20260926/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_baa3a8353fc8965e",
++  "cohort_id": "E2_8f7f2d910d538f68",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -375,7 +375,7 @@
+     "B": "pose6+zero normalized force observation/history; learned force action retained",
+     "C": "measured force observation/history; learned force action retained"
+   },
+-  "execution_contract_hash": "3bae7fde33664376a910393b7e2d7fa92baa3ebf1f51b42c011728162a7ecd86",
++  "execution_contract_hash": "79123187fe1c38aa7d0d0837104d2a6ff0df959f030ae96c36e1e10299b6d68c",
+   "comparison_status": "exploratory when newly trained A is combined with historical best-selected B/C; paired fixed-epoch A/B/C training commands provided separately",
+   "implementation_revisions": [
+     {

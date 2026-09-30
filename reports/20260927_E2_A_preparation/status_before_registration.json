@@ -1,0 +1,46 @@
+{
+  "model_ready": {
+    "A": false,
+    "B": true,
+    "C": true
+  },
+  "execution_contract_ready": true,
+  "hardware_preflight_status": {
+    "A": {
+      "status": "blocked",
+      "reasons": [
+        "A trained checkpoint missing (smoke weights are not a trained policy)",
+        "A F0 is not calibrated and frozen; real execution blocked",
+        "Explicit A checkpoint missing; automatic fallback prohibited"
+      ]
+    },
+    "B": {
+      "status": "offline_pass",
+      "reasons": []
+    },
+    "C": {
+      "status": "offline_pass",
+      "reasons": []
+    }
+  },
+  "force_frame_calibration_ready": false,
+  "reference_and_alignment_ready": false,
+  "force_profile_metrics_ready": false,
+  "stylus_metrology_ready": false,
+  "force_analysis_blockers": [
+    "normal-force frame/sign/zero/filter calibration not verified",
+    "evaluation reference not frozen"
+  ],
+  "hardware_executed": false,
+  "physical_safety_validation": false,
+  "quality_verified": false,
+  "checked_at": "2026-09-26T20:58:34.546103+09:00",
+  "execution_contract_hash": "bb82116125f8fc8a8459a16c4476f083128607c887eabff247cafa6d055d5c4a",
+  "cohort_id": "E2_ffd63467e2965476",
+  "tests_passed": 154,
+  "E1_archive_hashes_unchanged": true,
+  "E1_manifest_sha256": "193c3ffed1a5e68f6e2a612f40ac1851d9dc60f71c61d89eeafb22636770c780",
+  "E1_report_sha256": "bbc4332071de0846dd65934f12355b42a4cabd68ec2afa2d2a84f009f160951e",
+  "training_smoke_report": "checks/training_smoke.json",
+  "code_preparation_complete": true
+}

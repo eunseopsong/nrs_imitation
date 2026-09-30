@@ -1,0 +1,222 @@
+{
+  "created_at": "2026-09-27T17:34:12.554414+09:00",
+  "status": "driver_active_hardware_settings_incomplete",
+  "real_hardware_ready": false,
+  "robot_or_spindle_executed": false,
+  "driver_deployed": true,
+  "candidate_command_fz_N": 23.0,
+  "F0_frozen": false,
+  "quality_validation": "pending",
+  "pilot_config": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json",
+  "execution_contract_hash": "7b335bc9d259104a8235e78b68ace4f7d30b30c66fb3cebeca5251ab36d44f4e",
+  "cohort_id": "E2_4b3ab3594d86e1f3",
+  "hardware_blockers": [
+    "measured_force_abs_limits_N: three approved positive per-axis limits required",
+    "measured_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "sensor_raw_force_abs_limits_N: three approved positive per-axis limits required",
+    "sensor_raw_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "measured_wrench_frame: explicit protection frame required",
+    "acquisition_max_age_s: approved source-acquisition timeout required",
+    "limits_evidence: pinned evidence path + sha256 required",
+    "sensor_overload_evidence: pinned evidence path + sha256 required",
+    "workspace_evidence: pinned evidence path + sha256 required",
+    "automatic_stop_evidence: pinned evidence path + sha256 required",
+    "approach_exit_evidence: pinned evidence path + sha256 required"
+  ],
+  "completed_at": "2026-09-27T17:37:44.562058+09:00",
+  "regression": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "287",
+      "time": "45.452",
+      "timestamp": "2026-09-27T17:24:24.994831+09:00",
+      "hostname": "nrs3"
+    }
+  ],
+  "final_targeted": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "114",
+      "time": "19.153",
+      "timestamp": "2026-09-27T17:34:12.934346+09:00",
+      "hostname": "nrs3"
+    }
+  ],
+  "cpp_packet_fixture": "passed",
+  "driver_build": "two packages passed; isolated local outputs, never executed",
+  "driver_patch_apply_check": "passed",
+  "installed_launch_check": "check mode only; no nodes started",
+  "A_checkpoint_offline_result": "/home/eunseop/nrs_imitation/results/20260927/E2/A_offline/173440_4bbb8f2f",
+  "preservation": {
+    "protected_files_checked": 2526,
+    "changed": [],
+    "active_local_driver_changed": []
+  },
+  "latest_connection_implementation": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/verification.json",
+    "sha256": "61012cddf182fe001a39ef86a7189be01c85bc2b5c0d5e432bb11d9446d89f32",
+    "recorded_at": "2026-09-27T20:22:30.871292+09:00"
+  },
+  "updated_at": "2026-09-27T21:13:32.540763+09:00",
+  "latest_driver_activation": {
+    "captured_at": "2026-09-27T20:35:59.530388+09:00",
+    "linked_at": "2026-09-27T20:41:51.679517+09:00",
+    "host": "nrsgene",
+    "readback": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/post_restart_readback.json",
+      "sha256": "4e84e24a12bf9595e12e52f0a4f1157c2510b39e9477f94b3afb708c75847450"
+    },
+    "build_binary_receipt": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/post_restart_built_binary.sha256",
+      "sha256": "0a6e11bff32074fddd7624d73ba838a21fc4dd4c0d56942c584bf9a17a40f346"
+    },
+    "package_manifest": {
+      "path": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/deployment/E2_A_producers_20260927_r2/manifest.json",
+      "sha256": "73858c9422cf01a2036521880fee718a15db7b1eb12d41f952a4d7cae0c9dcfb"
+    },
+    "six_source_hashes_match_package": true,
+    "three_running_binary_hashes_match_remote_build_receipt": true,
+    "producer_revision": "e2_source_metadata_20260927_r2",
+    "received_messages": {
+      "/ur10skku/ft_acquisition": 746,
+      "/ur10skku/currentF_provenance": 376
+    },
+    "last_raw_and_base_source_stamp_equal": true,
+    "evidence_scope": "Actual driver deployment, active publishers and sampled payload contract only. Does not establish approved load limits, timeout, workspace, physical stop, approach/exit, process quality or F0 validation.",
+    "remaining_unresolved_fields": [
+      "measured_force_abs_limits_N",
+      "measured_torque_abs_limits_Nm",
+      "measured_wrench_frame",
+      "acquisition_max_age_s",
+      "limits_evidence",
+      "sensor_overload_evidence",
+      "workspace_evidence",
+      "automatic_stop_evidence",
+      "approach_exit_evidence",
+      "sensor_raw_force_abs_limits_N",
+      "sensor_raw_torque_abs_limits_Nm"
+    ],
+    "backup_path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/before_activation_link_204151"
+  },
+  "latest_remaining_settings_resolution": {
+    "captured_at": "2026-09-27T21:10:47.905944+09:00",
+    "recorded_at": "2026-09-27T21:13:32.540763+09:00",
+    "capture": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/remaining_active_settings_readback.json",
+      "sha256": "87a397d471c9f620b14e4519ebacf0469edd1a4e2d41bcf282734dff1865ccec"
+    },
+    "scope": "One read-only capture of currently active parameters, loaded YAML and associated driver source on nrsgene. No repeated deployment check, checkpoint calculation, mock test or hardware action.",
+    "runtime_config_values_changed": false,
+    "newly_resolved_required_fields": [],
+    "observed_frame_contract": {
+      "raw_axes": "sensor",
+      "transport_axes": "robot_base",
+      "force_unit": "N",
+      "torque_unit": "Nm",
+      "sensor_to_tcp_rotation": [
+        [
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          -1,
+          0
+        ],
+        [
+          0,
+          0,
+          -1
+        ]
+      ],
+      "torque_reference": "Source sensor measurement origin retained; axes rotated only, no r cross F translation to TCP.",
+      "basis": "Captured FTGetMain.cpp lines 75-81, 706-710, 746-761; robot_motion.cpp lines 320-331.",
+      "scope": "Implementation coordinate convention, not physical calibration approval or a selected protection frame."
+    },
+    "existing_evidence_reused": {
+      "deployment": {
+        "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/post_restart_readback.json",
+        "sha256": "4e84e24a12bf9595e12e52f0a4f1157c2510b39e9477f94b3afb708c75847450"
+      },
+      "BC_execution_settings": {
+        "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/settings_basis.json",
+        "sha256": "e10df78c6021b531e1b9e50b537ad40139e7b0cd2881f347177b3b2c7ce5e16b"
+      },
+      "BC_actual_stop_records": {
+        "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_pilot_preparation/BC_runtime_audit.json",
+        "sha256": "24a1a0bcaf9baf70468a6eb40070e93c6ede8e0675e00c801064e5c3aacf27ed"
+      },
+      "existing_device_findings": {
+        "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/device_findings.json",
+        "sha256": "f177f23338206ea0c55e9d8bdbabc540bca383c1cca11ed7151fad5b72690e40"
+      }
+    },
+    "remaining_fields": {
+      "measured_force_abs_limits_N": {
+        "current_value": null,
+        "result": "actual_setting_absent_in_accessible_active_driver_configuration"
+      },
+      "measured_torque_abs_limits_Nm": {
+        "current_value": null,
+        "result": "actual_setting_absent_in_accessible_active_driver_configuration"
+      },
+      "sensor_raw_force_abs_limits_N": {
+        "current_value": null,
+        "result": "actual_setting_absent_in_accessible_active_driver_configuration"
+      },
+      "sensor_raw_torque_abs_limits_Nm": {
+        "current_value": null,
+        "result": "actual_setting_absent_in_accessible_active_driver_configuration"
+      },
+      "measured_wrench_frame": {
+        "current_value": null,
+        "result": "actual_setting_absent_in_accessible_active_driver_configuration",
+        "note": "Producer transport axes are known; no existing per-axis trip profile selects its protection frame. TCP force-control coordinates are not substituted."
+      },
+      "acquisition_max_age_s": {
+        "current_value": null,
+        "result": "actual_setting_absent_in_accessible_active_driver_configuration",
+        "note": "Socket receive timeout 5000 us is a polling setting; EAGAIN returns cached values. It is not an acquisition-age abort timeout. No limit inferred from observed rates."
+      },
+      "limits_evidence": {
+        "current_value": null,
+        "result": "applicable_field_evidence_absent",
+        "note": "No applicable per-axis trip profile found in accessible settings. Native UR safety settings are not exposed by the queried ROS parameter interfaces; no assertion that the robot lacks native protection."
+      },
+      "sensor_overload_evidence": {
+        "current_value": null,
+        "result": "applicable_field_evidence_absent",
+        "note": "No applicable sensor raw load/overload trip settings or field stop record found; malformed-packet provenance is separate."
+      },
+      "workspace_evidence": {
+        "current_value": null,
+        "result": "applicable_field_evidence_absent",
+        "note": "Existing software workspace bounds and unchanged-setup statement retained. No record establishes their current tool/fixture boundary and TCP applicability."
+      },
+      "automatic_stop_evidence": {
+        "current_value": null,
+        "result": "applicable_field_evidence_absent",
+        "note": "Existing ten B/C stop records cover startup_reset and operator_finish, not overload or original-acquisition loss trips."
+      },
+      "approach_exit_evidence": {
+        "current_value": null,
+        "result": "applicable_field_evidence_absent",
+        "note": "Existing common alignment/operator-finish procedure retained. Archived contact release is unknown and retract_complete is false; no documented physical processing-transition/release criterion found."
+      }
+    },
+    "native_UR_safety_setting_access": "No numeric safety-limit readout provided by the available ROS parameter interfaces; pendant/installation configuration remains unobserved.",
+    "do_not_repeat_same_search_or_mock_without_new_settings_or_evidence": true,
+    "hardware_ready": false,
+    "F0_frozen": false,
+    "quality_validation": "pending",
+    "config_preserved_sha256": "9b879da9e78bf99f41b433681f9d3a11c23355315953abafff8f742eeac97d0c",
+    "commissioning_preserved_sha256": "e23fe2459477803743d93855204e5cae6954bbe890d89b133662d039a59b6bcb"
+  }
+}

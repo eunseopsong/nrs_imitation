@@ -1,0 +1,384 @@
+{
+  "run_id": "IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_",
+  "streams": {
+    "wrench:/ur10skku/currentF": {
+      "rows": 759,
+      "missing_source_stamp": 759,
+      "invalid": 0,
+      "missing_required_values": 0,
+      "nonfinite": 0,
+      "monotonic_retrograde": 0,
+      "ros_retrograde": 0,
+      "source_stamp_retrograde": 0,
+      "repeated_source_stamp": 0,
+      "logger_seq_retrograde": 0,
+      "stale": null,
+      "cached_age_unavailable": null,
+      "frames": [
+        "unknown"
+      ],
+      "semantic_frames": [
+        "robot_base"
+      ],
+      "receipt_rate_hz": 17.411860806274163,
+      "median_gap_ms": 55.9852615,
+      "max_gap_ms": 177.417808,
+      "explicit_gap_limit_ms": null,
+      "gaps_over_explicit_limit": null
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "rows": 759,
+      "missing_source_stamp": 759,
+      "invalid": 0,
+      "missing_required_values": 0,
+      "nonfinite": 0,
+      "monotonic_retrograde": 0,
+      "ros_retrograde": 0,
+      "source_stamp_retrograde": 0,
+      "repeated_source_stamp": 0,
+      "logger_seq_retrograde": 0,
+      "stale": null,
+      "cached_age_unavailable": null,
+      "frames": [
+        "unknown"
+      ],
+      "semantic_frames": [
+        "robot_base"
+      ],
+      "receipt_rate_hz": 17.411300731561823,
+      "median_gap_ms": 55.9822755,
+      "max_gap_ms": 177.644633,
+      "explicit_gap_limit_ms": null,
+      "gaps_over_explicit_limit": null
+    },
+    "commands:/ur10skku/cmdMotion": {
+      "rows": 1,
+      "missing_source_stamp": 1,
+      "invalid": 0,
+      "missing_required_values": 0,
+      "nonfinite": 0,
+      "monotonic_retrograde": 0,
+      "ros_retrograde": 0,
+      "source_stamp_retrograde": 0,
+      "repeated_source_stamp": 0,
+      "logger_seq_retrograde": 0,
+      "stale": null,
+      "cached_age_unavailable": null,
+      "frames": [
+        "unknown"
+      ],
+      "semantic_frames": [
+        "pose:robot_base; force:controller_config_dependent"
+      ],
+      "receipt_rate_hz": null,
+      "median_gap_ms": null,
+      "max_gap_ms": null,
+      "explicit_gap_limit_ms": null,
+      "gaps_over_explicit_limit": null
+    },
+    "commands:/singleArm_cmd/single_arm_command": {
+      "rows": 680,
+      "missing_source_stamp": 680,
+      "invalid": 0,
+      "missing_required_values": 0,
+      "nonfinite": 0,
+      "monotonic_retrograde": 0,
+      "ros_retrograde": 0,
+      "source_stamp_retrograde": 0,
+      "repeated_source_stamp": 0,
+      "logger_seq_retrograde": 0,
+      "stale": null,
+      "cached_age_unavailable": null,
+      "frames": [
+        "unknown"
+      ],
+      "semantic_frames": [
+        "pose:robot_base; force:controller_config_dependent"
+      ],
+      "receipt_rate_hz": 15.627860353010494,
+      "median_gap_ms": 63.80803,
+      "max_gap_ms": 4672.024952,
+      "explicit_gap_limit_ms": null,
+      "gaps_over_explicit_limit": null
+    },
+    "commands:denormalized_policy_prediction": {
+      "rows": 1280,
+      "missing_source_stamp": 1280,
+      "invalid": 0,
+      "missing_required_values": 0,
+      "nonfinite": 0,
+      "monotonic_retrograde": 0,
+      "ros_retrograde": 0,
+      "source_stamp_retrograde": 0,
+      "repeated_source_stamp": 0,
+      "logger_seq_retrograde": 0,
+      "stale": null,
+      "cached_age_unavailable": null,
+      "frames": [
+        "unknown"
+      ],
+      "semantic_frames": [
+        "stain_relative_xy_base_z"
+      ],
+      "receipt_rate_hz": 33.93474162012074,
+      "median_gap_ms": 0.0,
+      "max_gap_ms": 4208.000059,
+      "explicit_gap_limit_ms": null,
+      "gaps_over_explicit_limit": null
+    },
+    "legacy:legacy_latest_snapshot_not_measurement": {
+      "rows": 425,
+      "missing_source_stamp": 425,
+      "invalid": 0,
+      "missing_required_values": 0,
+      "nonfinite": 0,
+      "monotonic_retrograde": 0,
+      "ros_retrograde": 0,
+      "source_stamp_retrograde": 0,
+      "repeated_source_stamp": 0,
+      "logger_seq_retrograde": 0,
+      "stale": null,
+      "cached_age_unavailable": 0,
+      "frames": [
+        "unknown"
+      ],
+      "semantic_frames": [
+        "unknown"
+      ],
+      "receipt_rate_hz": 9.75522748514313,
+      "median_gap_ms": 64.154745,
+      "max_gap_ms": 4962.005999,
+      "explicit_gap_limit_ms": null,
+      "gaps_over_explicit_limit": null
+    }
+  },
+  "events": 1020,
+  "event_counts": {
+    "run_start": 1,
+    "telemetry_disabled": 1,
+    "stage_observed": 2,
+    "first_command_sent": 1,
+    "command_sent": 480,
+    "reference_fixed": 1,
+    "alignment_verified": 1,
+    "service_response": 479,
+    "inference_start": 10,
+    "policy_force_postprocess": 10,
+    "inference_end": 10,
+    "safety_limit": 21,
+    "run_interrupted": 1,
+    "sampling_summary": 1,
+    "run_end": 1
+  },
+  "malformed_event_lines": 0,
+  "run_id_mismatches": 0,
+  "logger_counts": {
+    "events": {
+      "received": 1020,
+      "enqueued": 1020,
+      "dropped": 0,
+      "written": 1020
+    },
+    "tcp_pose": {
+      "received": 759,
+      "enqueued": 759,
+      "dropped": 0,
+      "written": 759
+    },
+    "wrench": {
+      "received": 759,
+      "enqueued": 759,
+      "dropped": 0,
+      "written": 759
+    },
+    "commands": {
+      "received": 1961,
+      "enqueued": 1961,
+      "dropped": 0,
+      "written": 1961
+    },
+    "legacy": {
+      "received": 425,
+      "enqueued": 425,
+      "dropped": 0,
+      "written": 425
+    },
+    "snapshot": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    },
+    "roi": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    }
+  },
+  "logger_source_counts": {
+    "events:inference_node": {
+      "received": 1020,
+      "enqueued": 1020,
+      "dropped": 0,
+      "written": 1020
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "received": 759,
+      "enqueued": 759,
+      "dropped": 0,
+      "written": 759
+    },
+    "wrench:/ur10skku/currentF": {
+      "received": 759,
+      "enqueued": 759,
+      "dropped": 0,
+      "written": 759
+    },
+    "commands:/ur10skku/cmdMotion": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "legacy:legacy_latest_snapshot_not_measurement": {
+      "received": 425,
+      "enqueued": 425,
+      "dropped": 0,
+      "written": 425
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "commands:/singleArm_cmd/single_arm_command": {
+      "received": 680,
+      "enqueued": 680,
+      "dropped": 0,
+      "written": 680
+    },
+    "commands:denormalized_policy_prediction": {
+      "received": 1280,
+      "enqueued": 1280,
+      "dropped": 0,
+      "written": 1280
+    }
+  },
+  "logger_write_errors": [],
+  "queue_pending": 0,
+  "middleware_loss_count": null,
+  "thresholds": {
+    "max_gap_ms": null,
+    "max_age_ms": null,
+    "source_max_gap_ms": {},
+    "note": "explicit receipt-clock thresholds only; no cross-clock ages, no silent interpolation"
+  },
+  "roi": {
+    "reference": {
+      "source_seq": null,
+      "source_stamp_ns": null,
+      "receipt_ros_ns": 1789889021441107764,
+      "receipt_monotonic_ns": 10540197775801,
+      "stamp_basis": "receipt_only_no_header",
+      "source_clock": null,
+      "frame_id": null,
+      "source": "/stain_relative_frame/stain_origin",
+      "validity": "valid",
+      "center_xy_mm": [
+        440.91951610623715,
+        368.2058845868596
+      ],
+      "direction_rad": 2.394035665248835,
+      "semantic_frame": "robot_base",
+      "reference_transform": {
+        "version": "stain_relative_v1",
+        "use_relative": true,
+        "translation_xy_mm": [
+          440.91951610623715,
+          368.2058845868596
+        ],
+        "rotation_canonicalization": false,
+        "canon_alpha_rad": 0.0
+      },
+      "source_time_note": "time first observed ready; origin message is headerless; not detector acquisition",
+      "surface_normal": null,
+      "contact_offset": null,
+      "logger_seq": 11,
+      "run_id": "IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_"
+    },
+    "mask": null,
+    "initial_image": {
+      "source_seq": null,
+      "source_stamp_ns": 1789889021391598633,
+      "receipt_ros_ns": 1789889021427885667,
+      "receipt_monotonic_ns": 10540184558954,
+      "stamp_basis": "source_header",
+      "source_clock": "publisher_ros_unverified_sync",
+      "frame_id": "vr_color_optical_frame",
+      "source": "/realsense/vr/color/image_raw",
+      "validity": "valid",
+      "logger_seq": 10,
+      "run_id": "IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_",
+      "path": "snapshots/initial_image.png",
+      "shape": [
+        240,
+        424,
+        3
+      ]
+    },
+    "final_image": {
+      "source_seq": null,
+      "source_stamp_ns": 1789889064923515381,
+      "receipt_ros_ns": 1789889064957417500,
+      "receipt_monotonic_ns": 10583714087902,
+      "stamp_basis": "source_header",
+      "source_clock": "publisher_ros_unverified_sync",
+      "frame_id": "vr_color_optical_frame",
+      "source": "/realsense/vr/color/image_raw",
+      "validity": "valid",
+      "logger_seq": 4925,
+      "run_id": "IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_",
+      "path": "snapshots/final_image.png",
+      "shape": [
+        240,
+        424,
+        3
+      ]
+    },
+    "calibration_ref": "metadata.json:camera_calibration_candidate",
+    "evaluation_roi": null,
+    "reason": "manual ROI required; no mask/canonicalization enabled by logger",
+    "run_id": "IL_minus_F_E1_off_20260920T162341_1789889021414718505_kkmoieb_"
+  },
+  "rpm": {
+    "rpm_setpoint": null,
+    "rpm_setpoint_source": null,
+    "measured_rpm": null,
+    "rpm_assumed_constant": false
+  },
+  "insufficient_for_spatial_exposure": [
+    "timestamped full-rate base force; currentF alone may repeat acquisitions",
+    "surface_normal",
+    "compression_sign",
+    "contact_point_offset",
+    "effective_contact_area_mm2",
+    "preston_coefficient",
+    "rpm_setpoint",
+    "fixed evaluation ROI/polygon (manual selection still required)",
+    "verified deployed calibration and torque reference",
+    "clock synchronization/acquisition age verification",
+    "explicit machining/intentional lift intervals",
+    "rotary slip/contact model (TCP speed is not rotary speed)"
+  ],
+  "issues": [],
+  "quantitative_removal_ready": false,
+  "hardware_verified": false
+}

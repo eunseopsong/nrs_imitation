@@ -1,0 +1,17 @@
+{
+  "status": "offline_calculation_pass",
+  "checked_at": "2026-09-27T15:23:57.639454+09:00",
+  "assumed_command_Fz_N": 23.0,
+  "synthetic_ticks": 450,
+  "real_robot_samples_used": false,
+  "stationary_pose_only": true,
+  "trained_policy_inference": false,
+  "contact_gate_preserved": true,
+  "force_slew_limit_N_s": 30.0,
+  "runtime_config_unchanged": true,
+  "runtime_config_sha256": "23c892bf6ff7c2108f882ad61b359cf1d6e72e1a695c85eda83050385bcaf379",
+  "ROS_context_initialized": false,
+  "robot_commands_sent": 0,
+  "physical_validation": false,
+  "F0_frozen": false
+}

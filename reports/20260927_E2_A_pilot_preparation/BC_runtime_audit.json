@@ -1,0 +1,2092 @@
+[
+  {
+    "condition": "B",
+    "run_id": "E2_B_20260926T205903_fc196a96a836",
+    "config_sha256": "e76ab8bfd923e2f8fbdd5b4b29addf96db03b4fa2a4e427bbd4d913c5bf4dfd4",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423945934092399,
+        "receipt_monotonic_ns": 16058749997488,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423945935218333,
+        "receipt_monotonic_ns": 16058751125366,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423945935229635,
+        "receipt_monotonic_ns": 16058751134523,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423968604186759,
+        "receipt_monotonic_ns": 16081420092059,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 8540,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423968605800065,
+        "receipt_monotonic_ns": 16081421709692,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8541,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423968605819602,
+        "receipt_monotonic_ns": 16081421725533,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8542,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423969806441712,
+        "receipt_monotonic_ns": 16082622355317,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 8586,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790423969806474244,
+        "receipt_monotonic_ns": 16082622379654,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_B_20260926T205903_fc196a96a836",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 8587,
+        "run_id": "E2_B_20260926T205903_fc196a96a836_executor_20260926T205905_1790423945915625990_4yqton3c"
+      }
+    ]
+  },
+  {
+    "condition": "B",
+    "run_id": "E2_B_20260926T210012_8eee50ef8114",
+    "config_sha256": "8aed1bb6c8a5e8367f3d1ed5be2ae9b7339a6b0adac81980beacac1e783f6eed",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424015067045326,
+        "receipt_monotonic_ns": 16127882950365,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424015067631257,
+        "receipt_monotonic_ns": 16127883538280,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424015067642478,
+        "receipt_monotonic_ns": 16127883547397,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424039475704906,
+        "receipt_monotonic_ns": 16152291609995,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 9438,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424039484735940,
+        "receipt_monotonic_ns": 16152300643052,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 9439,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424039484748704,
+        "receipt_monotonic_ns": 16152300653933,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 9440,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424040731618541,
+        "receipt_monotonic_ns": 16153547533879,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 9486,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424040731653327,
+        "receipt_monotonic_ns": 16153547558647,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_B_20260926T210012_8eee50ef8114",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 9487,
+        "run_id": "E2_B_20260926T210012_8eee50ef8114_executor_20260926T210015_1790424015049471494_l4g6olvh"
+      }
+    ]
+  },
+  {
+    "condition": "B",
+    "run_id": "E2_B_20260926T210121_74e063286a9d",
+    "config_sha256": "6a7be77c9af00ee359bf2c49bbb09c0104f20bef06690eae0fbcafa32f8fb0d7",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424083938605322,
+        "receipt_monotonic_ns": 16196754510441,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424083939333705,
+        "receipt_monotonic_ns": 16196755239937,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424083939342753,
+        "receipt_monotonic_ns": 16196755247571,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424111520695308,
+        "receipt_monotonic_ns": 16224336600247,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 11167,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424111521493615,
+        "receipt_monotonic_ns": 16224337400407,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 11168,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424111521505708,
+        "receipt_monotonic_ns": 16224337410827,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 11169,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424112562822166,
+        "receipt_monotonic_ns": 16225378732525,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 11207,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424112562845461,
+        "receipt_monotonic_ns": 16225378750740,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_B_20260926T210121_74e063286a9d",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 11208,
+        "run_id": "E2_B_20260926T210121_74e063286a9d_executor_20260926T210123_1790424083920926299_4cvzqh5y"
+      }
+    ]
+  },
+  {
+    "condition": "B",
+    "run_id": "E2_B_20260926T210226_5f6f8582e483",
+    "config_sha256": "7cbe8fca9b8dc8c281c847bfc9e2b3adbcf36352bf3d4c3df19af3b5ac9b1aae",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424149227426618,
+        "receipt_monotonic_ns": 16262043332889,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424149228043959,
+        "receipt_monotonic_ns": 16262043954618,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424149228063436,
+        "receipt_monotonic_ns": 16262043968465,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424174781303484,
+        "receipt_monotonic_ns": 16287597208994,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 10019,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424174782281003,
+        "receipt_monotonic_ns": 16287598188557,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 10020,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424174782295331,
+        "receipt_monotonic_ns": 16287598200450,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 10021,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424176051746813,
+        "receipt_monotonic_ns": 16288867654818,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 10069,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424176051767262,
+        "receipt_monotonic_ns": 16288867672822,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_B_20260926T210226_5f6f8582e483",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 10070,
+        "run_id": "E2_B_20260926T210226_5f6f8582e483_executor_20260926T210229_1790424149208717975_pck09urz"
+      }
+    ]
+  },
+  {
+    "condition": "B",
+    "run_id": "E2_B_20260926T210312_e1acef16f3d3",
+    "config_sha256": "3333ed35f2970b53228715afbdfd2a2e7f6d0c71caaf2a7048e9b45254617e51",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424195288091193,
+        "receipt_monotonic_ns": 16308103997374,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424195289211225,
+        "receipt_monotonic_ns": 16308105118859,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 9,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424195289225853,
+        "receipt_monotonic_ns": 16308105131593,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 10,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424220451652831,
+        "receipt_monotonic_ns": 16333267557860,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 9903,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424220452224495,
+        "receipt_monotonic_ns": 16333268131438,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 9904,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424220452235967,
+        "receipt_monotonic_ns": 16333268140916,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 9905,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424221272433716,
+        "receipt_monotonic_ns": 16334088347652,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 9935,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424221272464696,
+        "receipt_monotonic_ns": 16334088370546,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_B_20260926T210312_e1acef16f3d3",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 9936,
+        "run_id": "E2_B_20260926T210312_e1acef16f3d3_executor_20260926T210315_1790424195189439257_2wg1op21"
+      }
+    ]
+  },
+  {
+    "condition": "C",
+    "run_id": "E2_C_20260926T210425_04dc3a12e7ce",
+    "config_sha256": "f0ebd23561f33eab857da0f2c2af9faa894923996a077457a64ebf84a360bc04",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424268183197472,
+        "receipt_monotonic_ns": 16380999102682,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424268183735912,
+        "receipt_monotonic_ns": 16380999643346,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424268183748336,
+        "receipt_monotonic_ns": 16380999653205,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424291286012759,
+        "receipt_monotonic_ns": 16404101918128,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 8684,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424291289399476,
+        "receipt_monotonic_ns": 16404105306619,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8685,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424291289411840,
+        "receipt_monotonic_ns": 16404105317019,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8686,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424291967882193,
+        "receipt_monotonic_ns": 16404783796680,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 8712,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424291967921529,
+        "receipt_monotonic_ns": 16404783827339,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_C_20260926T210425_04dc3a12e7ce",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 8713,
+        "run_id": "E2_C_20260926T210425_04dc3a12e7ce_executor_20260926T210428_1790424268164517595_k4jp4g7m"
+      }
+    ]
+  },
+  {
+    "condition": "C",
+    "run_id": "E2_C_20260926T210502_45f3d160b730",
+    "config_sha256": "71a6c8e34aa08aeef3f42e0dafb6000a45fc446655293a7a10b96a847fad18be",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424304862562785,
+        "receipt_monotonic_ns": 16417678468335,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424304863195886,
+        "receipt_monotonic_ns": 16417679102869,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424304863207629,
+        "receipt_monotonic_ns": 16417679112497,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424327546193829,
+        "receipt_monotonic_ns": 16440362099670,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 8620,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424327548611373,
+        "receipt_monotonic_ns": 16440364518436,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8621,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424327548624378,
+        "receipt_monotonic_ns": 16440364529497,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8622,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424328238853751,
+        "receipt_monotonic_ns": 16441054766675,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 8650,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424328238883157,
+        "receipt_monotonic_ns": 16441054788547,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_C_20260926T210502_45f3d160b730",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 8651,
+        "run_id": "E2_C_20260926T210502_45f3d160b730_executor_20260926T210504_1790424304843784159_azxz4zg6"
+      }
+    ]
+  },
+  {
+    "condition": "C",
+    "run_id": "E2_C_20260926T210537_4d8c6a706394",
+    "config_sha256": "29f38cf361e553a33f2b804bb77b55e3f58d189dffa7e3b5419847eae54adc24",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424340220156128,
+        "receipt_monotonic_ns": 16453036061547,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424340220886193,
+        "receipt_monotonic_ns": 16453036794488,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424340220901913,
+        "receipt_monotonic_ns": 16453036807152,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424364855394597,
+        "receipt_monotonic_ns": 16477671299946,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 9573,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424364858303306,
+        "receipt_monotonic_ns": 16477674210389,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 9574,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424364858316451,
+        "receipt_monotonic_ns": 16477674221801,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 9575,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424365428507081,
+        "receipt_monotonic_ns": 16478244416078,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 9597,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424365428527370,
+        "receipt_monotonic_ns": 16478244432990,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_C_20260926T210537_4d8c6a706394",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 9598,
+        "run_id": "E2_C_20260926T210537_4d8c6a706394_executor_20260926T210540_1790424340202602928_q7qg13sf"
+      }
+    ]
+  },
+  {
+    "condition": "C",
+    "run_id": "E2_C_20260926T210618_9b054a7512d7",
+    "config_sha256": "08b88c830157beae1c8ed9f8a835f4c208ac2fd8da741a83171705033de2dca4",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424380892843407,
+        "receipt_monotonic_ns": 16493708748797,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424380893551010,
+        "receipt_monotonic_ns": 16493709457191,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424380893561019,
+        "receipt_monotonic_ns": 16493709465777,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424404186947763,
+        "receipt_monotonic_ns": 16517002853103,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 8743,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424404187742943,
+        "receipt_monotonic_ns": 16517003650517,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8744,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424404187756008,
+        "receipt_monotonic_ns": 16517003662049,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8745,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424405045167863,
+        "receipt_monotonic_ns": 16517861075847,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 8778,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424405045187991,
+        "receipt_monotonic_ns": 16517861093652,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_C_20260926T210618_9b054a7512d7",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 8779,
+        "run_id": "E2_C_20260926T210618_9b054a7512d7_executor_20260926T210620_1790424380873960695_noqoz3j0"
+      }
+    ]
+  },
+  {
+    "condition": "C",
+    "run_id": "E2_C_20260926T210656_54d690bc0ac4",
+    "config_sha256": "82c3d5d61d13f62a19b6abd97691e9c07a08dbfb745d2330bc09d731ac9a8aec",
+    "executor": {
+      "transport": "e2_timed_topic_v1",
+      "control_period_s": 0.008,
+      "gain_hz": 15.0,
+      "linear_speed_mm_s": 10.0,
+      "angular_speed_rad_s": 0.6981317007977318,
+      "force_rate_N_s": 30.0,
+      "fz_hard_limit_N": 0.0,
+      "contact_on_N": 3.0,
+      "contact_off_N": 1.2,
+      "feedback_max_age_s": 0.2,
+      "max_tick_gap_s": 0.1,
+      "max_plan_age_s": 0.5,
+      "mode_timeout_s": 2.0,
+      "provider_timeout_s": 2.0,
+      "stop_window_s": 0.4,
+      "stop_timeout_s": 15.0,
+      "completion_position_tolerance_mm": 5.0,
+      "completion_rotation_tolerance_rad": 0.05,
+      "provenance": {
+        "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+        "contact_clip": "unchanged pinned C inference_core defaults",
+        "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+      }
+    },
+    "workspace": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "stop_events": [
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424418523747213,
+        "receipt_monotonic_ns": 16531339652492,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "reason": "startup_reset",
+          "details": null,
+          "initial_reset": true,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 6,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424418524297805,
+        "receipt_monotonic_ns": 16531340205369,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 7,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424418524311502,
+        "receipt_monotonic_ns": 16531340216671,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424441785469374,
+        "receipt_monotonic_ns": 16554601375334,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_requested",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "reason": "operator_finish",
+          "details": null,
+          "initial_reset": false,
+          "physical_stop_verified": false,
+          "spindle_stop_commanded": false
+        },
+        "logger_seq": 8808,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424441786856956,
+        "receipt_monotonic_ns": 16554602764430,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "queue_cancel_ack",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8809,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424441786870582,
+        "receipt_monotonic_ns": 16554602775912,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "stop_acknowledged",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "scope": "queue cancellation only",
+          "physical_stop_verified": false
+        },
+        "logger_seq": 8810,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424442772019504,
+        "receipt_monotonic_ns": 16555587928751,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "physical_hold_verified",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "fresh_feedback": true,
+          "mode": "Position"
+        },
+        "logger_seq": 8848,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      },
+      {
+        "source_seq": null,
+        "source_stamp_ns": null,
+        "receipt_ros_ns": 1790424442772040254,
+        "receipt_monotonic_ns": 16555587945303,
+        "stamp_basis": "receipt_only_no_header",
+        "source_clock": null,
+        "frame_id": null,
+        "source": "e2_executor",
+        "validity": "valid",
+        "event": "normal_completion",
+        "details": {
+          "session_id": "E2_C_20260926T210656_54d690bc0ac4",
+          "controller_hold_verified": true,
+          "queue_cancel_verified": true,
+          "final_target_reached": false,
+          "retract_complete": false,
+          "home_pose_reached": false,
+          "physical_contact_release": "unknown",
+          "spindle_state": "operator controlled; not changed"
+        },
+        "logger_seq": 8849,
+        "run_id": "E2_C_20260926T210656_54d690bc0ac4_executor_20260926T210658_1790424418505982236_q1myywo1"
+      }
+    ]
+  }
+]

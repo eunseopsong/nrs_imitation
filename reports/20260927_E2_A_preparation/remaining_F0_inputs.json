@@ -1,0 +1,25 @@
+{
+  "status": "pending_user_information",
+  "force_value_N": null,
+  "sign": null,
+  "validated_command_range_N": null,
+  "teacher_route": {
+    "confirmed_train_episodes_and_processing_intervals": null,
+    "verified_teacher_to_live_force_frame_sign_zero_filter_evidence": null,
+    "reference": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/teacher_preview/teacher_force_preview_UNCALIBRATED.pdf"
+  },
+  "existing_recipe_route": {
+    "signed_TCP_command_fz_N": null,
+    "validated_range_N": null,
+    "supporting_deployment_or_run_record": null
+  },
+  "instructions": "Do not populate from E2 B/C outcome statistics. No 18 N default. Reuse existing operator equipment confirmation; record only new F0 evidence.",
+  "already_confirmed": [
+    "unchanged E1 tool/TCP/controller convention",
+    "ink removal",
+    "unidirectional work",
+    "E1 C execution and finish settings",
+    "same assumed specimen starting state; no block argument"
+  ],
+  "final_candidate_freeze_requires_operator_confirmation": true
+}

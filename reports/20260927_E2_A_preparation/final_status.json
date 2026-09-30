@@ -1,0 +1,53 @@
+{
+  "model_ready": {
+    "A": true,
+    "B": true,
+    "C": true
+  },
+  "execution_contract_ready": true,
+  "hardware_preflight_status": {
+    "A": {
+      "status": "blocked",
+      "reasons": [
+        "A F0 is not calibrated and frozen; real execution blocked"
+      ]
+    },
+    "B": {
+      "status": "offline_pass",
+      "reasons": []
+    },
+    "C": {
+      "status": "offline_pass",
+      "reasons": []
+    }
+  },
+  "force_frame_calibration_ready": false,
+  "reference_and_alignment_ready": false,
+  "force_profile_metrics_ready": false,
+  "stylus_metrology_ready": false,
+  "force_analysis_blockers": [
+    "normal-force frame/sign/zero/filter calibration not verified",
+    "evaluation reference not frozen"
+  ],
+  "hardware_executed": false,
+  "physical_safety_validation": false,
+  "quality_verified": false,
+  "checked_at": "2026-09-27T14:04:40.051702+09:00",
+  "execution_contract_hash": "0dc9c494fb1d2e0b8f00afadc8e38345d5736ec4480569a7980c11f0b4d14409",
+  "cohort_id": "E2_4c14bf2b2aa13bb3",
+  "tests_passed": 157,
+  "E1_archive_hashes_unchanged": true,
+  "E1_manifest_sha256": "193c3ffed1a5e68f6e2a612f40ac1851d9dc60f71c61d89eeafb22636770c780",
+  "E1_report_sha256": "bbc4332071de0846dd65934f12355b42a4cabd68ec2afa2d2a84f009f160951e",
+  "training_smoke_report": "checks/training_smoke.json",
+  "code_preparation_complete": true,
+  "A_training_completed_epochs": 500,
+  "A_runtime_model_registered": true,
+  "A_checkpoint_sha256": "c05e06da163127f15b31e1ed77cc083688d830dc87abc857fc0be5d7031c90d6",
+  "A_trained_inference_validation": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_preparation/trained_A_validation.json",
+  "A_startup_loader_schema_fixed": true,
+  "test_scope": "Full E1/E2 preparation suite including A/B/C startup checkpoint loaders, common execution, phase/stop and logging",
+  "E1_and_BC_archive_identifiers_unchanged": true,
+  "A_run_guide": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/A_execution_20260927.md",
+  "hardware_execution_started_by_this_preparation": false
+}

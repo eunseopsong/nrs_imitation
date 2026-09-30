@@ -1,0 +1,59 @@
+{
+  "captured_at": "2026-09-26T18:00:52.181082+09:00",
+  "files": [
+    {
+      "path": "/home/nrs_forcecon/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml",
+      "resolved": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml",
+      "sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+      "selected_settings": [
+        "Force_Con_Coordinate: 1",
+        "CONTROL_PERIOD: 0.008",
+        "Force_Con_Mode: 3",
+        "FORCE_SWITCH_DESIRED_FORCE_THRESHOLD: 0.01",
+        "FORCE_SWITCH_ACTUAL_FORCE_THRESHOLD: 1.50",
+        "FORCE_SWITCH_PRECONTACT_FORCE_HOLD: 15.0",
+        "FORCE_SWITCH_RETURN_TAU_M: 0.20",
+        "FORCE_SWITCH_RETURN_TAU_D: 0.20",
+        "FORCE_SWITCH_RETURN_TAU_K: 0.20"
+      ]
+    },
+    {
+      "path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/force_control.cpp",
+      "resolved": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/force_control.cpp",
+      "sha256": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f"
+    },
+    {
+      "path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp",
+      "resolved": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp",
+      "sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+    },
+    {
+      "path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp",
+      "resolved": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp",
+      "sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e"
+    }
+  ],
+  "run_window_ros_log_matches": [
+    {
+      "file": "/home/nrs_forcecon/.ros/log/ur_ros2_control_node_26966_1790410759973.log",
+      "lines": []
+    },
+    {
+      "file": "/home/nrs_forcecon/.ros/log/singleArm_motion_40794_1790412633406.log",
+      "lines": [
+        "[INFO] [1790412699.618743507] [SingleArm]: Force control was initialized"
+      ]
+    },
+    {
+      "file": "/home/nrs_forcecon/.ros/log/singleArm_cmd_40824_1790412635554.log",
+      "lines": [
+        "[INFO] [1790412690.694845387] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.",
+        "[INFO] [1790412691.952642910] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.",
+        "[INFO] [1790412694.549254202] [singleArm_cmd]: Service command received: PTP",
+        "[INFO] [1790412699.225097452] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.",
+        "[INFO] [1790412713.837182233] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped."
+      ]
+    }
+  ],
+  "latest_driver_event": "[INFO] [1790412288.154990839] [forward_position_controller]: activate successful"
+}

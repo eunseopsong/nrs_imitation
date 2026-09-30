@@ -1,0 +1,9 @@
+{
+  "command": "ros2 launch nrs_imitation e2_a_offline.launch.py",
+  "exit_code": 0,
+  "result": "/home/eunseop/nrs_imitation/results/20260927/E2/A_offline/174230_8ab4baa4/attempt.json",
+  "status": "offline_pass",
+  "hardware_io": false,
+  "launch_source_sha256": "da14e9edc55c92bec5e7719241838070079cbdfa204b7de27c83ca2949d88da7",
+  "real_configuration_unchanged": true
+}

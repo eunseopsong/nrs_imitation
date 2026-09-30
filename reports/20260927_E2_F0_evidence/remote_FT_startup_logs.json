@@ -1,0 +1,29 @@
+{
+  "recent_robot_FT_startup_logs": [
+    {
+      "path": "/home/nrs_forcecon/.ros/log/FTGetMain_36820_1790412063836.log",
+      "lines": [
+        "[INFO] [1790412063.875462689] [FTGetMain]: Gravity compensation: requested=true, matrix_loaded=true, yaml=/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml"
+      ]
+    },
+    {
+      "path": "/home/nrs_forcecon/.ros/log/FTGetMain_40877_1790412636345.log",
+      "lines": [
+        "[INFO] [1790412636.378768822] [FTGetMain]: Gravity compensation: requested=true, matrix_loaded=true, yaml=/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml"
+      ]
+    },
+    {
+      "path": "/home/nrs_forcecon/.ros/log/FTGetMain_64211_1790415826888.log",
+      "lines": [
+        "[INFO] [1790415826.923876826] [FTGetMain]: Gravity compensation: requested=true, matrix_loaded=true, yaml=/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml"
+      ]
+    },
+    {
+      "path": "/home/nrs_forcecon/.ros/log/FTGetMain_119928_1790423545489.log",
+      "lines": [
+        "[INFO] [1790423545.517562796] [FTGetMain]: Gravity compensation: requested=true, matrix_loaded=true, yaml=/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml"
+      ]
+    }
+  ],
+  "active_robot_FT_processes": []
+}

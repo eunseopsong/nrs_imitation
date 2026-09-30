@@ -1,0 +1,54 @@
+{
+  "status": "software_ready_hardware_preflight_blocked",
+  "hardware_executed": false,
+  "model": {
+    "checkpoint": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/registered_models/A_c05e06da163127f1/policy_best.ckpt",
+    "checkpoint_sha256": "c05e06da163127f15b31e1ed77cc083688d830dc87abc857fc0be5d7031c90d6",
+    "selected_epoch_zero_based": 499,
+    "loaded_weights_exactly_match_checkpoint": true,
+    "state_dim": 6,
+    "action_dim": 6,
+    "force_observation": false,
+    "force_history": false,
+    "force_action": false,
+    "force_supervision_channels": 0,
+    "force_prediction_logged_as_null": true,
+    "force_perturbation_invariant": true,
+    "dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form/episode_35.hdf5",
+    "sample_index": 191,
+    "output_shape": [
+      128,
+      6
+    ],
+    "transport_shape": [
+      128,
+      9
+    ],
+    "ros_context_initialized": false,
+    "hardware_io": false
+  },
+  "F0_N": 23.0,
+  "offline_result": "/home/eunseop/nrs_imitation/results/20260928/E2/A_offline/192337_9e0bace1/attempt.json",
+  "regression_tests_passed": 188,
+  "regression_tests_deselected": 3,
+  "deselection_reason": "Legacy rule/replay fixture tests require removed synthetic fixture and replay template; A tests and shared executor tests executed.",
+  "build_passed": true,
+  "launch_check_passed": true,
+  "remaining_hardware_blockers": [
+    "limits_evidence: pinned evidence path + sha256 required",
+    "sensor_overload_evidence: pinned evidence path + sha256 required",
+    "workspace_evidence: pinned evidence path + sha256 required",
+    "approach_exit_evidence: pinned evidence path + sha256 required"
+  ],
+  "cohort_id": "E2_40abfbcd23eaf2e9",
+  "execution_contract_hash": "58d85d12cf39d176216c3312eaa8fb60aec1b7e656dda90192fff676f8c34391",
+  "common_settings_comparison": "common_settings_comparison.json",
+  "run_guide": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/RUN_A.md",
+  "notes": [
+    "No fabricated hardware approval or validation.",
+    "Current force-frame calibration and evaluation reference remain unresolved.",
+    "Legacy test config restored from reports/20260926_C_execution_patch/before/experiments/e2_rule_replay_20260920/config.json.",
+    "Initial ROS pytest plugin incompatibility avoided by disabling unrelated plugin autoload.",
+    "Sandbox offline inference completed but launch process exit was not reaped; host offline launch completed cleanly."
+  ]
+}

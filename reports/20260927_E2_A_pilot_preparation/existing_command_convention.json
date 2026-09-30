@@ -1,0 +1,65 @@
+{
+  "status": "existing_convention_evidence_only",
+  "source": "9/26 operator-confirmed unchanged E1 C hardware and local/remote matching controller source",
+  "positive_command_axis": "controller TCP +Fz",
+  "command_unit": "N",
+  "measurement_frame": "robot_base",
+  "measurement_units": [
+    "N",
+    "Nm"
+  ],
+  "normal_force_calibrated": false,
+  "approved_processing_range_N": null,
+  "new_hardware_validation": false,
+  "common_force_frame_sign_verification": {
+    "basis": "Same E1 controller/sensor/tool setup explicitly confirmed by operator; reuse existing signed Fz command convention without transformation",
+    "reference_run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+    "target_axis": "controller cmdMotion/SET_FORCE Fz, N",
+    "command_sign": "positive, unchanged from acknowledged E1 +17.694 N median target",
+    "sensor_topic": "/ur10skku/currentF",
+    "measured_Fz_median_N_in_reference_interval": 20.575218166583955,
+    "surface_normal_calibrated": false,
+    "teacher_axis_equivalence_newly_verified": false,
+    "remote_controller_configuration_readback": false,
+    "evidence_commands_sha256": "164f1d35032cd9332acbf1ad8ad2fd388b6ac69fca8428e08e002290dfe950ef"
+  },
+  "operator_confirmation": {
+    "confirmed_at": "2026-09-26T20:48:05.711452+09:00",
+    "operator_statement": "변경 없음 / 잉크 제거 / 한 방향 작업 E1 C 설정 사용",
+    "reference_run_id": "RTC_C_20260926T184820",
+    "reference_config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184820/launch_context/config.json",
+    "reference_config_sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb",
+    "scope": [
+      "unchanged tool/TCP, force controller and fixture",
+      "ink removal",
+      "unidirectional work",
+      "E1 C operator finish and 50 s execution ceiling"
+    ],
+    "basis": "operator confirmation plus unchanged archived execution settings and matching local controller-source hashes",
+    "controller_source_checks": {
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": {
+        "expected_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+        "actual_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e"
+      },
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": {
+        "expected_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+        "actual_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+      },
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": {
+        "expected_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+        "actual_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211"
+      },
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": {
+        "expected_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+        "actual_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+      }
+    },
+    "remote_binary_readback_performed": false,
+    "new_force_normal_or_teacher_calibration_performed": false,
+    "robot_executed_by_assistant": false
+  },
+  "remote_readback": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_pilot_preparation/remote_readback.json",
+    "sha256": "efaf93878353bb4e6b999ea73afeee60ca2d2e9b3ba017e0d3a69a714ee8fb52"
+  }
+}

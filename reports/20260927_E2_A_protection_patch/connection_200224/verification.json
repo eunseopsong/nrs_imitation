@@ -1,0 +1,157 @@
+{
+  "completed_at": "2026-09-27T20:22:30.871292+09:00",
+  "software_ready": true,
+  "actual_driver_deployment_confirmed": false,
+  "hardware_ready": false,
+  "robot_or_spindle_executed": false,
+  "source_checks": {
+    "changed_files": [
+      "behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py",
+      "behavior_ws/src/nrs_imitation/nrs_imitation/e2_protection.py",
+      "behavior_ws/src/nrs_imitation/test/test_e2_protection.py",
+      "experiments/e2_A_pilot_20260927/commissioning_request.json",
+      "experiments/e2_A_pilot_20260927/config.json",
+      "experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FTGetMain.cpp",
+      "experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/src/robot_motion.cpp",
+      "experiments/e2_force_ablation_20260926/config.json",
+      "run_A_pilot.sh",
+      "behavior_ws/src/nrs_imitation/test/test_e2_producer_connection.py",
+      "experiments/e2_A_pilot_20260927/RUN_A_PILOT.txt"
+    ],
+    "source_config_numeric_settings_unchanged": true,
+    "approval_values_unchanged": true,
+    "scope_hash_only_updated_for_driver_revision": true,
+    "F0_calculation_repeated": false,
+    "F0_frozen": false,
+    "quality_validation": "pending"
+  },
+  "producer_contract": {
+    "raw_topic": "/ur10skku/ft_acquisition",
+    "raw_schema": "aft_ether_acquisition_v1",
+    "base_topic": "/ur10skku/currentF_provenance",
+    "base_schema": "y2_wrench_provenance_v1",
+    "revision": "e2_source_metadata_20260927_r2",
+    "test": "production C++ serialization/callback blocks with fake I/O and actual consumer; no ROS node/socket",
+    "units_source": "https://emanual.oopy.io/aft200-d80-en",
+    "numeric_limits_taken_from_manual": false
+  },
+  "tests": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "114",
+      "time": "1.026",
+      "timestamp": "2026-09-27T20:13:34.354241",
+      "hostname": "nrs3"
+    }
+  ],
+  "driver_build": {
+    "packages": [
+      "Y2FT_AQ",
+      "Y2RobMotion"
+    ],
+    "passed": true,
+    "log": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/driver_build.log"
+  },
+  "behavior_build": {
+    "package": "nrs_imitation",
+    "passed": true,
+    "log": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/behavior_build.log"
+  },
+  "deployment_patch_apply_test": "passed: captured remote baseline to six byte-identical source outputs in a temporary local tree",
+  "runtime_readback": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_protection_patch/connection_200224/runtime_readback.json",
+    "captured_at": "2026-09-27T20:06:41.113119+09:00",
+    "host": "nrsgene",
+    "topics": {
+      "/ur10skku/ft_acquisition": {
+        "publishers": [],
+        "count": 0,
+        "last": null
+      },
+      "/ur10skku/currentF_provenance": {
+        "publishers": [],
+        "count": 0,
+        "last": null
+      }
+    },
+    "processes": [
+      {
+        "pid": 601571,
+        "exe": "/home/nrs_forcecon/dev_ws/build/Y2RobMotion/singleArm_motion",
+        "sha256": "8a77774b9d0491bad18b02c8d19846957aff121689e9cced571100ccb808df96",
+        "argv": [
+          "/home/nrs_forcecon/dev_ws/install/Y2RobMotion/lib/Y2RobMotion/singleArm_motion"
+        ]
+      },
+      {
+        "pid": 601730,
+        "exe": "/home/nrs_forcecon/dev_ws/build/Y2RobMotion/singleArm_cmd",
+        "sha256": "3037d657d99f9a03e6b17f05863bd9de7f3383b27c917f0fd87ed3b55e46befa",
+        "argv": [
+          "/home/nrs_forcecon/dev_ws/install/Y2RobMotion/lib/Y2RobMotion/singleArm_cmd",
+          "--ros-args",
+          "-r",
+          "__node:=singleArm_cmd",
+          "--params-file",
+          "/tmp/launch_params_llj7__jt"
+        ]
+      },
+      {
+        "pid": 601830,
+        "exe": "/home/nrs_forcecon/dev_ws/build/Y2FT_AQ/FTGetMain",
+        "sha256": "4458c74671a3513d3ca1f8b071f3c4cf4e9baf1f710e904dff60a1dbc0f74ac8",
+        "argv": [
+          "/home/nrs_forcecon/dev_ws/install/Y2FT_AQ/lib/Y2FT_AQ/FTGetMain"
+        ]
+      }
+    ]
+  },
+  "blocked_fields": {
+    "measured_force_abs_limits_N": null,
+    "measured_torque_abs_limits_Nm": null,
+    "sensor_raw_force_abs_limits_N": null,
+    "sensor_raw_torque_abs_limits_Nm": null,
+    "measured_wrench_frame": null,
+    "acquisition_max_age_s": null,
+    "limits_evidence": null,
+    "sensor_overload_evidence": null,
+    "workspace_evidence": null,
+    "automatic_stop_evidence": null,
+    "approach_exit_evidence": null,
+    "sensor_driver_deployment_evidence": null
+  },
+  "pilot_blockers": [
+    "measured_force_abs_limits_N: three approved positive per-axis limits required",
+    "measured_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "sensor_raw_force_abs_limits_N: three approved positive per-axis limits required",
+    "sensor_raw_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "measured_wrench_frame: explicit protection frame required",
+    "acquisition_max_age_s: approved source-acquisition timeout required",
+    "limits_evidence: pinned evidence path + sha256 required",
+    "sensor_overload_evidence: pinned evidence path + sha256 required",
+    "workspace_evidence: pinned evidence path + sha256 required",
+    "automatic_stop_evidence: pinned evidence path + sha256 required",
+    "approach_exit_evidence: pinned evidence path + sha256 required",
+    "sensor_driver_deployment_evidence: pinned evidence path + sha256 required"
+  ],
+  "existing_field_table": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/field_confirmation_one_page.pdf",
+  "service_namespace": "/e2_executor",
+  "services": [
+    "processing_start",
+    "processing_end",
+    "finish",
+    "abort",
+    "phase_next"
+  ],
+  "service_names_basis": "current launch node name and private Trigger service declarations; no executor currently running",
+  "processing_transition_criterion": "field approach_exit_evidence still missing; no automatic time/contact threshold introduced",
+  "config": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json",
+  "execution_contract_hash": "7b335bc9d259104a8235e78b68ace4f7d30b30c66fb3cebeca5251ab36d44f4e",
+  "cohort_id": "E2_30d7d97e0ec0dd0a",
+  "safety_comparability": "A additional protection layer retained; not identical to historical B/C",
+  "deployment_package": "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/deployment/E2_A_producers_20260927_r2.tar.gz",
+  "run_procedure": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/RUN_A_PILOT.txt"
+}

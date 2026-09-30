@@ -1,0 +1,232 @@
+{
+  "captured_from": "nrsgene (192.168.0.151), live ROS_DOMAIN_ID=30",
+  "read_only": true,
+  "established_items_retested": false,
+  "mock_tests_rerun": false,
+  "hardware_commands_sent": false,
+  "controller_restarted": false,
+  "sensor_zeroed": false,
+  "evidence_files": {
+    "controller_readback.json": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/controller_readback.json",
+      "sha256": "7a7e8110aefd75b2633859a31c8a1de18514488bf4e48ab307ca53400bd84526"
+    },
+    "runtime_readback.json": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/runtime_readback.json",
+      "sha256": "033e9ecb4c99fa73f93c4886f011aff97340f696e6708ebc2820e4b6f36cf8da"
+    },
+    "protection_status.json": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/protection_status.json",
+      "sha256": "b51b0a24ab8051bd62ff1b4e0b91dff03dba40dce9be653b946e5e653e9dc67e"
+    },
+    "remote_source_manifest.json": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/remote_source_manifest.json",
+      "sha256": "0112670e4eecb0ed3a0cf9ad18735958c619bbe593b333f06d640471d7b60c1c"
+    },
+    "established_evidence_links.json": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/established_evidence_links.json",
+      "sha256": "7c26a8b911fe7b50d3e44713b2383c2ea2c52eb9b083cacb7096fde17de1dd8d"
+    },
+    "field_confirmation.json": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/field_confirmation.json",
+      "sha256": "851f61bf88a6e7e78493de569099dca06370c751d24ab0e8aa2f188383504eeb"
+    }
+  },
+  "actual_device_findings": [
+    {
+      "item": "UR safety state",
+      "value": "NORMAL",
+      "evidence": "protection_status.json: queries./dashboard_client/get_safety_mode and dynamic_joint_states",
+      "scope": "current reported state; not a trip test or validation of configured limits"
+    },
+    {
+      "item": "UR software",
+      "value": "3.15.7",
+      "evidence": "protection_status.json: dynamic_joint_states software-version interfaces"
+    },
+    {
+      "item": "current application control mode",
+      "value": "Position",
+      "evidence": "runtime_readback.json: /ur10skku/ctlMode"
+    },
+    {
+      "item": "feedback streams",
+      "value": [
+        "/ur10skku/currentF",
+        "/ur10skku/currentP",
+        "/ur10skku/ftdata",
+        "/ur10skku/ftdata_tcp",
+        "/ur10skku/ftdata_base",
+        "/ur10skku/ftdata_tcp_raw"
+      ],
+      "evidence": "runtime_readback.json: nonzero received messages",
+      "scope": "delivery observed; does not establish ADC freshness"
+    },
+    {
+      "item": "configured and loaded robot YAML",
+      "value": "/home/nrs_forcecon/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml",
+      "evidence": "controller_readback.json: current PID startup log + installed file SHA; runtime_readback.json: setup_file parameter"
+    },
+    {
+      "item": "sensor calibration setting",
+      "value": "gravity_compensation_enabled=true; startup matrix_loaded=true",
+      "evidence": "runtime_readback.json: /FTGetMain parameters; controller_readback.json: PID 601830 startup log",
+      "scope": "loaded/active configuration, not a new calibration validation"
+    },
+    {
+      "item": "controller_stopper",
+      "value": "node and live parameters observed; joint_controller_active=true",
+      "evidence": "protection_status.json: controller_stopper",
+      "scope": "not a demonstrated response to an AIDIN sensor fault"
+    },
+    {
+      "item": "A source provenance interfaces",
+      "value": {
+        "/ur10skku/ft_acquisition": 0,
+        "/ur10skku/currentF_provenance": 0
+      },
+      "evidence": "runtime_readback.json: publisher_count=0",
+      "scope": "not observed active in this ROS domain during capture; not proof that all protection is absent"
+    },
+    {
+      "item": "driver calibration warning",
+      "value": "connected robot calibration differs from supplied kinematics config",
+      "evidence": "controller_readback.json: current ur_ros2_control_node PID 601293 startup log",
+      "scope": "requires field review of TCP/workspace calibration; no correction performed"
+    },
+    {
+      "item": "raw topic meaning",
+      "value": "ftdata_tcp_raw uses filtered, zero-offset sensor values rotated to TCP before gravity compensation",
+      "evidence": "robot_pc_files/.../FTGetMain.cpp lines 648-663 and 756-764; FT_EtherGet.cpp lines 150-155",
+      "scope": "does not supply the required pre-zero/pre-filter sensor-axis overload evidence"
+    }
+  ],
+  "controller_states": [
+    {
+      "name": "joint_state_broadcaster",
+      "state": "active"
+    },
+    {
+      "name": "io_and_status_controller",
+      "state": "active"
+    },
+    {
+      "name": "scaled_joint_trajectory_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "speed_scaling_state_broadcaster",
+      "state": "active"
+    },
+    {
+      "name": "joint_trajectory_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "force_torque_sensor_broadcaster",
+      "state": "active"
+    },
+    {
+      "name": "forward_velocity_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "forward_effort_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "tcp_pose_broadcaster",
+      "state": "active"
+    },
+    {
+      "name": "force_mode_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "ur_configuration_controller",
+      "state": "active"
+    },
+    {
+      "name": "passthrough_trajectory_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "freedrive_mode_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "friction_model_controller",
+      "state": "active"
+    },
+    {
+      "name": "tool_contact_controller",
+      "state": "inactive"
+    },
+    {
+      "name": "forward_position_controller",
+      "state": "active"
+    }
+  ],
+  "running_binaries": [
+    {
+      "pid": 601293,
+      "path": "/opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node",
+      "sha256": "8ddb6a948de60abc98d520bc773d0056fde7ef10cc7ae64463d165bf0377712a",
+      "started_at_utc": "2026-09-27T06:09:37.410000+00:00"
+    },
+    {
+      "pid": 601571,
+      "path": "/home/nrs_forcecon/dev_ws/build/Y2RobMotion/singleArm_motion",
+      "sha256": "8a77774b9d0491bad18b02c8d19846957aff121689e9cced571100ccb808df96",
+      "started_at_utc": "2026-09-27T06:09:50.730000+00:00"
+    },
+    {
+      "pid": 601730,
+      "path": "/home/nrs_forcecon/dev_ws/build/Y2RobMotion/singleArm_cmd",
+      "sha256": "3037d657d99f9a03e6b17f05863bd9de7f3383b27c917f0fd87ed3b55e46befa",
+      "started_at_utc": "2026-09-27T06:10:05.370000+00:00"
+    },
+    {
+      "pid": 601830,
+      "path": "/home/nrs_forcecon/dev_ws/build/Y2FT_AQ/FTGetMain",
+      "sha256": "4458c74671a3513d3ca1f8b071f3c4cf4e9baf1f710e904dff60a1dbc0f74ac8",
+      "started_at_utc": "2026-09-27T06:10:12.530000+00:00"
+    }
+  ],
+  "existing_protection_reuse": {
+    "partial_evidence_preserved": true,
+    "equivalence_to_AFT_six_axis_and_source_watchdog": "not_established",
+    "not_concluded": "Missing commissioning values do not show that the robot has no protective functions. NORMAL state does not prove that every requested protection requirement is satisfied."
+  },
+  "remaining_groups": {
+    "실제 하중 보호": [
+      "measured_force_abs_limits_N",
+      "measured_torque_abs_limits_Nm",
+      "sensor_raw_force_abs_limits_N",
+      "sensor_raw_torque_abs_limits_Nm",
+      "measured_wrench_frame",
+      "limits_evidence",
+      "sensor_overload_evidence"
+    ],
+    "실제 센서 감시": [
+      "acquisition_max_age_s",
+      "sensor_driver_deployment_evidence"
+    ],
+    "현장 동작 확인": [
+      "workspace_evidence",
+      "automatic_stop_evidence",
+      "approach_exit_evidence"
+    ]
+  },
+  "runtime_config_updated": false,
+  "F0_frozen": false,
+  "quality_validation": "pending",
+  "manual_reference": {
+    "url": "https://www.universal-robots.com/download/manuals-cb-series/user/ur10/315/user-manual-ur10-cb-series-sw315-english-international-en/",
+    "local": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/UR10_CB3_SW315_manual.pdf",
+      "sha256": "dcd5ebc37d1e5189b034444df7a0e6c7adc214afcaef7b565ad0a5b8c366bb49"
+    },
+    "pages": "85–86, 91, 95, 102, 125; only screen locations used, no safety limits copied"
+  }
+}

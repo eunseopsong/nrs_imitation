@@ -1,0 +1,153 @@
+--- before/behavior_ws/src/nrs_imitation/nrs_imitation/e2_pilot.py
++++ behavior_ws/src/nrs_imitation/nrs_imitation/e2_pilot.py
+@@ -81,8 +81,10 @@
+         errors.append('commissioning command convention must be controller_tcp Fz in N')
+     bounds = record.get('processing_command_fz_range_N')
+     fz = config.get('f0', {}).get('command_fz_N')
++    # A closed interval may authorize just one processing setpoint. It does not
++    # change approach/exit zero requests, slew limits, or measured-wrench trips.
+     if (not isinstance(bounds, list) or len(bounds) != 2 or
+-            not all(finite_number(x) for x in bounds) or bounds[0] >= bounds[1] or
++            not all(finite_number(x) for x in bounds) or bounds[0] > bounds[1] or
+             not finite_number(fz) or not bounds[0] <= fz <= bounds[1]):
+         errors.append('processing_command_fz_range_N: approved signed range must contain candidate F0')
+     # These are measured-wrench protection limits, never derived from F0,
+--- before/behavior_ws/src/nrs_imitation/test/test_e2_A_pilot.py
++++ behavior_ws/src/nrs_imitation/test/test_e2_A_pilot.py
+@@ -67,7 +67,7 @@
+                   'workspace_evidence', 'sensor_driver_deployment_evidence'):
+         assert any(field in e for e in errors)
+     assert not any('calibrated and frozen' in e for e in errors)
+-    with pytest.raises(ValueError, match='actual approval required'):
++    with pytest.raises(ValueError, match='measured_force_abs_limits_N'):
+         prepare_A_force(config())
+ 
+ 
+@@ -109,6 +109,39 @@
+     c['f0']['command_fz_N'] = 25.; seal(c)
+     assert any('range_N' in e for e in hardware_blockers(c, 'il', True))
+     with pytest.raises(ValueError): prepare_A_force(c)
++
++
++def test_single_processing_setpoint_does_not_widen_permission(approved_mock, tmp_path):
++    from nrs_imitation.e2_protection import LIMIT_KEYS
++    c, record = approved_mock
++    original_limits = {k: copy.deepcopy(record[k]) for k in LIMIT_KEYS}
++    record['processing_command_fz_range_N'] = [23., 23.]
++    write_record(c, record, tmp_path/'single_setpoint.json')
++    assert hardware_blockers(c, 'il', True) == []
++    assert prepare_A_force(c) == 23.
++    assert pilot.pilot_force(c, False) == 0.
++    assert c['pilot']['F0_frozen'] is False
++    assert c['pilot']['quality_validation'] == 'pending'
++    for fz in (22.999, 23.001):
++        c['f0']['command_fz_N'] = fz; seal(c)
++        with pytest.raises(ValueError, match='processing_command_fz_range_N'):
++            prepare_A_force(c)
++    assert {k: record[k] for k in LIMIT_KEYS} == original_limits
++    c['f0']['command_fz_N'] = 23.
++    record['measured_force_abs_limits_N'] = None
++    write_record(c, record, tmp_path/'missing_protection.json')
++    with pytest.raises(ValueError, match='measured_force_abs_limits_N'):
++        prepare_A_force(c)
++
++
++@pytest.mark.parametrize('bounds', [[24., 23.], [float('nan'), 23.],
++    [23., float('inf')], [True, 23.], [23.], '23 N'])
++def test_invalid_processing_range_remains_blocked(approved_mock, tmp_path, bounds):
++    c, record = approved_mock
++    record['processing_command_fz_range_N'] = bounds
++    write_record(c, record, tmp_path/'invalid_range.json')
++    with pytest.raises(ValueError, match='processing_command_fz_range_N'):
++        prepare_A_force(c)
+ 
+ 
+ def test_approval_cannot_install_missing_protection(approved_mock, monkeypatch):
+--- before/experiments/e2_A_pilot_20260927/commissioning_request.json
++++ experiments/e2_A_pilot_20260927/commissioning_request.json
+@@ -1,13 +1,16 @@
+ {
+   "schema": "E2_A_commissioning_v1",
+-  "status": "unconfirmed",
+-  "approved_by": null,
+-  "approved_at": null,
++  "status": "approved",
++  "approved_by": "user_via_conversation",
++  "approved_at": "2026-09-27T18:26:46+09:00",
+   "scope_sha256": "fa263e166860f6db17ac7343f199c13881ebad075b321bae65de8a21c81867aa",
+   "command_frame": "controller_tcp",
+   "command_axis": "Fz",
+   "command_unit": "N",
+-  "processing_command_fz_range_N": null,
++  "processing_command_fz_range_N": [
++    23.0,
++    23.0
++  ],
+   "measured_force_abs_limits_N": null,
+   "measured_torque_abs_limits_Nm": null,
+   "measured_wrench_frame": null,
+@@ -25,8 +28,13 @@
+   "workspace_evidence": null,
+   "automatic_stop_evidence": null,
+   "approach_exit_evidence": null,
+-  "note": "Request template only. Unknown values stay null. Approval is insufficient without deployed protection support; source scope includes current tool/controller/task. Evidence objects require path and sha256. No values may be derived from F0/sensor rating/previous peaks/analysis 50 N.",
++  "note": "User consent recorded at approved_at (capture time). Unknown protection values/evidence remain null. No abort threshold is derived from F0, demo averages, sensor ratings, historical peaks or analysis 50 N. Software preflight and runtime protection requirements remain enforced.",
+   "sensor_raw_force_abs_limits_N": null,
+   "sensor_raw_torque_abs_limits_Nm": null,
+-  "sensor_driver_deployment_evidence": null
++  "sensor_driver_deployment_evidence": null,
++  "approval_scope": "Operator consent to the 23 N candidate pilot. Protective numeric settings and physical evidence remain incomplete; not commissioning validation.",
++  "approval_evidence": {
++    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_operator_confirmation/operator_statement.json",
++    "sha256": "80836ece824cf05472c45e103cee5150894e1d47b435c8702687e4469fecde39"
++  }
+ }
+--- before/experiments/e2_A_pilot_20260927/config.json
++++ experiments/e2_A_pilot_20260927/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_27922f47a3de57f2",
++  "cohort_id": "E2_1a177ac6efb27bad",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -378,7 +378,7 @@
+     "B": "pose6+zero normalized force observation/history; learned force action retained",
+     "C": "measured force observation/history; learned force action retained"
+   },
+-  "execution_contract_hash": "160ccc3f302e7c99f7878a14d5c024b084dd860cf3bf5890fa3aeda6d053519b",
++  "execution_contract_hash": "2dea052fbb15dfa1e6966ab84e2b94789d9dec3c6a785e67a3deec1f264b1848",
+   "comparison_status": "exploratory when newly trained A is combined with historical best-selected B/C; paired fixed-epoch A/B/C training commands provided separately",
+   "implementation_revisions": [
+     {
+@@ -399,7 +399,7 @@
+     "quality_validation": "pending",
+     "commissioning_record": {
+       "path": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/commissioning_request.json",
+-      "sha256": "8f3c3bd292e08211f22a4cfd16ea5991a9b4ef9b8c908889e1e114dcc39ae1a2"
++      "sha256": "920df6e1fc927f0fb2e1c4d1ac5e4a50ed242e5cdb4b918a9fac15a36014119b"
+     },
+     "required_driver_sources": {
+       "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/include/Y2FT_AQ/FT_Acquisition.hpp": "e52cf42a90c7c215675295cea53335cbb0ccc05455448cec1e5653f34a7cf2f4",
+--- before/experiments/e2_force_ablation_20260926/config.json
++++ experiments/e2_force_ablation_20260926/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_77c16c3ee0649a52",
++  "cohort_id": "E2_5d1f9b33c7c5910a",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -375,7 +375,7 @@
+     "B": "pose6+zero normalized force observation/history; learned force action retained",
+     "C": "measured force observation/history; learned force action retained"
+   },
+-  "execution_contract_hash": "160ccc3f302e7c99f7878a14d5c024b084dd860cf3bf5890fa3aeda6d053519b",
++  "execution_contract_hash": "2dea052fbb15dfa1e6966ab84e2b94789d9dec3c6a785e67a3deec1f264b1848",
+   "comparison_status": "exploratory when newly trained A is combined with historical best-selected B/C; paired fixed-epoch A/B/C training commands provided separately",
+   "implementation_revisions": [
+     {

@@ -176,8 +176,14 @@ def _read_action(
     fallback_gripper_position: Optional[np.ndarray] = None,
     fallback_gripper_current: Optional[np.ndarray] = None,
     include_gripper: bool = False,
+    motion_only: bool = False,
 ) -> np.ndarray:
     pos = _read_dataset(f, ["action/position", "actions/position"], required=False)
+    if motion_only:
+        if include_gripper:
+            raise ValueError("motion_only is defined for polishing pose6 only")
+        # Do not even read force targets: no force latent, head or supervision.
+        return np.asarray(fallback_pos if pos is None else pos, dtype=np.float32).reshape(-1, 6).copy()
     force = _read_dataset(f, ["action/force", "actions/force"], required=False)
     gripper_pos = _read_dataset(
         f,
@@ -395,6 +401,7 @@ def compute_dataset_stats(
     action_norm_mode: str = "minmax_m11",
     marker_norm_mode: str = "minmax_m11",
     include_gripper: bool = False,
+    motion_only: bool = False,
 ) -> Dict[str, np.ndarray | str | int]:
     qpos_all = []
     action_all = []
@@ -417,7 +424,8 @@ def compute_dataset_stats(
                 T = min(pos.shape[0], force.shape[0])
             pos = pos[:T]
             force = force[:T]
-            qpos = np.concatenate([pos[:, :6], force[:, :3]], axis=-1).astype(np.float32)
+            qpos = (pos[:, :6].copy() if motion_only else
+                    np.concatenate([pos[:, :6], force[:, :3]], axis=-1)).astype(np.float32)
             action = _read_action(
                 f,
                 fallback_pos=pos,
@@ -425,6 +433,7 @@ def compute_dataset_stats(
                 fallback_gripper_position=gripper_position,
                 fallback_gripper_current=gripper_current,
                 include_gripper=include_gripper,
+                motion_only=motion_only,
             )[:T]
             marker = _read_marker(f, T=T, marker_dim=marker_dim)[:T]
             qpos_all.append(qpos)
@@ -505,6 +514,7 @@ class ImitationEpisodeDataset(Dataset):
         qpos_dropout_prob: float = 0.0,
         qpos_swap_prob: float = 0.0,
         use_force_observation: bool = True,
+        motion_only: bool = False,
     ):
         super().__init__()
         self.episode_paths = list(episode_paths)
@@ -561,6 +571,10 @@ class ImitationEpisodeDataset(Dataset):
         # (falls back to no-op) if that attribute isn't present.
         self.qpos_swap_prob = float(qpos_swap_prob)
         self.use_force_observation = bool(use_force_observation)
+        self.motion_only = bool(motion_only)
+        if self.motion_only and (self.use_force_observation or self.return_force_history or
+                                 include_gripper or qpos_swap_prob):
+            raise ValueError("motion_only requires force observation/history OFF, no gripper/qpos swap")
         if not (0.0 <= self.qpos_swap_prob < 1.0):
             raise ValueError(f"qpos_swap_prob must be in [0,1), got {self.qpos_swap_prob}")
         self._direction_labels: List[Optional[int]] = [None] * len(self.episode_paths)
@@ -676,6 +690,7 @@ class ImitationEpisodeDataset(Dataset):
                 fallback_gripper_position=gripper_position,
                 fallback_gripper_current=gripper_current,
                 include_gripper=self.include_gripper,
+                motion_only=self.motion_only,
             )
             marker = _read_marker(f, T=pos.shape[0], marker_dim=self.marker_dim)
 
@@ -711,7 +726,8 @@ class ImitationEpisodeDataset(Dataset):
             else:
                 stain_mask = None
 
-        qpos_raw = np.concatenate([pos[start, :6], force[start, :3]], axis=0).astype(np.float32)
+        qpos_raw = (pos[start, :6].copy() if self.motion_only else
+                    np.concatenate([pos[start, :6], force[start, :3]], axis=0)).astype(np.float32)
         action_chunk, is_pad = _slice_pad(action, start, self.seq_len)
         marker_raw = marker[start].astype(np.float32)
         fh_raw = _force_history(force, start, self.force_history_len)
@@ -719,7 +735,8 @@ class ImitationEpisodeDataset(Dataset):
         qpos = normalize_minmax(qpos_raw, self.stats["qpos_min"], self.stats["qpos_max"], self.qpos_norm_mode)
         action_norm = normalize_minmax(action_chunk, self.stats["action_min"], self.stats["action_max"], self.action_norm_mode)
         marker_norm = normalize_minmax(marker_raw, self.stats["marker_min"], self.stats["marker_max"], self.marker_norm_mode)
-        fh_norm = normalize_minmax(fh_raw, self.stats["qpos_min"][6:9], self.stats["qpos_max"][6:9], self.qpos_norm_mode)
+        fh_norm = (np.zeros_like(fh_raw) if self.motion_only else
+                   normalize_minmax(fh_raw, self.stats["qpos_min"][6:9], self.stats["qpos_max"][6:9], self.qpos_norm_mode))
 
         image_t = image.float()
         qpos_t = torch.from_numpy(qpos).float()
@@ -866,6 +883,7 @@ def make_loaders(
     qpos_dropout_prob: float = 0.0,
     qpos_swap_prob: float = 0.0,
     use_force_observation: bool = True,
+    motion_only: bool = False,
 ):
     use_gripper_history = bool(use_gripper_history)
     gripper_history_len = max(1, int(gripper_history_len))
@@ -893,8 +911,14 @@ def make_loaders(
         action_norm_mode=action_norm_mode,
         marker_norm_mode=marker_norm_mode,
         include_gripper=include_gripper,
+        motion_only=motion_only,
     )
     stats["dataset_dir"] = str(Path(dataset_dir).expanduser())
+    if motion_only:
+        stats["motion_only"] = True
+        stats["force_action"] = False
+    stats["split_episode_files"] = {"train": [p.name for p in train_paths],
+                                    "validation": [p.name for p in val_paths]}
     stats["camera_names"] = list(camera_names)
     stats["obs_mode"] = str(obs_mode)
     stats["use_stain_mask"] = bool(use_stain_mask)
@@ -928,6 +952,7 @@ def make_loaders(
         phase_weight_precontact=phase_weight_precontact,
         phase_weight_contact=phase_weight_contact,
         use_force_observation=use_force_observation,
+        motion_only=motion_only,
     )
     train_ds = ImitationEpisodeDataset(
         train_paths,

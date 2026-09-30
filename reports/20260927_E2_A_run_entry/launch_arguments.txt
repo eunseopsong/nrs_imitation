@@ -1,0 +1,32 @@
+Arguments (pass arguments as '<name>:=<value>'):
+
+    'config':
+        E2 master or prepared attempt JSON
+        (default: '/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/config.json')
+
+    'condition':
+        One of: ['A', 'B', 'C']
+
+    'mode':
+        One of: ['check', 'run']
+        (default: 'check')
+
+    'session':
+        no description given
+        (default: 'E2_pilot_01')
+
+    'block':
+        Optional block; not required for repeated common-state trials
+        (default: '')
+
+    'specimen':
+        no description given
+        (default: '')
+
+    'region':
+        no description given
+        (default: '')
+
+    'surface_reuse':
+        no description given
+        (default: '')

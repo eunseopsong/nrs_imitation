@@ -1,0 +1,142 @@
+{
+  "created_at": "2026-09-27T14:04:40.051702+09:00",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2358,
+      "sha256": "880922eeeb5740ef7e9e552fcda5ce09638e08f3344fb707c458b8f50a69b7c1"
+    },
+    {
+      "path": "config_after_loader_fix.json",
+      "bytes": 20014,
+      "sha256": "188a3845852c78aa2b7cec19c77b4bb95f6e99d4ec2e7d8b833cd47ba6158a4e"
+    },
+    {
+      "path": "config_after_registration.json",
+      "bytes": 20014,
+      "sha256": "7e649a595c4698f474024bf18e802b96a5b217fe36e1f72f2b2739f1cea7696d"
+    },
+    {
+      "path": "config_before_registration.json",
+      "bytes": 19403,
+      "sha256": "1329d440702dd5271e894914bcbb786eb487bfda2eee087baef242b64a096f61"
+    },
+    {
+      "path": "final_preparation_status.log",
+      "bytes": 1348,
+      "sha256": "d4b928e6eac1ad5edb1af5aa1c1afe77d93916d4cea3d19956cc22f2226b605f"
+    },
+    {
+      "path": "final_status.json",
+      "bytes": 2039,
+      "sha256": "a71836fff43182a5ab4bef84f76239b7831d25861e51817d45bd519e988a6d03"
+    },
+    {
+      "path": "full_checks.log",
+      "bytes": 3107,
+      "sha256": "82aca7772c58b8630226350cc5ad2a67d58ee7ba0cc3779ee178d55a7c01749e"
+    },
+    {
+      "path": "full_tests.xml",
+      "bytes": 20477,
+      "sha256": "9e3bc29a772fb10787225d2d71d7d75683426df83810bb02250e48e8227aac1d"
+    },
+    {
+      "path": "inference_core_before_A_loader_fix.py",
+      "bytes": 339053,
+      "sha256": "c0fafaf430dfb95154ac66f9fe9b45a751f7485e49e24a80b5efd58745325af8"
+    },
+    {
+      "path": "installed_source_check.json",
+      "bytes": 355,
+      "sha256": "cfa5eda9e1cfd924a31971e7f10f7907ad466f408b88b270c83b45dba13b968b"
+    },
+    {
+      "path": "preflight.json",
+      "bytes": 823,
+      "sha256": "9d85a3e622a17982b6efec2fefeb69c0a3db15759f9dfd4a4fc9a69b723f247d"
+    },
+    {
+      "path": "protected_artifacts_after.json",
+      "bytes": 777,
+      "sha256": "33a8cb3bdca4f8268bbfb67665c2c9122f274d1b318f304daf986c41f7dac08b"
+    },
+    {
+      "path": "protected_artifacts_before.json",
+      "bytes": 570,
+      "sha256": "f488f4366eb57337d20161c886d477402e65a941199dfc407edbc170a39602f4"
+    },
+    {
+      "path": "remaining_F0_inputs.json",
+      "bytes": 1036,
+      "sha256": "590a40ec261d4253b6d89b4ee3eeffd6364c95346a49cce1c72cc13fcc19118f"
+    },
+    {
+      "path": "ros2_launch_check.log",
+      "bytes": 873,
+      "sha256": "2d7304c66082fe37f452dfe63a13b2ce0088acc89a74e34afcc7022309a3c9ed"
+    },
+    {
+      "path": "runtime_loader_after_fix.log",
+      "bytes": 1610,
+      "sha256": "184050d81318876cfb06655c2ed067338be42e3723bef387949495dc786b03db"
+    },
+    {
+      "path": "runtime_loader_before_fix.log",
+      "bytes": 4755,
+      "sha256": "635285f52aa5e2d3373d0b15b042d8d62ce7be70f6bc7a92afb4ed1b3de5bf81"
+    },
+    {
+      "path": "runtime_loader_fix.patch",
+      "bytes": 708,
+      "sha256": "b5e1d1d4da69868917a2788bcf3d2f06766be45d2b7184c2b5468fed299406ff"
+    },
+    {
+      "path": "runtime_loader_review.json",
+      "bytes": 968,
+      "sha256": "af23928c60d3bb1799f3f2eaced1c90041f35d4bdafa55c652acddd888f2c627"
+    },
+    {
+      "path": "status_before_registration.json",
+      "bytes": 1502,
+      "sha256": "2661b5ef5291c0566c63fbb1a7146c3bc1e831ed7eb2e34e6a3fa8b0096f9489"
+    },
+    {
+      "path": "summary.json",
+      "bytes": 2392,
+      "sha256": "3a96a06a6821d5a27eaf1940ca88185bd190295a34efbb8b26f1480d64361e48"
+    },
+    {
+      "path": "tests.log",
+      "bytes": 99,
+      "sha256": "6329b6913f617364c2ff4686253ff1754b40d3d33fe9adb17b9b53af4053e478"
+    },
+    {
+      "path": "tests.xml",
+      "bytes": 5157,
+      "sha256": "ee6af130da254e4debd602588824b5fe5d64b6388e5e7010d7dd89ba7313739e"
+    },
+    {
+      "path": "trained_A_validation.json",
+      "bytes": 1448,
+      "sha256": "60b09406145b1f25bf10564b3f7054ed7f5fb2f0c2eb7f693ebe1563c104eb80"
+    },
+    {
+      "path": "trained_A_validation.log",
+      "bytes": 2476,
+      "sha256": "63516af37b2aab2f7d10b9a660eb2421746b780972a343ff12a717e7d1aae1e0"
+    },
+    {
+      "path": "validate_registered_A.py",
+      "bytes": 7217,
+      "sha256": "be303cca17e56255e6177966651474d2d7de7bb04b33c6ab057d1dba05bf84fc"
+    }
+  ],
+  "execution_guide": {
+    "path": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/A_execution_20260927.md",
+    "sha256": "0e13376344cd039b4482ca33f5ff0d20c7412608c601ec114563c9e85565fcb7",
+    "sha256_at_preparation": "d77d22a1c00990480b6c561889c07c5eebfd2a707a504b4648f3963b617cee46",
+    "updated_at": "2026-09-27T15:03:08.773136+09:00",
+    "update_reason": "F0 candidate update and E1-only extension source revision; E2 runtime settings/F0 unchanged."
+  }
+}

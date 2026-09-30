@@ -1,0 +1,573 @@
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+@@ -73,6 +73,8 @@
+         self.shutdown_requested = False
+         self.shutdown_at = None
+         self.processing = False
++        self.processing_completed = False
++        self.last_operator_event = None
+         self.phase_index = -1
+         self.sample_last = {}
+         self.feedback_received = {'pose':0,'force':0}
+@@ -143,7 +145,18 @@
+         return stamp(self.get_clock().now().nanoseconds,source=source)
+ 
+     def event(self, name, **details):
+-        self.recorder.event(name,self.timing(),session_id=self.session,**details)
++        context = dict(state=self.state, **self.force_selection_status())
++        context.update(details)
++        self.recorder.event(name,self.timing(),session_id=self.session,**context)
++
++    def force_selection_status(self):
++        """Selected target before gate/slew; never a claim of applied force."""
++        external = self.ablation and self.config['condition'] == 'A'
++        return dict(processing=self.processing,
++            force_source='external_F0' if external else 'provider',
++            external_force_fz_N=(float(self.a_processing_force) if self.processing else 0.) if external else None,
++            command_supply_active=self.state == 'running' and not self.engine.closed,
++            controller_applied_force=None)
+ 
+     def sampled(self, name, now):
+         if now-self.sample_last.get(name,-float('inf')) < .05: return False
+@@ -249,6 +262,10 @@
+             last_plan_id=self.engine.last_plan_id,stop_reason=self.stop_reason,
+             log_dir=str(self.recorder.path) if self.recorder.path else None,
+             sent_at=time.monotonic())
++        body.update(self.force_selection_status(),
++            last_operator_event=getattr(self,'last_operator_event',None),
++            queue_cancel_ack=bool(getattr(self,'stop_ack',False)),
++            physical_stop_verified=self.state=='stopped' and bool(getattr(self,'stop_ack',False)))
+         if getattr(self,'protection',None) is not None:
+             body.update(protection_version=PROTECTION_VERSION,
+                         protection_wait_reason=self.protection_wait_reason)
+@@ -335,19 +352,32 @@
+             self.event('queue_cancel_error',error=str(exc));self.stop_ack=False
+ 
+     def operator_event(self,name,response):
++        def complete(accepted, message):
++            self.last_operator_event=dict(name=name,accepted=accepted,message=message,
++                                          monotonic_s=time.monotonic())
++            self.event('operator_event_accepted' if accepted else 'operator_event_rejected',
++                       operator_event=name,reason=message,**self.force_selection_status())
++            self.status()
++            response.success=accepted;response.message=message
++            return response
++        if name not in ('phase_next','processing_start','processing_end','finish','abort'):
++            return complete(False,'Unknown operator event')
+         if name == 'phase_next':
+             phases = self.config.get('protocol', {}).get('phase_ids', [])
+-            if not self.ablation or not self.processing or self.phase_index+1 >= len(phases):
+-                response.success=False;response.message='No next reviewed processing phase';return response
++            if self.state!='running' or not self.ablation or not self.processing or self.phase_index+1 >= len(phases):
++                return complete(False,'No next reviewed processing phase in running state')
+             self.phase_index += 1
+             self.event('phase_or_pass_marker',phase_id=phases[self.phase_index],source='operator')
+-            response.success=True;response.message='Phase marker recorded';return response
++            return complete(True,'Phase marker recorded')
+         if name in ('processing_start','processing_end'):
+             if self.state!='running':
+-                response.success=False;response.message='Processing events require running state';return response
++                return complete(False,'Processing events require running state')
+             if (name=='processing_start')==self.processing:
+-                response.success=False;response.message='Duplicate/out-of-order processing event';return response
++                return complete(False,'Duplicate/out-of-order processing event')
++            if name=='processing_start' and self.ablation and getattr(self,'processing_completed',False):
++                return complete(False,'Processing interval already ended; no restart within this attempt')
+             self.processing=name=='processing_start'
++            if not self.processing:self.processing_completed=True
+             self.event(name,source='operator',force_threshold_used=False)
+             if self.ablation and self.processing:
+                 self.phase_index = 0
+@@ -355,13 +385,14 @@
+                 self.event('phase_or_pass_marker',phase_id=self.config['protocol']['phase_ids'][0],source='operator')
+         else:
+             if name=='finish' and self.state!='running':
+-                response.success=False;response.message='finish requires running state';return response
++                return complete(False,'finish requires running state')
++            if name=='abort' and self.state in ('stopping','stopped','stop_failed'):
++                return complete(False,'Stop already requested; check physical_stop_verified and stop state')
+             if self.ablation:
+                 self.event('finish_requested' if name=='finish' else 'abort_requested',source='operator',
+                            processing_end_recorded=not self.processing,quality_verified=None)
+             self.request_stop('manual_abort' if name=='abort' else 'operator_finish')
+-        response.success=True;response.message='Event accepted; stop completion is reported separately in executor status/log'
+-        return response
++        return complete(True,'Event accepted; target selection/stop request only. Check executor status for physical stop.')
+ 
+     def log_command(self,stage,values,result,now):
+         position_mode = result.get('controller_mode') == 'Position'
+@@ -401,7 +432,8 @@
+         self.return_home = ReturnHome(self.settings, self.return_spec, self.pose, home, now)
+         self.state = 'returning'
+         if self.processing:
+-            self.event('processing_end',source='work_trajectory_end');self.processing=False
++            self.processing=False
++            self.event('processing_end',source='work_trajectory_end')
+         self.event('home_return_started',home_pose_base=home.tolist(),
+             source='common.demo_start_pose6 plus frozen stain XY',
+             queue_cancel_verified=True,controller_hold_verified=True)
+@@ -466,7 +498,8 @@
+                         (self.stop_reason=='operator_finish' or (self.stop_reason=='trajectory_end' and verified_target) or
+                          (self.stop_reason=='home_return_complete' and verified_target and released)))
+                     if self.processing:
+-                        self.event('processing_end',source='executor_stop',termination=self.stop_reason);self.processing=False
++                        self.processing=False
++                        self.event('processing_end',source='executor_stop',termination=self.stop_reason)
+                     self.event('normal_completion' if normal else self.stop_reason,
+                         controller_hold_verified=True,queue_cancel_verified=True,
+                         final_target_reached=bool(verified_target),retract_complete=bool(released and verified_target),
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_protection.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_protection.py
+@@ -77,11 +77,18 @@
+             self.fail('source timestamp stale or clocks incompatible')
+         return stamp
+ 
++    def _metadata(self, obj, frame):
++        if (obj.get('wrench_frame') != frame or obj.get('force_unit') != 'N' or
++                obj.get('torque_unit') != 'Nm' or
++                obj.get('timestamp_origin') != 'host_udp_receive_estimate'):
++            self.fail('producer frame/unit/source-clock contract mismatch')
++
+     def ingest_raw(self, obj, now, now_ros_ns):
+         if self.fault:
+             self.fail(self.fault)
+         if not isinstance(obj, dict) or obj.get('schema') != RAW_SCHEMA:
+             self.fail('raw sensor producer contract missing')
++        self._metadata(obj, 'sensor')
+         if obj.get('valid') is not True:
+             self.fail('invalid Ethernet sensor packet')
+         sequence = obj.get('sequence'); boot = obj.get('boot_id')
+@@ -114,6 +121,7 @@
+         if (not isinstance(obj, dict) or obj.get('schema') != BASE_SCHEMA or
+                 obj.get('source_contract') is not True):
+             self.fail('controller feedback lacks source acquisition provenance')
++        self._metadata(obj, 'robot_base')
+         if obj.get('valid') is not True:
+             self.fail('invalid controller wrench')
+         stamp = self._stamp(obj, now_ros_ns)
+--- a/behavior_ws/src/nrs_imitation/test/test_e2_protection.py
++++ b/behavior_ws/src/nrs_imitation/test/test_e2_protection.py
+@@ -32,8 +32,12 @@
+     stamp = int(t*1e9)-1_000_000
+     return (dict(schema=RAW_SCHEMA,boot_id='MOCK_BOOT',sequence=seq,
+                  source_ros_ns=stamp,valid=True,initialized=True,
++                 wrench_frame='sensor',force_unit='N',torque_unit='Nm',
++                 timestamp_origin='host_udp_receive_estimate',
+                  sensor_wrench=raw or [0.,0.,7.,0.,0.,0.]),
+             dict(schema=BASE_SCHEMA,source_contract=True,source_ros_ns=stamp,
++                 wrench_frame='robot_base',force_unit='N',torque_unit='Nm',
++                 timestamp_origin='host_udp_receive_estimate',
+                  valid=True,base_wrench=base or [0.,0.,7.,0.,0.,0.]))
+ 
+ 
+--- a/experiments/e2_A_pilot_20260927/commissioning_request.json
++++ b/experiments/e2_A_pilot_20260927/commissioning_request.json
+@@ -3,7 +3,7 @@
+   "status": "approved",
+   "approved_by": "user_via_conversation",
+   "approved_at": "2026-09-27T18:26:46+09:00",
+-  "scope_sha256": "fa263e166860f6db17ac7343f199c13881ebad075b321bae65de8a21c81867aa",
++  "scope_sha256": "eabcdb79cc036ad1e2dea8f0dff44622603b75f37ff2bcbc36766ff387e7b84b",
+   "command_frame": "controller_tcp",
+   "command_axis": "Fz",
+   "command_unit": "N",
+--- a/experiments/e2_A_pilot_20260927/config.json
++++ b/experiments/e2_A_pilot_20260927/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_869fef1b8a643f06",
++  "cohort_id": "E2_30d7d97e0ec0dd0a",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -380,7 +380,7 @@
+     "B": "pose6+zero normalized force observation/history; learned force action retained",
+     "C": "measured force observation/history; learned force action retained"
+   },
+-  "execution_contract_hash": "2dea052fbb15dfa1e6966ab84e2b94789d9dec3c6a785e67a3deec1f264b1848",
++  "execution_contract_hash": "7b335bc9d259104a8235e78b68ace4f7d30b30c66fb3cebeca5251ab36d44f4e",
+   "comparison_status": "exploratory when newly trained A is combined with historical best-selected B/C; paired fixed-epoch A/B/C training commands provided separately",
+   "implementation_revisions": [
+     {
+@@ -401,15 +401,15 @@
+     "quality_validation": "pending",
+     "commissioning_record": {
+       "path": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/commissioning_request.json",
+-      "sha256": "26d886bcc35825bdb892d3bca344ab0812b7c1290a7008a53bd0e2d2666cabb8"
++      "sha256": "acc6a4ea121531aca305a4b1699f6caa655e946f824f49b5933e1c051b7be736"
+     },
+     "required_driver_sources": {
+       "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/include/Y2FT_AQ/FT_Acquisition.hpp": "e52cf42a90c7c215675295cea53335cbb0ccc05455448cec1e5653f34a7cf2f4",
+       "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/include/Y2FT_AQ/FT_EtherGet.hpp": "2859c083c4fc7a149f325eb15fe116665d990a5feeb2b7cddaa27b00bd0fac45",
+       "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FT_EtherGet.cpp": "a275cd1117ad71c03278a367e578b0703d5abf6f09dbad71336075691f1901b9",
+-      "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FTGetMain.cpp": "a4548f4b5e0b63bc0a052453b01bb72108b35d5934dadcc0998423f343986cff",
++      "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FTGetMain.cpp": "731acf07703ec9590cdbc43d51aff096ebf22f8eb07e1aae94128768a4ce216a",
+       "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/include/Y2RobMotion/robot_motion.hpp": "3536d3f5e4f57b08bc17fbdeaf665996ca1b397fb36f301af41c06e38871cb81",
+-      "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/src/robot_motion.cpp": "0c0c108c0e8ace930ec98471864bf4b1a31251fb466f107fd686b12bbabbab35"
++      "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/src/robot_motion.cpp": "95ea92b06e6d32c02107bd47543c2915a31787edd0b9996e6f4f9bfbe24dad40"
+     }
+   }
+ }
+--- a/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FTGetMain.cpp
++++ b/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/src/FTGetMain.cpp
+@@ -669,6 +669,9 @@
+         body << std::setprecision(17)
+              << "{\"schema\":\"aft_ether_acquisition_v1\",\"boot_id\":\""
+              << acquisition_boot_id_ << "\",\"sequence\":" << sample.sequence
++             << ",\"producer_revision\":\"e2_source_metadata_20260927_r2\""
++             << ",\"wrench_frame\":\"sensor\",\"force_unit\":\"N\",\"torque_unit\":\"Nm\""
++             << ",\"timestamp_origin\":\"host_udp_receive_estimate\""
+              << ",\"source_ros_ns\":" << acquisition_ros_ns_
+              << ",\"valid\":" << ((sample.valid && !sample.invalid_packet_seen) ? "true" : "false")
+              << ",\"initialized\":" << (FT1SensorGet.initialized() ? "true" : "false")
+--- a/experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/src/robot_motion.cpp
++++ b/experiments/e2_A_protection_20260927/driver_src/Y2RobMotion/src/robot_motion.cpp
+@@ -443,6 +443,9 @@
+     provenance << std::setprecision(17)
+         << "{\"schema\":\"y2_wrench_provenance_v1\",\"source_contract\":"
+         << (ft1_source_contract_ ? "true" : "false")
++        << ",\"producer_revision\":\"e2_source_metadata_20260927_r2\""
++        << ",\"wrench_frame\":\"robot_base\",\"force_unit\":\"N\",\"torque_unit\":\"Nm\""
++        << ",\"timestamp_origin\":\"host_udp_receive_estimate\""
+         << ",\"source_ros_ns\":" << ft1_source_ros_ns_
+         << ",\"valid\":" << (valid_wrench ? "true" : "false") << ",\"base_wrench\":";
+     if (valid_wrench) {
+--- a/experiments/e2_force_ablation_20260926/config.json
++++ b/experiments/e2_force_ablation_20260926/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_5d1f9b33c7c5910a",
++  "cohort_id": "E2_99b3a19884900855",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -375,7 +375,7 @@
+     "B": "pose6+zero normalized force observation/history; learned force action retained",
+     "C": "measured force observation/history; learned force action retained"
+   },
+-  "execution_contract_hash": "2dea052fbb15dfa1e6966ab84e2b94789d9dec3c6a785e67a3deec1f264b1848",
++  "execution_contract_hash": "7b335bc9d259104a8235e78b68ace4f7d30b30c66fb3cebeca5251ab36d44f4e",
+   "comparison_status": "exploratory when newly trained A is combined with historical best-selected B/C; paired fixed-epoch A/B/C training commands provided separately",
+   "implementation_revisions": [
+     {
+--- a/run_A_pilot.sh
++++ b/run_A_pilot.sh
+@@ -18,6 +18,7 @@
+ source /opt/ros/humble/setup.bash
+ source /home/eunseop/dev_ws/install/setup.bash
+ source /home/eunseop/nrs_imitation/behavior_ws/install/setup.bash
++export ROS_DOMAIN_ID=30 ROS_LOCALHOST_ONLY=0 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+ export HF_HUB_OFFLINE=1 OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2
+ 
+ cd /home/eunseop/nrs_imitation
+--- /dev/null
++++ b/behavior_ws/src/nrs_imitation/test/test_e2_producer_connection.py
+@@ -0,0 +1,214 @@
++"""Compile the production serializers against fake I/O; never open ROS or sockets.
++
++The C++ blocks below are read verbatim from the staged producers, not rewritten
++Python payload builders. Limits/approvals come only from temporary mock fixtures.
++"""
++import json
++from pathlib import Path
++import subprocess
++from types import SimpleNamespace as NS
++from types import MethodType
++
++import numpy as np
++import pytest
++
++from nrs_imitation.e2_ablation import ROOT
++from nrs_imitation.e2_executor_node import E2Executor
++from nrs_imitation.e2_protection import ProtectionMonitor, ProtectionFault
++from test_e2_A_pilot import approved_mock
++from test_e2_protection import record, settings, protected_bridge, source_callbacks
++
++DRIVER = ROOT/'experiments/e2_A_protection_20260927/driver_src'
++
++
++@pytest.fixture(scope='module')
++def producer_payloads(tmp_path_factory):
++    ft = (DRIVER/'Y2FT_AQ/src/FTGetMain.cpp').read_text()
++    robot = (DRIVER/'Y2RobMotion/src/robot_motion.cpp').read_text()
++    raw_block = ft.split('    // Separate provenance channel:', 1)[1].split('    #endif', 1)[0]
++    raw_block = raw_block[raw_block.index('\n'):]
++    stamp_block = ft.split('    ft1_msg.header.stamp = rclcpp::Time(acquisition_ros_ns_);', 1)[1].split('    #else', 1)[0]
++    stamp_block = 'ft1_msg.header.stamp = rclcpp::Time(acquisition_ros_ns_);' + stamp_block
++    callback = robot.split('void robot_motion::ftsensorCB(', 1)[1].split('/* joint state mapping function */', 1)[0]
++    callback = callback.split('{', 1)[1].rsplit('}', 1)[0]
++    base_block = robot.split('    bool valid_wrench = true;', 1)[1].split('    currentMDK_pub->publish', 1)[0]
++    base_block = 'bool valid_wrench = true;' + base_block
++    source = r'''
++#include "Y2FT_AQ/FT_Acquisition.hpp"
++#include <cassert>
++#include <iomanip>
++#include <iostream>
++#include <memory>
++#include <sstream>
++#include <string>
++#include <vector>
++namespace rclcpp {
++struct Time { std::int64_t ns; explicit Time(std::int64_t n):ns(n){}
++    std::int64_t nanoseconds() const {return ns;} };
++}
++namespace std_msgs { namespace msg {struct String {std::string data;};}}
++namespace geometry_msgs { namespace msg {
++struct WrenchStamped {
++    using SharedPtr=std::shared_ptr<WrenchStamped>;
++    struct Stamp {std::int32_t sec=0; std::uint32_t nanosec=0;
++        Stamp& operator=(rclcpp::Time t){sec=t.ns/1000000000LL;nanosec=t.ns%1000000000LL;return *this;}};
++    struct Header {Stamp stamp;std::string frame_id;} header;
++    struct XYZ {double x=0,y=0,z=0;};
++    struct Wrench {XYZ force,torque;} wrench;
++};}}
++struct Publisher {std::vector<std::string> data;
++    void publish(const std_msgs::msg::String& m){data.push_back(m.data);}};
++struct Reader {FTAcquisition sample;bool ready=true;
++    const FTAcquisition& acquisition() const {return sample;}
++    bool initialized() const {return ready;}};
++struct FTMock {
++    Reader FT1SensorGet;
++    std::shared_ptr<Publisher> acquisition_pub_=std::make_shared<Publisher>();
++    std::uint64_t acquisition_published_sequence_=0;
++    std::int64_t acquisition_ros_ns_=0,now_ns=10000000000LL;
++    const std::string acquisition_boot_id_="MOCK_PROCESS_BOOT";
++    geometry_msgs::msg::WrenchStamped ft1_msg;
++    rclcpp::Time now() const {return rclcpp::Time(now_ns);}
++    void publish(){RAW_BLOCK
++        STAMP_BLOCK
++    }
++};
++struct RobotMock {
++    std::int64_t ft1_source_ros_ns_=0;bool ft1_source_contract_=false;
++    std::vector<double> ft1data=std::vector<double>(6,0.);
++    std::shared_ptr<Publisher> currentF_provenance_pub_=std::make_shared<Publisher>();
++    void receive(const geometry_msgs::msg::WrenchStamped::SharedPtr msg){CALLBACK}
++    void publish(){BASE_BLOCK}
++};
++void encode(char* p,float v){std::uint32_t bits;std::memcpy(&bits,&v,4);
++    for(int i=0;i<4;++i)p[i]=static_cast<char>(bits>>(24-8*i));}
++int main(){
++    FTMock f;RobotMock r;char bytes[48]{};
++    const float values[]={1.25f,-2.5f,7.f,.125f,-.25f,.5f};
++    for(int i=0;i<6;++i)encode(bytes+4*i,values[i]);
++    f.publish();assert(f.acquisition_pub_->data.empty());
++    f.FT1SensorGet.sample.received(bytes,48,FTAcquisition::Clock::now());
++    f.publish();std::cout<<f.acquisition_pub_->data.back()<<'\n';
++    auto msg=std::make_shared<geometry_msgs::msg::WrenchStamped>(f.ft1_msg);
++    msg->wrench.force.z=6.;msg->wrench.torque.x=.125;
++    r.receive(msg);r.publish();std::cout<<r.currentF_provenance_pub_->data.back()<<'\n';
++    f.now_ns+=80000000;f.publish();assert(f.acquisition_pub_->data.size()==1);
++    r.publish();std::cout<<r.currentF_provenance_pub_->data.back()<<'\n';
++    f.now_ns+=1000000;
++    f.FT1SensorGet.sample.received(bytes,48,FTAcquisition::Clock::now());
++    f.publish();std::cout<<f.acquisition_pub_->data.back()<<'\n';
++    f.FT1SensorGet.sample.received(bytes,23,FTAcquisition::Clock::now());
++    f.publish();std::cout<<f.acquisition_pub_->data.back()<<'\n';
++    f.FT1SensorGet.sample.received(bytes,48,FTAcquisition::Clock::now());
++    f.publish();std::cout<<f.acquisition_pub_->data.back()<<'\n';
++}
++'''
++    for key, block in [('RAW_BLOCK',raw_block),('STAMP_BLOCK',stamp_block),
++                       ('CALLBACK',callback),('BASE_BLOCK',base_block)]:
++        source = source.replace(key,block)
++    folder=tmp_path_factory.mktemp('actual_producer_cpp')
++    cpp=folder/'producer.cpp';cpp.write_text(source)
++    binary=folder/'producer'
++    subprocess.run(['g++','-std=c++17','-O0','-Wall','-Wextra','-Werror',
++                    '-I'+str(DRIVER/'Y2FT_AQ/include'),str(cpp),'-o',str(binary)],check=True,capture_output=True)
++    output=subprocess.run([str(binary)],check=True,capture_output=True,text=True).stdout
++    return [json.loads(line) for line in output.splitlines()]
++
++
++def test_actual_udp_decode_serializers_and_consumer(producer_payloads):
++    raw,base,cached,next_raw,invalid,recovered=producer_payloads
++    assert raw['sensor_wrench']==[1.25,-2.5,7.,.125,-.25,.5]
++    assert raw['wrench_frame']=='sensor' and base['wrench_frame']=='robot_base'
++    assert raw['source_ros_ns']==base['source_ros_ns']==cached['source_ros_ns']
++    assert base==cached and raw['boot_id']=='MOCK_PROCESS_BOOT'
++    assert next_raw['sequence']==raw['sequence']+1
++    assert next_raw['source_ros_ns']>raw['source_ros_ns']
++    assert invalid['valid'] is False and recovered['valid'] is False
++    assert base['base_wrench']==[0.,0.,6.,.125,0.,0.]
++    g=ProtectionMonitor(record(),settings())
++    now_ns=raw['source_ros_ns']+1_000_000
++    g.ingest_raw(raw,10.,now_ns);g.ingest_base(base,10.,now_ns)
++    assert g.check(10.,now_ns,np.zeros(6),0.,0.,0.)['raw_sequence']==raw['sequence']
++    g.ingest_raw(raw,10.08,now_ns+80_000_000)
++    g.ingest_base(cached,10.08,now_ns+80_000_000)
++    assert g.raw_at==g.base_at==10.
++    with pytest.raises(ProtectionFault,match='stopped advancing'):
++        g.check(10.11,now_ns+110_000_000,np.zeros(6),0.,0.,0.)
++
++
++@pytest.mark.parametrize('raw_side',[True,False])
++@pytest.mark.parametrize('key,bad',[('wrench_frame','tcp'),('force_unit','kN'),
++    ('torque_unit','Nmm'),('timestamp_origin','current_publish_time')])
++def test_actual_producer_metadata_cannot_be_misinterpreted(producer_payloads,raw_side,key,bad):
++    obj=dict(producer_payloads[0 if raw_side else 1]);obj[key]=bad
++    g=ProtectionMonitor(record(),settings())
++    method=g.ingest_raw if raw_side else g.ingest_base
++    with pytest.raises(ProtectionFault,match='contract mismatch'):
++        method(obj,10.,obj['source_ros_ns']+1_000_000)
++
++
++def test_real_producer_payload_reaches_executor_then_source_loss_stops(monkeypatch,approved_mock,producer_payloads):
++    c,r=approved_mock;n,t,future=protected_bridge(monkeypatch,c,r)
++    raw,base=producer_payloads[:2]
++    t[0]=(raw['source_ros_ns']+1_000_000)/1e9
++    n.pose_at=n.force_at=n.mode_at=n.provider_at=t[0]
++    n.state='waiting_feedback'
++    n.on_acquisition(NS(data=json.dumps(raw)))
++    n.on_wrench_provenance(NS(data=json.dumps(base)))
++    assert n.protection_check(t[0])
++    n.state='running';n.tick()
++    assert n.sent and n.sent[-1][8]==0.
++    t[0]+=.2;n.pose_at=n.force_at=n.mode_at=n.provider_at=t[0]
++    n.tick()
++    assert n.state=='stopping' and n.engine.closed and n.engine.plan is None
++    assert n.requests[-1].command_mode=='PTP9D_STREAM_STOP'
++    assert n.modes[-1]=='Idling'
++    assert not n.statuses or not n.statuses[-1]['physical_stop_verified']
++
++
++def test_A_operator_sequence_status_log_and_verified_stop(monkeypatch,approved_mock):
++    c,r=approved_mock;n,t,future=protected_bridge(monkeypatch,c,r)
++    n.state='waiting_feedback';source_callbacks(n,t);assert n.protection_check(t[0])
++    n.state='running';n.status()
++    assert n.statuses[-1]['external_force_fz_N']==0.
++    assert not n.operator_event('processing_end',NS()).success
++    assert n.operator_event('processing_start',NS()).success
++    assert n.statuses[-1]['state']=='running' and n.statuses[-1]['processing']
++    assert n.statuses[-1]['force_source']=='external_F0'
++    assert n.statuses[-1]['external_force_fz_N']==23.
++    assert not n.operator_event('processing_start',NS()).success
++    assert not n.operator_event('phase_next',NS()).success  # single reviewed phase
++    assert n.operator_event('processing_end',NS()).success
++    assert n.statuses[-1]['external_force_fz_N']==0.
++    assert not n.statuses[-1]['processing']
++    assert not n.operator_event('processing_end',NS()).success
++    assert not n.operator_event('processing_start',NS()).success
++    assert n.operator_event('finish',NS()).success
++    assert n.statuses[-1]['state']=='stopping' and not n.statuses[-1]['physical_stop_verified']
++    assert not n.statuses[-1]['command_supply_active']
++    assert not n.operator_event('finish',NS()).success
++    assert not n.operator_event('abort',NS()).success
++    future.cb(future);n.status()
++    assert n.statuses[-1]['queue_cancel_ack'] and not n.statuses[-1]['physical_stop_verified']
++    for sequence in range(2,62):
++        t[0]+=.01;n.pose_at=n.force_at=n.mode_at=t[0];n.mode='Position'
++        source_callbacks(n,t,sequence);n.tick()
++    assert n.state=='stopped' and n.statuses[-1]['physical_stop_verified']
++    assert any(e['event']=='physical_hold_verified' for e in n.events)
++    assert any(e['event']=='operator_event_rejected' for e in n.events)
++    # Exercise the actual event logger, which the bridge otherwise intercepts.
++    captured=[];n.recorder.event=lambda *a,**kw:captured.append(kw);n.timing=lambda:dict()
++    MethodType(E2Executor.event,n)('review_test')
++    assert captured[-1]['state']=='stopped' and captured[-1]['processing'] is False
++    assert captured[-1]['force_source']=='external_F0'
++
++
++@pytest.mark.parametrize('state',['waiting_feedback','ready','arming','stopping','stop_failed','stopped'])
++def test_phase_and_processing_events_require_running(monkeypatch,approved_mock,state):
++    c,r=approved_mock;n,t,f=protected_bridge(monkeypatch,c,r)
++    n.state=state;n.processing=True;n.phase_index=0
++    n.config['protocol']['phase_ids']=['MOCK_phase_1','MOCK_phase_2']
++    for event in ('phase_next','processing_start','processing_end','finish'):
++        assert not n.operator_event(event,NS()).success
++    assert n.phase_index==0 and n.processing is True
++    assert not n.sent and not n.requests
+--- /dev/null
++++ b/experiments/e2_A_pilot_20260927/RUN_A_PILOT.txt
+@@ -0,0 +1,87 @@
++E2 A 예비시험 조작 순서 — 현재 실기 차단, 배포/현장 설정 완료 후 사용
++
++사용 진입점: /home/eunseop/nrs_imitation/run_A_pilot.sh
++launch: nrs_imitation e2_abc.launch.py, mode=run, condition=A
++config: /home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json
++서비스 노드: /e2_executor (launch name=e2_executor, 별도 namespace 없음)
++이 문서는 실행 명령을 자동 호출하거나 승인/검증 플래그를 변경하지 않는다.
++
++0. 현재 차단 항목
++commissioning_request.json의 실측/raw 6축 한계, measured_wrench_frame,
++acquisition_max_age_s 및 여섯 적용 근거가 아직 null이다.
++두 producer 배포 및 활성 확인도 미완료다. 현장 접근/가공/이탈의 실제 전환 기준은
++approach_exit_evidence에 기록돼야 한다. 지금 launch하면 preflight에서 멈춘다.
++F0 +23 N, F0_frozen=false, quality_validation=pending은 그대로 유지한다.
++
++1. 각 nrs3 터미널 A/B/C에서 동일 환경:
++source /home/eunseop/miniconda3/etc/profile.d/conda.sh
++conda activate nrs_imitation
++source /opt/ros/humble/setup.bash
++source /home/eunseop/dev_ws/install/setup.bash
++source /home/eunseop/nrs_imitation/behavior_ws/install/setup.bash
++export ROS_DOMAIN_ID=30 ROS_LOCALHOST_ONLY=0 RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
++export HF_HUB_OFFLINE=1 OPENBLAS_NUM_THREADS=2 OMP_NUM_THREADS=2
++
++2. 터미널 B: 시작 전 읽기 전용 상태 확인
++ros2 topic info /ur10skku/ft_acquisition --verbose
++ros2 topic info /ur10skku/currentF_provenance --verbose
++timeout 5s ros2 topic echo /ur10skku/ft_acquisition std_msgs/msg/String --once
++timeout 5s ros2 topic echo /ur10skku/currentF_provenance std_msgs/msg/String --once
++timeout 5s ros2 topic echo /ur10skku/ctlMode std_msgs/msg/String --once
++
++publisher/실제 payload, initialized=true, 단위·좌표계, 전진하는 sequence/source stamp,
++배포 이미지 일치 여부를 확인한다. 0 publisher/메시지 없음은 준비 완료가 아니다.
++현장에서는 기존 HOME/공구·지그/무부하 초기화 및 스핀들 절차를 따른다.
++source=현재 시각을 붙인 가짜 currentF publisher로 대체하지 않는다.
++
++3. 터미널 A: A 예비시험 1회 launch (현재는 차단됨)
++ros2 launch nrs_imitation e2_abc.launch.py \
++  mode:=run condition:=A session:=E2_A_PILOT_01 \
++  config:=/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json
++
++4. 터미널 B: 상태 감시, 종료까지 유지
++ros2 topic echo /e2/executor_status std_msgs/msg/String
++
++state: waiting_feedback → stopping(startup_reset) → ready → arming → running.
++launch가 통과하면 기존 초기 정렬/학습 경로 이동이 진행될 수 있다.
++processing은 false로 시작하고 A의 외부 선택 목표는 0 N이다.
++processing/force_source/external_force_fz_N/command_supply_active와
++last_operator_event, queue_cancel_ack, physical_stop_verified를 확인한다.
++force_source=external_F0는 외부 선택 경로라는 뜻이며 가공 전후 값은 0 N이다.
++external_force_fz_N은 gate·slew 전 선택값이고 실제 가해진 힘이 아니다.
++
++5. 터미널 C: state=running이고 기존 현장 절차의 가공 시작 시점에 수동 호출
++ros2 service call /e2_executor/processing_start std_srvs/srv/Trigger '{}'
++
++success=true 및 processing=true, external_force_fz_N=23.0 확인.
++실제 시작 시점의 위치/접촉/작업 상태 기준은 아직 명시된 근거가 없다.
++그 기준을 담당자가 정하기 전에는 호출 시점을 임의로 정하지 않는다.
++접촉 gate ON 3 N, 시간 N초, launch 완료를 자동 가공 시작 조건으로 쓰지 않는다.
++
++6. 터미널 C: 같은 현장 절차의 가공 종료 시점에 호출
++ros2 service call /e2_executor/processing_end std_srvs/srv/Trigger '{}'
++
++success=true 및 processing=false, external_force_fz_N=0.0 확인.
++접근/이탈 0 N 선택 뒤에도 기존 gate와 30 N/s 변화율 제한 등이 적용된다.
++0 N은 위치 이동 정지나 비접촉 보장이 아니다. 자동 home/retract는 추가하지 않았다.
++단일 pass_1이므로 phase_next는 필요 없고 거부된다. start/end 중복 및 종료 후
++재시작, running이 아닌 상태의 가공/phase 이벤트도 거부하고 로그에 남긴다.
++
++7. 터미널 C: 정상 종료 요청 또는 즉시 중단 요청 중 상황에 맞는 하나를 실행
++정상 종료 (state=running):
++ros2 service call /e2_executor/finish std_srvs/srv/Trigger '{}'
++
++중단:
++ros2 service call /e2_executor/abort std_srvs/srv/Trigger '{}'
++
++가공 중에도 finish/abort는 중단 요청을 수락할 수 있다. 이는 가공 종료/품질 성공의
++증거가 아니며 processing_end 누락은 로그에 남는다. 성공 응답은 요청 수락이다.
++stopping/stopped/stop_failed 상태에서 중복 stop 요청은 거부되며 기존 stop은 계속된다.
++
++8. 터미널 B: 실제 피드백 기반 정지 확인
++state=stopped, queue_cancel_ack=true, physical_stop_verified=true를 모두 확인한다.
++로그 physical_hold_verified와 별도로 품질 검증/접촉 해제는 주장하지 않는다.
++stop_failed 또는 physical_stop_verified=false면 정지 확인 실패이며 재실행하지 말고
++담당자가 기존 현장 정지 절차로 대응한다. 스핀들은 자동 정지시키지 않는다.
++정지 확인 후 터미널 A에서 Ctrl+C로 녹화/로그를 닫는다. 현장의 스핀들/공구 이탈은
++기존 절차에 따른다. 실패·시작 전 차단 기록도 삭제하지 않는다.

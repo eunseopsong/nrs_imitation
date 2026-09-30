@@ -1,0 +1,18 @@
+{
+  "reviewed_at": "2026-09-27T14:01:46.460515+09:00",
+  "authorization": "User requested automatic A setup except information only the user can provide.",
+  "scope": "E2 A startup loader now reconstructs the trained pose6 observation schema after the existing explicit-A checkpoint check.",
+  "changed_runtime_sources": [
+    "behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py"
+  ],
+  "common_motion_settings_unchanged": true,
+  "protocol_confirmation_unchanged": true,
+  "old_execution_contract_hash": "bb82116125f8fc8a8459a16c4476f083128607c887eabff247cafa6d055d5c4a",
+  "new_execution_contract_hash": "0dc9c494fb1d2e0b8f00afadc8e38345d5736ec4480569a7980c11f0b4d14409",
+  "old_cohort": "E2_fc840c7241e1377b",
+  "new_cohort": "E2_4c14bf2b2aa13bb3",
+  "B_C_loader_schema_and_output_regression_passed": true,
+  "actual_A_checkpoint_loader_and_inference_passed": true,
+  "F0_calibration_or_recipe_approved": false,
+  "physical_execution_performed": false
+}

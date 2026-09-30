@@ -1,0 +1,17 @@
+{
+  "completed_at": "2026-09-26T19:03:35.374430+09:00",
+  "destination": "/home/eunseop/nrs_imitation/results/20260926/E1",
+  "runs_by_method": {
+    "R": 5,
+    "T": 5,
+    "C": 5
+  },
+  "run_artifact_files": 865,
+  "videos": 15,
+  "archive_files_including_manifest": 882,
+  "bytes_copied": 266167746,
+  "all_source_files_unchanged": true,
+  "all_destination_hashes_verified": true,
+  "manifest_sha256": "193c3ffed1a5e68f6e2a612f40ac1851d9dc60f71c61d89eeafb22636770c780",
+  "invalid_C_runs_excluded": 3
+}

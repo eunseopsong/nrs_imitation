@@ -1,0 +1,30 @@
+{
+  "schema": "E2_A_operator_confirmation_v1",
+  "recorded_at": "2026-09-27T18:26:46+09:00",
+  "source": "User message in this conversation; exact submission timestamp unavailable",
+  "statement_verbatim": "23N 허용 / ckpt 학습에 사용된 demo dataset 평균 / 산업 표준과 유사한 값 / 산업 표준과 유사한 값 / 전달 확인 / 승인 이대로 진행해줘",
+  "confirmed": {
+    "operator_approval": true,
+    "processing_command_fz_setpoint_N": 23.0,
+    "reported_driver_delivery": true
+  },
+  "scope_sha256": "fa263e166860f6db17ac7343f199c13881ebad075b321bae65de8a21c81867aa",
+  "interpretation": {
+    "processing_command_fz_range_N": [
+      23.0,
+      23.0
+    ],
+    "approval": "Actual user consent only; no claim of validated protective settings or completed hardware commissioning.",
+    "demo_dataset_mean": "Retained as the user proposal, not adopted as per-axis automatic abort limits. No specified per-axis limits or task-applicability evidence.",
+    "industrial_standard_values": "No standard identifier/clause, numeric limits, protection frame or application-specific confirmation supplied; required values stay null.",
+    "delivery_confirmation": "User-reported delivery is recorded. Readback still shows the required robot-side source patch absent; deployment is not marked complete."
+  },
+  "controller_readback_evidence": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_operator_confirmation/controller_readback.json",
+    "sha256": "f756f3f35e9e6059a42df81c50fdb1d18c6784d1705b3a2d3666b6cb00a47b55"
+  },
+  "physical_validation": false,
+  "quality_validation": "pending",
+  "F0_frozen": false,
+  "hardware_executed": false
+}

@@ -1,0 +1,28 @@
+{
+  "files": {
+    "Y2FT_AQ/src/FT_EtherGet.cpp": {
+      "sha256": "ba7b4a7bf050ba49581fd30847c402e7ec4fd9f4566bc354ba4c60761b92accf"
+    },
+    "Y2FT_AQ/src/FTGetMain.cpp": {
+      "sha256": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc"
+    },
+    "Y2RobMotion/src/robot_motion.cpp": {
+      "sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+    },
+    "Y2RobMotion/src/force_control.cpp": {
+      "sha256": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f"
+    },
+    "Y2RobMotion/config/setup_parameters.yaml": {
+      "sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+    },
+    "Y2RobMotion/launch/ur_control.launch.py": {
+      "sha256": "3e2b7f86e5736198f9950ddf5c9c618cd588699edf46dd6529accfc997dbac6d"
+    }
+  },
+  "processes": [
+    " 601293 ur_ros2_control /opt/ros/humble/lib/ur_robot_driver/ur_ros2_control_node --ros-args --params-file /tmp/launch_params_xay4prmm --params-file /opt/ros/humble/share/ur_robot_driver/config/ur10_update_rate.yaml --params-file /tmp/launch_params_y43pf997 --params-file /tmp/launch_params_pcq17r_1",
+    " 601571 singleArm_motio /home/nrs_forcecon/dev_ws/install/Y2RobMotion/lib/Y2RobMotion/singleArm_motion",
+    " 601830 FTGetMain       /home/nrs_forcecon/dev_ws/install/Y2FT_AQ/lib/Y2FT_AQ/FTGetMain"
+  ],
+  "ur_launch": "from launch import LaunchDescription\nfrom launch.actions import IncludeLaunchDescription\nfrom launch.launch_description_sources import PythonLaunchDescriptionSource\nfrom launch.substitutions import PathJoinSubstitution\nfrom launch_ros.substitutions import FindPackageShare\n\n\ndef generate_launch_description():\n\n    ur_control_path = PathJoinSubstitution([\n        FindPackageShare('ur_robot_driver'),\n        'launch',\n        'ur_control.launch.py',\n    ])\n\n    ur_launch = IncludeLaunchDescription(\n        PythonLaunchDescriptionSource(ur_control_path),\n        launch_arguments={\n            'ur_type': 'ur10',   \n            'robot_ip': '192.168.0.47',\n            'initial_joint_controller': 'forward_position_controller',\n            'activate_joint_controller': 'true',\n        }.items()\n    )\n\n    return LaunchDescription([ur_launch])\n"
+}

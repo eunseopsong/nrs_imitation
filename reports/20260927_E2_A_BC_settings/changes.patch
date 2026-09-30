@@ -1,0 +1,193 @@
+--- before/experiments/e2_A_pilot_20260927/config.json
++++ experiments/e2_A_pilot_20260927/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_1a177ac6efb27bad",
++  "cohort_id": "E2_869fef1b8a643f06",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -354,7 +354,9 @@
+     "freeze_evidence": null,
+     "working_phase_only": true,
+     "calibration_hash": "f7299187c1bb27e271ef13b3ecf14c428727535e0874a57feb296ceb4fb6a117",
+-    "interpretation": "Offline signed controller-Fz hypothesis from rounded teacher candidate, NOT a validated operating value or abort limit"
++    "interpretation": "Processing-only scalar candidate in the existing controller_tcp +Fz command convention (N). Rounded teacher-channel mean; not a time-series command envelope, measured-load abort limit, or physically calibrated normal force.",
++    "source_kind": "rounded_training_teacher_channel_mean",
++    "source_label": "교시 평균에 근거한 사용자 허용 후보"
+   },
+   "reference": {
+     "status": "unresolved",
+@@ -399,7 +401,7 @@
+     "quality_validation": "pending",
+     "commissioning_record": {
+       "path": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/commissioning_request.json",
+-      "sha256": "920df6e1fc927f0fb2e1c4d1ac5e4a50ed242e5cdb4b918a9fac15a36014119b"
++      "sha256": "26d886bcc35825bdb892d3bca344ab0812b7c1290a7008a53bd0e2d2666cabb8"
+     },
+     "required_driver_sources": {
+       "/home/eunseop/nrs_imitation/experiments/e2_A_protection_20260927/driver_src/Y2FT_AQ/include/Y2FT_AQ/FT_Acquisition.hpp": "e52cf42a90c7c215675295cea53335cbb0ccc05455448cec1e5653f34a7cf2f4",
+--- before/experiments/e2_A_pilot_20260927/commissioning_request.json
++++ experiments/e2_A_pilot_20260927/commissioning_request.json
+@@ -36,5 +36,11 @@
+   "approval_evidence": {
+     "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_operator_confirmation/operator_statement.json",
+     "sha256": "80836ece824cf05472c45e103cee5150894e1d47b435c8702687e4469fecde39"
++  },
++  "processing_command_fz_range_scope": "f0_parameter_selection_only",
++  "processing_command_fz_range_note": "Checks only config.f0.command_fz_N at preflight. Approach/retract request zero; gate and 30 N/s slew determine the sent series. This range does not constrain sensor readings or replace measured-load protection.",
++  "execution_settings_evidence": {
++    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/settings_basis.json",
++    "sha256": "e10df78c6021b531e1b9e50b537ad40139e7b0cd2881f347177b3b2c7ce5e16b"
+   }
+ }
+--- before/behavior_ws/src/nrs_imitation/test/test_e2_A_pilot.py
++++ behavior_ws/src/nrs_imitation/test/test_e2_A_pilot.py
+@@ -39,8 +39,9 @@
+ @pytest.fixture
+ def approved_mock(tmp_path, monkeypatch):
+     # Mock commissioning evidence is not an approval for the real equipment.
+-    before = {p: digest(p) for p in (PILOT, MASTER)}
+     c = config()
++    real_record = Path(c['pilot']['commissioning_record']['path'])
++    before = {p: digest(p) for p in (PILOT, MASTER, real_record)}
+     proof = tmp_path/'MOCK_NOT_HARDWARE.txt'; proof.write_text('Synthetic fixture only')
+     ref = dict(path=str(proof), sha256=digest(proof))
+     record = dict(schema='E2_A_commissioning_v1', status='approved',
+@@ -238,6 +239,20 @@
+     assert prepared['pilot']['F0_frozen'] is False
+     assert prepared['pilot']['quality_validation'] == 'pending'
+     for close in callbacks: close()
++
++
++@pytest.mark.parametrize('condition', ['B', 'C'])
++def test_A_common_settings_match_every_archived_BC_run(condition):
++    current = config()
++    paths = sorted((ROOT/'results/20260926/E2'/condition).glob('*/launch_context/config.json'))
++    assert len(paths) == 5
++    for path in paths:
++        archived = json.loads(path.read_text())
++        for key in ('executor', 'motion_postprocessor', 'sampling'):
++            assert current[key] == archived[key], (path, key)
++        for key in ('workspace_limits', 'approach_retract_protocol', 'task_time_budget_s'):
++            assert current['common'][key] == archived['common'][key], (path, key)
++        assert current['il']['inference_mode'] == archived['il']['inference_mode'] == 'timed_topic'
+ 
+ 
+ @pytest.mark.parametrize('condition', ['B', 'C'])
+--- before/behavior_ws/src/nrs_imitation/test/test_e2_protection.py
++++ behavior_ws/src/nrs_imitation/test/test_e2_protection.py
+@@ -11,7 +11,7 @@
+ 
+ from nrs_imitation.e2_protection import (ProtectionMonitor, ProtectionFault,
+     RAW_SCHEMA, BASE_SCHEMA, LIMIT_KEYS)
+-from test_e2_A_pilot import approved_mock
++from test_e2_A_pilot import approved_mock, write_record
+ from test_e2_timed_execution import mock_bridge
+ 
+ 
+@@ -210,6 +210,102 @@
+     for key in LIMIT_KEYS:np.testing.assert_array_equal(n.protection.limits[key],r[key])
+ 
+ 
++@pytest.mark.parametrize('termination', ['finish', 'abort'])
++def test_A_F0_selection_range_allows_common_phase_commands(
++        monkeypatch, approved_mock, tmp_path, record_property, termination):
++    """Exercise real callbacks/engine/guards; all feedback and publishers are mocks."""
++    from nrs_imitation.e2_ablation import motion_to_contract, prepare_A_force
++    from nrs_imitation.e2_timed_execution import TimedExecution, TimedPlan, executor_settings
++    c, r = approved_mock
++    r['processing_command_fz_range_N'] = [23., 23.]
++    write_record(c, r, tmp_path/'MOCK_single_setpoint.json')
++    original = copy.deepcopy(r)
++    n, t, future = protected_bridge(monkeypatch, c, r)
++    n.settings = executor_settings(c, 'il')
++    n.protection = ProtectionMonitor(r, n.settings)
++    n.a_processing_force = prepare_A_force(c)
++    n.engine = TimedExecution(n.settings)
++    times = np.arange(128)/30.
++    motion = np.zeros((128, 6)); motion[:, 0] = times; motion[:, 2] = -.2*times
++    actions = motion_to_contract(motion)
++    n.engine.accept(TimedPlan(1, t[0], times, actions, ['unknown']*128, False), t[0])
++    n.engine.start(t[0], n.pose)
++    n.state = 'waiting_feedback'; source_callbacks(n, t)
++    assert n.protection_check(t[0])
++    n.state = 'running'
++    rows = []; stage_rows = {}; sequence = 1
++    n.log_command = lambda stage, values, result, now: stage_rows.update({stage: values.copy()})
++
++    def step(phase, measured_fz):
++        nonlocal sequence
++        t[0] += n.settings['control_period_s']; sequence += 1
++        n.pose_at = n.force_at = n.mode_at = n.provider_at = t[0]
++        n.force = np.array([0., 0., measured_fz, 0., 0., 0.])
++        raw, base = packets(t[0], sequence, raw=n.force.tolist(), base=n.force.tolist())
++        n.on_acquisition(NS(data=json.dumps(raw)))
++        n.on_wrench_provenance(NS(data=json.dumps(base)))
++        count = len(n.sent); n.tick()
++        assert n.state == 'running' and len(n.sent) == count+1
++        sent = np.asarray(n.sent[-1])
++        requested = stage_rows['time_sampled'][8]
++        assert requested == (23. if n.processing else 0.)
++        assert np.all(sent[6:8] == 0.)
++        previous = np.asarray(n.sent[-2]) if len(n.sent) > 1 else np.zeros(9)
++        assert abs(sent[8]-previous[8]) <= 30.*.008+1e-10
++        assert np.max(np.abs(sent[:3]-previous[:3])) <= 10.*.008+1e-10
++        rows.append(dict(phase=phase, measured_fz_N=measured_fz, requested_fz_N=requested,
++                         gated_fz_N=stage_rows['contact_gated'][8], sent_fz_N=sent[8]))
++        n.pose = sent[:6].copy()
++        return rows[-1]
++
++    for _ in range(12): assert step('approach', 0.)['sent_fz_N'] == 0.
++    # Contact alone must not apply F0 before the processing marker.
++    for _ in range(4): assert step('approach_contact', 7.)['sent_fz_N'] == 0.
++    assert n.operator_event('processing_start', NS()).success
++    for _ in range(160): row = step('processing', 7.)
++    assert 22.9 < row['sent_fz_N'] <= 23.
++    assert any(0. < r['sent_fz_N'] < 23. for r in rows)
++    # The scalar selection range is not a gate or a measured-force envelope.
++    for measured, contact in [(1.2, False), (2., False), (3., True), (2., True), (1.2, False), (29., True)]:
++        row = step('contact_gate', measured)
++        assert row['requested_fz_N'] == 23.
++        assert row['gated_fz_N'] == (23. if contact else 0.)
++    assert n.operator_event('processing_end', NS()).success
++    first_retract = step('retract', 7.)
++    assert first_retract['gated_fz_N'] == 0. and first_retract['sent_fz_N'] > 0.
++    for _ in range(219): step('retract', 7.)
++    for _ in range(12): row = step('release', -2.)
++    assert row['gated_fz_N'] == 0. and abs(row['sent_fz_N']) < 1e-6
++    assert not n.requests and not n.modes and not n.protection.fault
++    assert r == original
++    for key in LIMIT_KEYS: np.testing.assert_array_equal(n.protection.limits[key], r[key])
++    assert c['pilot']['quality_validation'] == 'pending' and c['pilot']['F0_frozen'] is False
++
++    count = len(n.sent)
++    assert n.operator_event(termination, NS()).success
++    assert n.state == 'stopping' and n.engine.closed and n.engine.plan is None
++    assert n.modes == ['Idling'] and n.requests[0].command_mode == 'PTP9D_STREAM_STOP'
++    future.cb(future)
++    for _ in range(60):
++        t[0] += .01; sequence += 1
++        n.pose_at = n.force_at = n.mode_at = t[0]; n.mode = 'Position'
++        raw, base = packets(t[0], sequence, raw=[0.]*6, base=[0.]*6)
++        n.on_acquisition(NS(data=json.dumps(raw))); n.on_wrench_provenance(NS(data=json.dumps(base)))
++        n.tick()
++    assert n.state == 'stopped' and len(n.sent) == count and not n.protection.fault
++    assert any(e['event'] == 'physical_hold_verified' for e in n.events)
++    if termination == 'abort': assert not any(e['event'] == 'normal_completion' for e in n.events)
++    summary = []
++    for phase in dict.fromkeys(row['phase'] for row in rows):
++        group = [r for r in rows if r['phase'] == phase]
++        summary.append(dict(phase=phase, ticks=len(group),
++            requested_fz_N=sorted(set(r['requested_fz_N'] for r in group)),
++            sent_fz_min_N=min(r['sent_fz_N'] for r in group),
++            sent_fz_max_N=max(r['sent_fz_N'] for r in group)))
++    record_property('mock_only_no_hardware', True)
++    record_property('phase_summary', json.dumps(summary))
++
++
+ def test_protection_stop_never_claims_hold_without_queue_ack(monkeypatch,approved_mock):
+     c,r=approved_mock;n,t,f=protected_bridge(monkeypatch,c,r)
+     n.state='waiting_feedback';source_callbacks(n,t);assert n.protection_check(t[0])

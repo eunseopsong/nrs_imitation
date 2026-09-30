@@ -1,0 +1,405 @@
+{
+  "task": {
+    "task_type": "line",
+    "direction_label_deg": 90,
+    "endpoints_relative_mm": [
+      [
+        -15.225713729858398,
+        30.618316650390625,
+        167.10179138183594
+      ],
+      [
+        43.69847869873047,
+        -39.007537841796875,
+        167.10179138183594
+      ]
+    ],
+    "orientation_rotvec_rad": [
+      -0.04183447694024232,
+      0.06973036142223078,
+      2.3905397824305816
+    ],
+    "line_width_mm": null,
+    "effective_contact_width_mm": null
+  },
+  "common": {
+    "specimen_id": "unspecified",
+    "region_id": "unspecified",
+    "block_id": null,
+    "repeat_id": null,
+    "use_stain_mask": false,
+    "stain_canon_enable": false,
+    "frame": "stain_relative_v1",
+    "reference_detection": "existing stain_origin_online frozen translation only",
+    "rpm_setpoint": null,
+    "rpm_measured": null,
+    "spindle_control_procedure": {
+      "mode": "operator controlled; no spindle command sent by inference",
+      "procedure": "Keep the same physical spindle setting for R/T/C; operator handles spindle ON/OFF.",
+      "rpm_measured": false,
+      "same_setting_verified": false,
+      "note": "Prescribed experiment procedure, not a claim that equal actual RPM was measured."
+    },
+    "surface_normal_base": null,
+    "tcp_calibration_id": "expected local setup_parameters.yaml sha256:18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+    "force_frame_sign_verification": {
+      "basis": "Same E1 controller/sensor/tool setup explicitly confirmed by operator; reuse existing signed Fz command convention without transformation",
+      "reference_run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+      "target_axis": "controller cmdMotion/SET_FORCE Fz, N",
+      "command_sign": "positive, unchanged from acknowledged E1 +17.694 N median target",
+      "sensor_topic": "/ur10skku/currentF",
+      "measured_Fz_median_N_in_reference_interval": 20.575218166583955,
+      "surface_normal_calibrated": false,
+      "teacher_axis_equivalence_newly_verified": false,
+      "remote_controller_configuration_readback": false,
+      "evidence_commands_sha256": "164f1d35032cd9332acbf1ad8ad2fd388b6ac69fca8428e08e002290dfe950ef"
+    },
+    "frozen_roi": {
+      "detect_params_file": "/home/eunseop/nrs_imitation/checkpoints/stain_relative_frame/stain_origin_90deg_single.json",
+      "sha256": "2ed8012ca6dc34d7e77b0edf57b866ad0a51a5b4107643fb762a1b96da962162",
+      "method": "dark",
+      "dark_thresh": 65,
+      "plate_roi": [
+        130,
+        58,
+        346,
+        122
+      ],
+      "tool_box": [
+        258,
+        115,
+        292,
+        122
+      ]
+    },
+    "workspace_limits": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "task_time_budget_s": 50.0,
+    "approach_retract_protocol": {
+      "approach": "same existing demo-start alignment; policy-generated approach for A/B/C",
+      "finish": "same existing Idling + queue cancellation + Position hold + fresh stationary verification",
+      "retract": "no automatic home/retract for A/B/C; release status remains unverified unless measured",
+      "completion_scope": "operator finish and physical hold; never quality success"
+    },
+    "controller_deployment_id": "operator-confirmed unchanged since C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+    "demo_start_pose6": [
+      18.008996963500977,
+      -2.49249267578125,
+      214.15731811523438,
+      -0.16068577766418457,
+      0.014244713820517063,
+      2.3556406497955322
+    ],
+    "metrics_sample_hz": 20,
+    "metrics_extra_telemetry_enable": false,
+    "video_auto_record": true,
+    "viewers": false,
+    "workspace_limits_provenance": "existing inference_core defaults, applied identically to R/T/C",
+    "expected_controller_sources": {
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+    },
+    "tcp_calibration_note": "Expected source identity only. controller_deployment_id must identify the matching active controller/calibration; not auto-verified.",
+    "rpm_status": "unknown",
+    "rpm_unknown_reason": "Operator stated RPM is unknown on 2026-09-20; not inferred from E1 logs or spindle control.",
+    "setup_confirmation": {
+      "date": "2026-09-20",
+      "operator_statement": "바꾼 거 없어",
+      "scope": [
+        "specimen fixture position and height",
+        "tool/TCP",
+        "force controller settings"
+      ],
+      "reference_run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+      "remote_binary_hash_verified": false,
+      "new_calibration_performed": false
+    },
+    "e2_setup_confirmation": {
+      "confirmed_at": "2026-09-26T20:48:05.711452+09:00",
+      "operator_statement": "변경 없음 / 잉크 제거 / 한 방향 작업 E1 C 설정 사용",
+      "reference_run_id": "RTC_C_20260926T184820",
+      "reference_config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184820/launch_context/config.json",
+      "reference_config_sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb",
+      "scope": [
+        "unchanged tool/TCP, force controller and fixture",
+        "ink removal",
+        "unidirectional work",
+        "E1 C operator finish and 50 s execution ceiling"
+      ],
+      "basis": "operator confirmation plus unchanged archived execution settings and matching local controller-source hashes",
+      "controller_source_checks": {
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": {
+          "expected_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+          "actual_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": {
+          "expected_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+          "actual_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": {
+          "expected_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+          "actual_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": {
+          "expected_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+          "actual_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+        }
+      },
+      "remote_binary_readback_performed": false,
+      "new_force_normal_or_teacher_calibration_performed": false,
+      "robot_executed_by_assistant": false
+    }
+  },
+  "executor": {
+    "transport": "e2_timed_topic_v1",
+    "control_period_s": 0.008,
+    "gain_hz": 15.0,
+    "linear_speed_mm_s": 10.0,
+    "angular_speed_rad_s": 0.6981317007977318,
+    "force_rate_N_s": 30.0,
+    "fz_hard_limit_N": 0.0,
+    "contact_on_N": 3.0,
+    "contact_off_N": 1.2,
+    "feedback_max_age_s": 0.2,
+    "max_tick_gap_s": 0.1,
+    "max_plan_age_s": 0.5,
+    "mode_timeout_s": 2.0,
+    "provider_timeout_s": 2.0,
+    "stop_window_s": 0.4,
+    "stop_timeout_s": 15.0,
+    "completion_position_tolerance_mm": 5.0,
+    "completion_rotation_tolerance_rad": 0.05,
+    "provenance": {
+      "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+      "contact_clip": "unchanged pinned C inference_core defaults",
+      "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+    }
+  },
+  "schema": "E2_ABC_force_ablation_v1",
+  "experiment_id": "E2",
+  "cohort_id": "E2_cbe518a55f20f1da",
+  "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+  "motion_postprocessor": {
+    "profile": "c_pose_conditioning_20260926_v1",
+    "pose_smooth_window": 35,
+    "handover_s": 0.5,
+    "linear_acceleration_mm_s2": 25.0,
+    "angular_acceleration_rad_s2": 1.7453292519943295,
+    "scope": "E2 A/B/C common pose-only conditioning; force samples unchanged except A external scheduler",
+    "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+    "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+  },
+  "sampling": {
+    "seed": 0,
+    "flow_infer_steps": 10,
+    "chunk_size": 128,
+    "replan_interval_steps": 120,
+    "trajectory_hz": 30.0,
+    "force_history_len": 30
+  },
+  "protocol": {
+    "termination": "operator_finish",
+    "reviewed": true,
+    "review_evidence": "변경 없음 / 잉크 제거 / 한 방향 작업 E1 C 설정 사용; reuse E1 C operator finish and existing 50 s ceiling",
+    "phase_ids": [
+      "pass_1"
+    ],
+    "phase_definition": "User-confirmed unidirectional ink-removal work; pass_1 processing interval uses operator processing_start/end markers. Learned motion is unchanged; no force-threshold segmentation.",
+    "missing_phase_policy": "no stretch; incomplete primary metric NA; partial diagnostics retain coverage",
+    "scheduled_blocks": 5,
+    "schedule_seed": 20260926,
+    "surface_process": "ink_removal",
+    "task_id": "polishing_line_90deg",
+    "exclusion_policy": {
+      "all_attempts_retained": true,
+      "no_exclusion_for": [
+        "vibration",
+        "frequent_contact_gate",
+        "manual_abort",
+        "timeout",
+        "poor_force_profile"
+      ],
+      "primary_metric_eligibility": "all predeclared phases complete; valid frame/clock/reference and coverage, otherwise NA",
+      "manual_exclusion": "Only documented recording corruption, wrong predeclared specimen, or controller deployment mismatch; write criterion/evidence in attempt.exclusion_reason. Keep raw data and all-attempt counts.",
+      "replace_failed_trial_silently": false
+    },
+    "block_required": false,
+    "specimen_state_assumption": {
+      "mode": "same_state_each_run",
+      "source": "user instruction 2026-09-26",
+      "statement": "block 인자는 굳이 필요할 거 같지 않아. 그냥 매번 같은 시편 상태라고 가정하고 하자",
+      "physically_verified": false,
+      "physical_specimen_identity": "unspecified",
+      "scope": "A/B/C repeated trials use the same assumed starting specimen state; each attempt retains a unique ID"
+    },
+    "task_direction": "unidirectional",
+    "confirmation": {
+      "confirmed_at": "2026-09-26T20:48:05.711452+09:00",
+      "operator_statement": "변경 없음 / 잉크 제거 / 한 방향 작업 E1 C 설정 사용",
+      "reference_run_id": "RTC_C_20260926T184820",
+      "reference_config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184820/launch_context/config.json",
+      "reference_config_sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb",
+      "scope": [
+        "unchanged tool/TCP, force controller and fixture",
+        "ink removal",
+        "unidirectional work",
+        "E1 C operator finish and 50 s execution ceiling"
+      ],
+      "basis": "operator confirmation plus unchanged archived execution settings and matching local controller-source hashes",
+      "controller_source_checks": {
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": {
+          "expected_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+          "actual_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": {
+          "expected_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+          "actual_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": {
+          "expected_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+          "actual_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": {
+          "expected_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+          "actual_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+        }
+      },
+      "remote_binary_readback_performed": false,
+      "new_force_normal_or_teacher_calibration_performed": false,
+      "robot_executed_by_assistant": false
+    }
+  },
+  "models": {
+    "B": {
+      "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531/policy_best.ckpt",
+      "checkpoint_sha256": "8f8627de915f3161f1374d756f85506820b4b1775cd868259543e83493f6d6c4",
+      "normalizer_sha256": "ae4ac6a3d5013200105dd18d09df467709cbe7fd22b22093123f4b9c60915481"
+    },
+    "C": {
+      "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531/policy_best.ckpt",
+      "checkpoint_sha256": "5d44775bae8cbb4a259c592e5634b2c113a11294437b8e48d42b16b2855336b8",
+      "normalizer_sha256": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2"
+    },
+    "A": {
+      "checkpoint": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/registered_models/A_c05e06da163127f1/policy_best.ckpt",
+      "checkpoint_sha256": "c05e06da163127f15b31e1ed77cc083688d830dc87abc857fc0be5d7031c90d6",
+      "normalizer_sha256": "ffe37fe3040e2cbfbb769866aae09b496c98e167d5ac6a7a750942136dcadfbc",
+      "source_checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e2_force_ablation_20260926/A/20260926_2129/policy_last.ckpt",
+      "selected_epoch_zero_based": 499,
+      "selection_evidence": "Predeclared fixed epoch 500 selection; full training completed 2026-09-27 04:22 KST, exit 0; user authorized automatic A setup on 2026-09-27."
+    }
+  },
+  "calibration": {
+    "execution_convention_verified": true,
+    "normal_force_verified": false,
+    "frame_note": "Execution reuses the operator-confirmed unchanged E1 signed controller TCP force convention and filtered base-vector feedback. Surface normal, compression calibration and teacher/live equivalence remain unverified.",
+    "surface_normal_base": null,
+    "compression_sign": null,
+    "pose_source": "actual_feedback",
+    "controller_target_frame": "controller_tcp",
+    "rotation_basis": "actual_feedback_tcp",
+    "gravity_zero_filter_evidence": null,
+    "calibration_id": null,
+    "F_cmd_applied": null,
+    "raw_sensor_available": false,
+    "execution_convention_evidence": {
+      "confirmed_at": "2026-09-26T20:48:05.711452+09:00",
+      "operator_statement": "변경 없음 / 잉크 제거 / 한 방향 작업 E1 C 설정 사용",
+      "reference_run_id": "RTC_C_20260926T184820",
+      "reference_config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184820/launch_context/config.json",
+      "reference_config_sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb",
+      "scope": [
+        "unchanged tool/TCP, force controller and fixture",
+        "ink removal",
+        "unidirectional work",
+        "E1 C operator finish and 50 s execution ceiling"
+      ],
+      "basis": "operator confirmation plus unchanged archived execution settings and matching local controller-source hashes",
+      "controller_source_checks": {
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": {
+          "expected_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+          "actual_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": {
+          "expected_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+          "actual_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": {
+          "expected_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+          "actual_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": {
+          "expected_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+          "actual_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+        }
+      },
+      "remote_binary_readback_performed": false,
+      "new_force_normal_or_teacher_calibration_performed": false,
+      "robot_executed_by_assistant": false
+    },
+    "execution_convention_basis": "reuse_operator_confirmed_E1_C"
+  },
+  "f0": {
+    "status": "candidate",
+    "command_fz_N": 23.0,
+    "normal_force_N": null,
+    "candidate": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_candidate/candidate.json",
+    "candidate_sha256": "fda702db71b8db0a670e61ec7e382157b4aea0f1c7963f167ee5778159f23f64",
+    "freeze_evidence": null,
+    "working_phase_only": true,
+    "calibration_hash": "f7299187c1bb27e271ef13b3ecf14c428727535e0874a57feb296ceb4fb6a117",
+    "interpretation": "Offline signed controller-Fz hypothesis from rounded teacher candidate, NOT a validated operating value or abort limit"
+  },
+  "reference": {
+    "status": "unresolved",
+    "artifact": null,
+    "sha256": null,
+    "selection_evidence": null
+  },
+  "analysis": {
+    "alignment": "predeclared phase progress; no DTW; no force-based shifting",
+    "grid_points_per_phase": 101,
+    "phase_weighting": "equal phase, uniform progress trapezoid",
+    "sample_alignment": "ZOH commands and force; pose SLERP when transform verified",
+    "max_gap_s": 0.2,
+    "max_pose_age_s": 0.2,
+    "clock": "same host boot monotonic only",
+    "primary_requires_all_phases_complete": true,
+    "applied_missing": "NA, optional sent-command discrepancy"
+  },
+  "intended_differences": {
+    "A": "pose6 state/action, no force history/force supervision, external calibrated F0 in processing",
+    "B": "pose6+zero normalized force observation/history; learned force action retained",
+    "C": "measured force observation/history; learned force action retained"
+  },
+  "execution_contract_hash": "79123187fe1c38aa7d0d0837104d2a6ff0df959f030ae96c36e1e10299b6d68c",
+  "comparison_status": "exploratory when newly trained A is combined with historical best-selected B/C; paired fixed-epoch A/B/C training commands provided separately",
+  "implementation_revisions": [
+    {
+      "recorded_at": "2026-09-26T20:57:08.805832+09:00",
+      "reason": "Fix launch ckpt_auto_subdir directory-string argument and explicit ROS string type; no execution-control, checkpoint, or protocol changes",
+      "authorization": "User reported B startup failure and requested correction in this session",
+      "previous_contract_hash": "7186422a33f63666b4cf711d569bc2322caade528e0ac34158c68024bf8075ff",
+      "new_contract_hash": "bb82116125f8fc8a8459a16c4476f083128607c887eabff247cafa6d055d5c4a",
+      "previous_cohort": "E2_beee2d4025d4be45",
+      "new_cohort": "E2_ffd63467e2965476",
+      "failed_attempt": "E2_B_20260926T205257_dfbae5c8ec66"
+    }
+  ],
+  "trial_stage": "pilot",
+  "pilot": {
+    "start_mode": "operator_existing_procedure",
+    "F0_frozen": false,
+    "quality_validation": "pending",
+    "commissioning_record": {
+      "path": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/commissioning_request.json",
+      "sha256": "077d2ced247ce3e3f0658858bbe9d8d9f77deeb2e7f859c4d0015da2f1516445"
+    }
+  }
+}

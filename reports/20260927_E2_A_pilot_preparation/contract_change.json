@@ -1,0 +1,15 @@
+{
+  "before": {
+    "execution_contract_hash": "3bae7fde33664376a910393b7e2d7fa92baa3ebf1f51b42c011728162a7ecd86",
+    "cohort_id": "E2_baa3a8353fc8965e"
+  },
+  "after": {
+    "execution_contract_hash": "79123187fe1c38aa7d0d0837104d2a6ff0df959f030ae96c36e1e10299b6d68c",
+    "cohort_id": "E2_8f7f2d910d538f68"
+  },
+  "reason": "Pilot/main software preflight separation only; existing executor/motion/safety values unchanged; no hardware or quality approval",
+  "tests": {
+    "related_regression": 198,
+    "final_targeted": 61
+  }
+}

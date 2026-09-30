@@ -1,0 +1,40 @@
+{
+  "created_at": "2026-09-27T14:17:42.042015+09:00",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3138,
+      "sha256": "24508adeaf4ef4f34be63aa8d90b5e213ac476db19311228e496d21d6ccba5ac"
+    },
+    {
+      "path": "audit.json",
+      "bytes": 7881,
+      "sha256": "a7cad5f2c7de7c40e933590cc98aeee43a77c0df683f4581fa445c5e1a43f29e"
+    },
+    {
+      "path": "episode_evidence.csv",
+      "bytes": 12304,
+      "sha256": "07f4317d67e10e6f64734b1f553dd4b7e52aab76a0dc23ece0d5ec2572d91fe1"
+    },
+    {
+      "path": "remote_FT_startup_logs.json",
+      "bytes": 1355,
+      "sha256": "2def073a2e2f4faad7915a75445b134665d3f672270945efe0b11c414eb0d4d9"
+    },
+    {
+      "path": "remote_spindle_gravity.yaml",
+      "bytes": 1254,
+      "sha256": "699eb9d59c6776be2336ebf2469780dc9e614e8ac6b9189443239f9cab662cb2"
+    },
+    {
+      "path": "source_recording_metadata.json",
+      "bytes": 1404,
+      "sha256": "deb9f511e104874e167c457fb13f6081de273983a15dbefebea473c0d334d8dd"
+    },
+    {
+      "path": "teacher_phase_review.png",
+      "bytes": 1593756,
+      "sha256": "a282c7636a06994286361ed167a815e3f3c191f3e47b19c979c990fc50a39310"
+    }
+  ]
+}

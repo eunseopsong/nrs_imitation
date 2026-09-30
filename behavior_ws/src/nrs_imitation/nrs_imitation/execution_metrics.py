@@ -284,6 +284,26 @@ class ExecutionRecorder:
                             roi[kind] = dict(row, path=str(dest.relative_to(self.path)),
                                              shape=list(rgb.shape))
                             self._json("roi.json", roi)
+                    elif stream == "plan_snapshot":
+                        # Long finite R/T plans arrive once, not at control rate.
+                        # Save exact arrays on this writer instead of bursting
+                        # thousands of duplicate CSV rows into the bounded queue.
+                        import numpy as np
+                        kind = row.pop("kind")
+                        if kind not in ("provider_prediction", "postprocessed"):
+                            raise ValueError("Unknown prepared-plan snapshot kind")
+                        action = row.pop("action")
+                        times, phase = row.pop("time"), row.pop("phase")
+                        folder = self.path / "prepared_plans"
+                        folder.mkdir(exist_ok=True)
+                        dest = folder / f"{int(row['inference_id']):06d}_{kind}.npz"
+                        with dest.open("xb") as f:
+                            np.savez(f, action=action, time=times, phase=phase,
+                                metadata=np.array(json.dumps(clean(row), ensure_ascii=False)))
+                        self._diagnostic(handles["events"], "prepared_plan_snapshot_saved",
+                            path=str(dest.relative_to(self.path)), kind=kind,
+                            rows=len(action), inference_id=row["inference_id"],
+                            sha256=hashlib.sha256(dest.read_bytes()).hexdigest())
                     elif stream == "events":
                         handles[stream].write(json.dumps(clean(row), ensure_ascii=False, allow_nan=False) + "\n")
                     else:

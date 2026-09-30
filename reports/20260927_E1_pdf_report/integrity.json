@@ -1,0 +1,3466 @@
+[
+  {
+    "path": "R/RTC_R_20260927T230841/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/prepared_plans/000001_postprocessed.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/prepared_plans/000001_provider_prediction.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/ros_logs/nodes/python3_1228659_1790518120824.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/ros_logs/nodes/python3_1228651_1790518120824.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/ros_logs/nodes/python3_1228653_1790518121021.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/ros_logs/nodes/python3_1228655_1790518120818.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/ros_logs/nodes/python3_1228657_1790518121341.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T230841/video/polishing_inference_20260927_230840_FLOW_E1_R_20260927T230839_719783625.webm",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/prepared_plans/000001_postprocessed.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/prepared_plans/000001_provider_prediction.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/ros_logs/nodes/python3_1230068_1790518241583.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/ros_logs/nodes/python3_1230060_1790518241571.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/ros_logs/nodes/python3_1230062_1790518241740.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/ros_logs/nodes/python3_1230064_1790518241572.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/ros_logs/nodes/python3_1230066_1790518242100.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231041/video/polishing_inference_20260927_231041_FLOW_E1_R_20260927T230839_719783625.webm",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/prepared_plans/000001_postprocessed.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/prepared_plans/000001_provider_prediction.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/ros_logs/nodes/python3_1231192_1790518326673.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/ros_logs/nodes/python3_1231183_1790518326657.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/ros_logs/nodes/python3_1231185_1790518326839.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/ros_logs/nodes/python3_1231187_1790518326661.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/ros_logs/nodes/python3_1231189_1790518327208.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231207/video/polishing_inference_20260927_231206_FLOW_E1_R_20260927T230839_719783625.webm",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/prepared_plans/000001_postprocessed.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/prepared_plans/000001_provider_prediction.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/ros_logs/nodes/python3_1232902_1790518450022.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/ros_logs/nodes/python3_1232894_1790518450005.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/ros_logs/nodes/python3_1232896_1790518450182.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/ros_logs/nodes/python3_1232898_1790518450011.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/ros_logs/nodes/python3_1232900_1790518450560.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231410/video/polishing_inference_20260927_231410_FLOW_E1_R_20260927T230839_719783625.webm",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/prepared_plans/000001_postprocessed.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/prepared_plans/000001_provider_prediction.npz",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/ros_logs/nodes/python3_1233714_1790518513788.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/ros_logs/nodes/python3_1233706_1790518513774.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/ros_logs/nodes/python3_1233708_1790518513944.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/ros_logs/nodes/python3_1233710_1790518513777.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/ros_logs/nodes/python3_1233712_1790518514311.log",
+    "ok": true
+  },
+  {
+    "path": "R/RTC_R_20260927T231514/video/polishing_inference_20260927_231513_FLOW_E1_R_20260927T230839_719783625.webm",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/ros_logs/nodes/python3_1241857_1790519163224.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/ros_logs/nodes/python3_1241849_1790519163208.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/ros_logs/nodes/python3_1241851_1790519163384.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/ros_logs/nodes/python3_1241853_1790519163215.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/ros_logs/nodes/python3_1241855_1790519163745.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232603/video/polishing_inference_20260927_232611_FLOW_E1_C_20260927T232602_139368160.webm",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/ros_logs/nodes/python3_1242391_1790519201881.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/ros_logs/nodes/python3_1242383_1790519201864.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/ros_logs/nodes/python3_1242385_1790519202035.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/ros_logs/nodes/python3_1242387_1790519201871.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/ros_logs/nodes/python3_1242389_1790519202409.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232642/video/polishing_inference_20260927_232650_FLOW_E1_C_20260927T232602_139368160.webm",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/ros_logs/nodes/python3_1242887_1790519237102.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/ros_logs/nodes/python3_1242879_1790519237082.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/ros_logs/nodes/python3_1242881_1790519237258.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/ros_logs/nodes/python3_1242883_1790519237087.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/ros_logs/nodes/python3_1242885_1790519237612.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232717/video/polishing_inference_20260927_232725_FLOW_E1_C_20260927T232602_139368160.webm",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/ros_logs/nodes/python3_1243384_1790519272262.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/ros_logs/nodes/python3_1243376_1790519272245.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/ros_logs/nodes/python3_1243378_1790519272419.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/ros_logs/nodes/python3_1243380_1790519272247.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/ros_logs/nodes/python3_1243382_1790519272789.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232752/video/polishing_inference_20260927_232800_FLOW_E1_C_20260927T232602_139368160.webm",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/ros_logs/nodes/python3_1243924_1790519306681.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/ros_logs/nodes/python3_1243916_1790519306666.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/ros_logs/nodes/python3_1243918_1790519306840.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/ros_logs/nodes/python3_1243920_1790519306670.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/ros_logs/nodes/python3_1243922_1790519307215.log",
+    "ok": true
+  },
+  {
+    "path": "C/RTC_C_20260927T232827/video/polishing_inference_20260927_232834_FLOW_E1_C_20260927T232602_139368160.webm",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/ros_logs/nodes/python3_1237262_1790518843925.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/ros_logs/nodes/python3_1237254_1790518843910.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/ros_logs/nodes/python3_1237256_1790518844083.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/ros_logs/nodes/python3_1237258_1790518843916.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/ros_logs/nodes/python3_1237260_1790518844456.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232044/video/polishing_inference_20260927_232044_FLOW_E1_T_20260927T232042_787077271.webm",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/ros_logs/nodes/python3_1237703_1790518875480.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/ros_logs/nodes/python3_1237695_1790518875465.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/ros_logs/nodes/python3_1237697_1790518875645.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/ros_logs/nodes/python3_1237699_1790518875469.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/ros_logs/nodes/python3_1237701_1790518876007.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232115/video/polishing_inference_20260927_232115_FLOW_E1_T_20260927T232042_787077271.webm",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/ros_logs/nodes/python3_1239785_1790519013211.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/ros_logs/nodes/python3_1239777_1790519013193.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/ros_logs/nodes/python3_1239779_1790519013367.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/ros_logs/nodes/python3_1239781_1790519013197.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/ros_logs/nodes/python3_1239783_1790519013743.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232333/video/polishing_inference_20260927_232333_FLOW_E1_T_20260927T232042_787077271.webm",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/ros_logs/nodes/python3_1240250_1790519047159.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/ros_logs/nodes/python3_1240242_1790519047144.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/ros_logs/nodes/python3_1240244_1790519047318.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/ros_logs/nodes/python3_1240246_1790519047147.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/ros_logs/nodes/python3_1240248_1790519047696.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232407/video/polishing_inference_20260927_232407_FLOW_E1_T_20260927T232042_787077271.webm",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/artifacts/3_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/17_config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/launch_context/config.json",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/ros_logs/launch/launch.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/ros_logs/nodes/python3_1240748_1790519081474.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/ros_logs/nodes/python3_1240740_1790519081452.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/ros_logs/nodes/python3_1240742_1790519081625.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/ros_logs/nodes/python3_1240744_1790519081458.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/ros_logs/nodes/python3_1240746_1790519082001.log",
+    "ok": true
+  },
+  {
+    "path": "T/RTC_T_20260927T232441/video/polishing_inference_20260927_232441_FLOW_E1_T_20260927T232042_787077271.webm",
+    "ok": true
+  },
+  {
+    "path": "run_index.csv",
+    "ok": true
+  }
+]

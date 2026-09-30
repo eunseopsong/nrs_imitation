@@ -1,0 +1,58 @@
+{
+  "output": "/home/eunseop/nrs_imitation/results/20260926/E1_final_report_20260926.pdf",
+  "pages": 10,
+  "page_titles": [
+    "실험 데이터 최종 보고서",
+    "실행 조건과 지표 정의",
+    "15회 실행별 수치",
+    "R 실행 궤적과 힘",
+    "T 실행 궤적과 힘",
+    "C 실행 궤적과 힘",
+    "R 초기·종료 이미지",
+    "T 초기·종료 이미지",
+    "C 초기·종료 이미지",
+    "검증·보관·해석 범위"
+  ],
+  "bytes": 2008468,
+  "pdf_sha256": "bbc4332071de0846dd65934f12355b42a4cabd68ec2afa2d2a84f009f160951e",
+  "run_count": 15,
+  "counts_by_method": {
+    "R": 5,
+    "T": 5,
+    "C": 5
+  },
+  "all_archive_file_hashes_unchanged": true,
+  "source_manifest_sha256": "193c3ffed1a5e68f6e2a612f40ac1851d9dc60f71c61d89eeafb22636770c780",
+  "metrics_csv_sha256": "f854562c9e4f9753c534d15c24f4c6f2e29a39eae7c37490b284e02fe7d6f2a0",
+  "metrics_json_sha256": "53cfc8d4389f19f5fdfcbfc8569c1ee7f0bcbf6115e86d0f1a761c522aee9cbc",
+  "font": "Embedded NanumGothic TrueType",
+  "text_bounds_checked": true,
+  "analysis_uses_archived_good_runs_only": true,
+  "raw_data_modified": false,
+  "final_review": {
+    "reviewed_at": "2026-09-26T19:17:49.618788+09:00",
+    "pdfinfo_page_count": 10,
+    "pdfinfo_page_size": "A4 (595.44 x 841.68 pt)",
+    "searchable_korean_text": true,
+    "font_embedding": "Both NanumGothic faces: embedded, subset, Unicode CID TrueType",
+    "extracted_run_rows_verified": 15,
+    "extracted_numeric_cells_verified": 90,
+    "figure_previews_visually_reviewed": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "actual_pdf_poppler_renders_visually_reviewed": [
+      1,
+      6
+    ],
+    "layout_or_glyph_defects_found": false
+  }
+}

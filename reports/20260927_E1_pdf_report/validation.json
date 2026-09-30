@@ -1,0 +1,93 @@
+{
+  "output": "/home/eunseop/nrs_imitation/results/20260927/E1_report_20260927.pdf",
+  "pages": 15,
+  "titles": [
+    "E1 실험 로그 분석 보고서",
+    "실험 조건과 분석 기준",
+    "15회 개별 실행 결과",
+    "방법별 지표와 반복 편차",
+    "실측 힘의 시간 변화",
+    "실측 TCP 경로와 높이",
+    "기록 품질과 종료 상태",
+    "기존 제거량 추정 지표",
+    "R | 기록 초기·최종 사진",
+    "T | 기록 초기·최종 사진",
+    "C | 기록 초기·최종 사진",
+    "R | 원본 제거량 추정 히트맵",
+    "T | 원본 제거량 추정 히트맵",
+    "C | 원본 제거량 추정 히트맵",
+    "자료 범위와 재현 정보"
+  ],
+  "sha256": "eff2876a361fd046ee3fbc3c27eeaa09d0dfb0535d7abaa760580b13021cc70e",
+  "bytes": 3013521,
+  "manifest_sha256": "e330924792e81c3171162cc861bd688cf1871fd6562db176f85305c380861620",
+  "verified_archive_files": 866,
+  "layout_checks": [
+    {
+      "page": 1,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 2,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 3,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 4,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 5,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 6,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 7,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 8,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 9,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 10,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 11,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 12,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 13,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 14,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 15,
+      "figure_text_and_table_cells_fit": true
+    }
+  ],
+  "pdf_text_pages": 15,
+  "korean_text_extraction_ok": true,
+  "replacement_character_count": 0,
+  "all_75_run_table_values_verified": true,
+  "all_15_terminal_states_checked": true,
+  "all_30_middleware_loss_values_unknown": true
+}

@@ -1,0 +1,83 @@
+{
+  "checked_at": "2026-09-27T15:03:08.773136+09:00",
+  "status": "offline_pass",
+  "tests_passed": 168,
+  "protected_artifacts_checked": 288,
+  "all_protected_artifacts_unchanged": true,
+  "R_T_config": "/home/eunseop/nrs_imitation/experiments/e1_rt_common_20260927/config.json",
+  "R_T_config_sha256": "f1b351339ce0c2f7dacc66421dd9c561592c205aff063488b141ad05711e27c9",
+  "E1_C_recorded_replay": {
+    "status": "pass",
+    "runs": [
+      {
+        "run": "RTC_C_20260926T184357",
+        "ticks": 2117,
+        "all_9d_stages_bitwise_equal": true
+      },
+      {
+        "run": "RTC_C_20260926T184521",
+        "ticks": 1704,
+        "all_9d_stages_bitwise_equal": true
+      },
+      {
+        "run": "RTC_C_20260926T184622",
+        "ticks": 2003,
+        "all_9d_stages_bitwise_equal": true
+      },
+      {
+        "run": "RTC_C_20260926T184724",
+        "ticks": 1901,
+        "all_9d_stages_bitwise_equal": true
+      },
+      {
+        "run": "RTC_C_20260926T184820",
+        "ticks": 1937,
+        "all_9d_stages_bitwise_equal": true
+      }
+    ],
+    "total_ticks": 9662,
+    "comparison": "Archived C engine vs current code, same archived inputs and recorded contact decisions.",
+    "hardware_executed": false,
+    "physical_response_inferred": false
+  },
+  "E2_readiness": {
+    "model_ready": {
+      "A": true,
+      "B": true,
+      "C": true
+    },
+    "execution_contract_ready": true,
+    "hardware_preflight_status": {
+      "A": {
+        "status": "blocked",
+        "reasons": [
+          "A F0 is not calibrated and frozen; real execution blocked"
+        ]
+      },
+      "B": {
+        "status": "offline_pass",
+        "reasons": []
+      },
+      "C": {
+        "status": "offline_pass",
+        "reasons": []
+      }
+    },
+    "force_frame_calibration_ready": false,
+    "reference_and_alignment_ready": false,
+    "force_profile_metrics_ready": false,
+    "stylus_metrology_ready": false,
+    "force_analysis_blockers": [
+      "normal-force frame/sign/zero/filter calibration not verified",
+      "evaluation reference not frozen"
+    ],
+    "hardware_executed": false,
+    "physical_safety_validation": false,
+    "quality_verified": false
+  },
+  "hardware_executed": false,
+  "installed_sources": {
+    "launch": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py",
+    "engine": "/home/eunseop/nrs_imitation/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py"
+  }
+}

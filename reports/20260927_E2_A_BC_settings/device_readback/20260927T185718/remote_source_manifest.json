@@ -1,0 +1,76 @@
+{
+  "host": "nrsgene",
+  "captured_at_utc": "2026-09-27T09:58:33.205713+00:00",
+  "files": [
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml",
+      "sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/config/spindle_gravity.yaml",
+      "sha256": "699eb9d59c6776be2336ebf2469780dc9e614e8ac6b9189443239f9cab662cb2"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/runtime_config.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/runtime_config.cpp",
+      "sha256": "b09d8491c2197eb467f01eaf5c49ce4b465d4c34a20b6619982c9bade9a07895"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/force_control.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/force_control.cpp",
+      "sha256": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp",
+      "sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/include/Y2RobMotion/robot_motion.hpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/include/Y2RobMotion/robot_motion.hpp",
+      "sha256": "70552873e916f2ba0f2e9734230b1e244ec49455d27dd50b29578d205ca1dd1d"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_motion.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_motion.cpp",
+      "sha256": "aea66f25d5c066a2b8fe539becfdb5e6681841d5ea65c5ce93ea044ad3986238"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp",
+      "sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp",
+      "sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/src/FTGetMain.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/src/FTGetMain.cpp",
+      "sha256": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/src/FT_EtherGet.cpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/src/FT_EtherGet.cpp",
+      "sha256": "ba7b4a7bf050ba49581fd30847c402e7ec4fd9f4566bc354ba4c60761b92accf"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/include/Y2FT_AQ/FT_EtherGet.hpp",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/src/y2_ur10skku_control/Y2FT_AQ/include/Y2FT_AQ/FT_EtherGet.hpp",
+      "sha256": "218309f2d5f9893ec64f9316bdcbc3a1dc673818b2c24e2fe62408393e8316ac"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml",
+      "sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+    },
+    {
+      "remote_path": "/home/nrs_forcecon/dev_ws/install/Y2FT_AQ/share/Y2FT_AQ/config/spindle_gravity.yaml",
+      "local_snapshot": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/robot_pc_files/dev_ws/install/Y2FT_AQ/share/Y2FT_AQ/config/spindle_gravity.yaml",
+      "sha256": "699eb9d59c6776be2336ebf2469780dc9e614e8ac6b9189443239f9cab662cb2"
+    }
+  ]
+}

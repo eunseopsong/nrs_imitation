@@ -1,0 +1,514 @@
+{
+  "reused_without_retest": true,
+  "F0_candidate_N": 23.0,
+  "command_frame": "controller_tcp",
+  "command_axis": "+Fz",
+  "teacher_mean_N": 23.01822610909061,
+  "training_episodes": 38,
+  "F0_selection_scope": "F0 scalar only; not the full command sequence or measured loads",
+  "BC_matching_runs": 10,
+  "offline_mock_tests": 140,
+  "previous_verification": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/device_readback/20260927T185718/verification_before_linking.json",
+    "sha256": "b426456f85dc9d17ece051b483618b521090a2fd9683e40b339171cefdbcb283"
+  },
+  "settings_basis": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/settings_basis.json",
+    "sha256": "e10df78c6021b531e1b9e50b537ad40139e7b0cd2881f347177b3b2c7ce5e16b"
+  },
+  "calculation_sources": {
+    "command_fz_N": 23.0,
+    "source_kind": "rounded_training_teacher_channel_mean",
+    "source_label": "교시 평균에 근거한 사용자 허용 후보",
+    "teacher_mean_N": 23.01822610909061,
+    "training_episodes": 38,
+    "source_candidate": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_candidate/candidate.json",
+      "sha256": "fda702db71b8db0a670e61ec7e382157b4aea0f1c7963f167ee5778159f23f64"
+    },
+    "training_split": {
+      "path": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/training_runs/A_20260926T212903/source_snapshot/experiments/e2_force_ablation_20260926/teacher_preview/split.json",
+      "sha256": "92c10a1b54da08621da997e143fff26fa0160d84ef44410b53569c8188bdd082"
+    },
+    "training_config": {
+      "path": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/training_runs/A_20260926T212903/source_snapshot/experiments/e2_force_ablation_20260926/training_configs.json",
+      "sha256": "b2d8fc2ce9da2161362748d5f16ce719040ae5a4f9099bcafa4762ce3e119cdd"
+    },
+    "phase_intervals": {
+      "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_F0_candidate/pose_phase_proposals.json",
+      "sha256": "b4560d8989e35f05399495d0495a47733caf06d620b2ba594aff097da7547b48"
+    },
+    "per_episode": [
+      {
+        "episode": "episode_0.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0028",
+        "start_s": 3.16892147064209,
+        "end_s": 10.174473524093628,
+        "Fz_time_mean_N": 23.298105996990273
+      },
+      {
+        "episode": "episode_1.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0004",
+        "start_s": 2.968632936477661,
+        "end_s": 8.572719097137451,
+        "Fz_time_mean_N": 20.821698859779026
+      },
+      {
+        "episode": "episode_2.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0019",
+        "start_s": 3.4361002445220947,
+        "end_s": 9.440172910690308,
+        "Fz_time_mean_N": 19.983142710320173
+      },
+      {
+        "episode": "episode_3.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0017",
+        "start_s": 3.068793296813965,
+        "end_s": 9.807239294052124,
+        "Fz_time_mean_N": 21.588124017489346
+      },
+      {
+        "episode": "episode_4.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0007",
+        "start_s": 2.7687411308288574,
+        "end_s": 9.940250396728516,
+        "Fz_time_mean_N": 23.106383702945426
+      },
+      {
+        "episode": "episode_5.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0025",
+        "start_s": 3.4356842041015625,
+        "end_s": 8.639383554458618,
+        "Fz_time_mean_N": 19.9131247778504
+      },
+      {
+        "episode": "episode_6.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0008",
+        "start_s": 3.6692967414855957,
+        "end_s": 9.873735189437866,
+        "Fz_time_mean_N": 22.50944062806321
+      },
+      {
+        "episode": "episode_7.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0010",
+        "start_s": 3.035475730895996,
+        "end_s": 9.140270948410034,
+        "Fz_time_mean_N": 23.536270641362947
+      },
+      {
+        "episode": "episode_8.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0027",
+        "start_s": 3.435852527618408,
+        "end_s": 8.539809942245483,
+        "Fz_time_mean_N": 21.541554487170465
+      },
+      {
+        "episode": "episode_9.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0036",
+        "start_s": 3.3689515590667725,
+        "end_s": 8.439249277114868,
+        "Fz_time_mean_N": 25.145241914684018
+      },
+      {
+        "episode": "episode_10.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0032",
+        "start_s": 2.7684004306793213,
+        "end_s": 7.305229663848877,
+        "Fz_time_mean_N": 20.500008965812853
+      },
+      {
+        "episode": "episode_11.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0016",
+        "start_s": 3.1023056507110596,
+        "end_s": 8.1058988571167,
+        "Fz_time_mean_N": 21.42551485059157
+      },
+      {
+        "episode": "episode_12.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0001",
+        "start_s": 3.0353636741638184,
+        "end_s": 9.439926862716675,
+        "Fz_time_mean_N": 20.427413282160085
+      },
+      {
+        "episode": "episode_13.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0005",
+        "start_s": 3.0356264114379883,
+        "end_s": 8.773151159286499,
+        "Fz_time_mean_N": 21.03003499086687
+      },
+      {
+        "episode": "episode_14.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0021",
+        "start_s": 3.302494525909424,
+        "end_s": 8.172500133514404,
+        "Fz_time_mean_N": 22.012078004566522
+      },
+      {
+        "episode": "episode_15.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0018",
+        "start_s": 3.6355538368225098,
+        "end_s": 9.539758443832397,
+        "Fz_time_mean_N": 24.730172258057742
+      },
+      {
+        "episode": "episode_16.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0011",
+        "start_s": 2.968787670135498,
+        "end_s": 9.307153224945068,
+        "Fz_time_mean_N": 23.02921765037253
+      },
+      {
+        "episode": "episode_17.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0015",
+        "start_s": 3.0352370738983154,
+        "end_s": 8.372347593307495,
+        "Fz_time_mean_N": 25.384107758695894
+      },
+      {
+        "episode": "episode_18.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0040",
+        "start_s": 3.002117395401001,
+        "end_s": 8.739313125610352,
+        "Fz_time_mean_N": 23.88219049233418
+      },
+      {
+        "episode": "episode_19.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0042",
+        "start_s": 2.8687520027160645,
+        "end_s": 7.9390857219696045,
+        "Fz_time_mean_N": 25.89911935064838
+      },
+      {
+        "episode": "episode_20.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0029",
+        "start_s": 3.3360071182250977,
+        "end_s": 9.606971502304077,
+        "Fz_time_mean_N": 19.713066636159198
+      },
+      {
+        "episode": "episode_21.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0033",
+        "start_s": 3.235694169998169,
+        "end_s": 9.139633893966675,
+        "Fz_time_mean_N": 22.45350290867342
+      },
+      {
+        "episode": "episode_23.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0035",
+        "start_s": 2.7350211143493652,
+        "end_s": 8.539400100708008,
+        "Fz_time_mean_N": 25.11930665446036
+      },
+      {
+        "episode": "episode_24.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0037",
+        "start_s": 3.0021486282348633,
+        "end_s": 8.30593752861023,
+        "Fz_time_mean_N": 26.989921207446205
+      },
+      {
+        "episode": "episode_25.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0023",
+        "start_s": 3.1692914962768555,
+        "end_s": 9.106923580169678,
+        "Fz_time_mean_N": 21.817856535982514
+      },
+      {
+        "episode": "episode_26.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0009",
+        "start_s": 3.669231653213501,
+        "end_s": 10.674329280853271,
+        "Fz_time_mean_N": 23.4114423262619
+      },
+      {
+        "episode": "episode_27.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0034",
+        "start_s": 2.968998908996582,
+        "end_s": 8.539460182189941,
+        "Fz_time_mean_N": 25.371855739411405
+      },
+      {
+        "episode": "episode_28.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0012",
+        "start_s": 3.0354654788970947,
+        "end_s": 7.905478477478027,
+        "Fz_time_mean_N": 20.047382281229602
+      },
+      {
+        "episode": "episode_29.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0003",
+        "start_s": 2.6013691425323486,
+        "end_s": 9.673407793045044,
+        "Fz_time_mean_N": 21.55096280372652
+      },
+      {
+        "episode": "episode_30.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0020",
+        "start_s": 3.5690057277679443,
+        "end_s": 10.474053382873535,
+        "Fz_time_mean_N": 19.187020250758547
+      },
+      {
+        "episode": "episode_31.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0013",
+        "start_s": 3.235442876815796,
+        "end_s": 9.773235082626343,
+        "Fz_time_mean_N": 23.37297835856272
+      },
+      {
+        "episode": "episode_32.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0041",
+        "start_s": 2.868607521057129,
+        "end_s": 8.139474391937256,
+        "Fz_time_mean_N": 27.933761425933792
+      },
+      {
+        "episode": "episode_33.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0014",
+        "start_s": 2.9687459468841553,
+        "end_s": 9.340157270431519,
+        "Fz_time_mean_N": 23.508611032359774
+      },
+      {
+        "episode": "episode_34.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0043",
+        "start_s": 3.0355865955352783,
+        "end_s": 8.939755201339722,
+        "Fz_time_mean_N": 27.6734616178884
+      },
+      {
+        "episode": "episode_36.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0006",
+        "start_s": 2.934778928756714,
+        "end_s": 8.538672924041748,
+        "Fz_time_mean_N": 24.99434435859941
+      },
+      {
+        "episode": "episode_38.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0026",
+        "start_s": 2.8687336444854736,
+        "end_s": 8.439096212387085,
+        "Fz_time_mean_N": 22.4607811491086
+      },
+      {
+        "episode": "episode_40.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0031",
+        "start_s": 3.0024871826171875,
+        "end_s": 7.839364767074585,
+        "Fz_time_mean_N": 22.541180588522735
+      },
+      {
+        "episode": "episode_41.hdf5",
+        "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+        "source_group": "ep_0047",
+        "start_s": 2.701643943786621,
+        "end_s": 7.171581268310547,
+        "Fz_time_mean_N": 26.782210929596236
+      }
+    ],
+    "physical_normal_force_calibration_verified": false,
+    "processing_boundaries": "approximate pose-based intervals; numerical provenance only"
+  },
+  "archive_config_sources": [
+    {
+      "condition": "B",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/B/E2_B_20260926T205903_fc196a96a836/launch_context/config.json",
+      "sha256": "e76ab8bfd923e2f8fbdd5b4b29addf96db03b4fa2a4e427bbd4d913c5bf4dfd4",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "B",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/B/E2_B_20260926T210012_8eee50ef8114/launch_context/config.json",
+      "sha256": "8aed1bb6c8a5e8367f3d1ed5be2ae9b7339a6b0adac81980beacac1e783f6eed",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "B",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/B/E2_B_20260926T210121_74e063286a9d/launch_context/config.json",
+      "sha256": "6a7be77c9af00ee359bf2c49bbb09c0104f20bef06690eae0fbcafa32f8fb0d7",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "B",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/B/E2_B_20260926T210226_5f6f8582e483/launch_context/config.json",
+      "sha256": "7cbe8fca9b8dc8c281c847bfc9e2b3adbcf36352bf3d4c3df19af3b5ac9b1aae",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "B",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/B/E2_B_20260926T210312_e1acef16f3d3/launch_context/config.json",
+      "sha256": "3333ed35f2970b53228715afbdfd2a2e7f6d0c71caaf2a7048e9b45254617e51",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "C",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/C/E2_C_20260926T210425_04dc3a12e7ce/launch_context/config.json",
+      "sha256": "f0ebd23561f33eab857da0f2c2af9faa894923996a077457a64ebf84a360bc04",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "C",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/C/E2_C_20260926T210502_45f3d160b730/launch_context/config.json",
+      "sha256": "71a6c8e34aa08aeef3f42e0dafb6000a45fc446655293a7a10b96a847fad18be",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "C",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/C/E2_C_20260926T210537_4d8c6a706394/launch_context/config.json",
+      "sha256": "29f38cf361e553a33f2b804bb77b55e3f58d189dffa7e3b5419847eae54adc24",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "C",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/C/E2_C_20260926T210618_9b054a7512d7/launch_context/config.json",
+      "sha256": "08b88c830157beae1c8ed9f8a835f4c208ac2fd8da741a83171705033de2dca4",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    },
+    {
+      "condition": "C",
+      "path": "/home/eunseop/nrs_imitation/results/20260926/E2/C/E2_C_20260926T210656_54d690bc0ac4/launch_context/config.json",
+      "sha256": "82c3d5d61d13f62a19b6abd97691e9c07a08dbfb745d2330bc09d731ac9a8aec",
+      "checks": {
+        "executor": true,
+        "motion_postprocessor": true,
+        "sampling": true,
+        "workspace_limits": true,
+        "task_time_budget_s": true,
+        "approach_retract_protocol": true,
+        "inference_mode": true
+      }
+    }
+  ],
+  "test_results": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/tests.xml",
+    "sha256": "64795727fb8270ab1758afdc0e136a3014f0ed8d450215308d3a3eb07a40113a"
+  },
+  "test_log": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/tests.log",
+    "sha256": "cd9346b58a39221d99863b4de269e91ab8868093dcc5889858072575ba820e10"
+  },
+  "config": {
+    "path": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json",
+    "sha256": "e9ef2d594686667fdd3a17f998e2a1cef2518fc9289de1768001962136524b4a"
+  },
+  "commissioning_record": {
+    "path": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/commissioning_request.json",
+    "sha256": "26d886bcc35825bdb892d3bca344ab0812b7c1290a7008a53bd0e2d2666cabb8"
+  },
+  "execution_contract_hash": "2dea052fbb15dfa1e6966ab84e2b94789d9dec3c6a785e67a3deec1f264b1848",
+  "not_claimed": [
+    "process performance validation",
+    "hardware safety validation",
+    "F0 freezing"
+  ]
+}

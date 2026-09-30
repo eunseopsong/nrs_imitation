@@ -1,0 +1,344 @@
+{
+  "generated_at": "2026-09-26T18:03:49.655638+09:00",
+  "runs": {
+    "C": {
+      "executor_dir": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf",
+      "provider_dir": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx",
+      "command_rows": 5328,
+      "node_sent_rows": 1776,
+      "node_sent_max_gap_ms": 8.407617000557366,
+      "sent_XYZ_direction_reversals_first4s_over_1mm_s": [
+        10,
+        8,
+        0
+      ],
+      "contact_transitions_first1s": 6,
+      "contact_transitions_first4s": 23,
+      "contact_transitions_total": 38,
+      "sent_fz_min_N": -4.285421164316049,
+      "sent_fz_max_N": 25.568766219326925,
+      "measured_base_fz_min_first14s_N": -10.699064105934355,
+      "measured_base_fz_max_first14s_N": 127.25033046566024,
+      "plan_switches": [
+        {
+          "at_s": 4.096109318999879,
+          "old_plan": 1,
+          "new_plan": 2,
+          "requested_XYZ_jump_mm": 20.559754688407473,
+          "sent_XYZ_step_mm": 0.13856406460549903
+        },
+        {
+          "at_s": 8.304063139000391,
+          "old_plan": 2,
+          "new_plan": 3,
+          "requested_XYZ_jump_mm": 33.25717653326645,
+          "sent_XYZ_step_mm": 0.13856406460549903
+        },
+        {
+          "at_s": 12.496198728999843,
+          "old_plan": 3,
+          "new_plan": 4,
+          "requested_XYZ_jump_mm": 14.720969080838504,
+          "sent_XYZ_step_mm": 0.11323857472160372
+        }
+      ],
+      "logger_drops": 0,
+      "logger_write_errors": 0,
+      "drained": true
+    },
+    "T": {
+      "executor_dir": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T172827_executor_20260926T172828_1790411308738816535__tr5tupl",
+      "provider_dir": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T172827_20260926T172829_1790411309404284383_elz8ahc8",
+      "command_rows": 5592,
+      "node_sent_rows": 1864,
+      "node_sent_max_gap_ms": 8.419691000199236,
+      "sent_XYZ_direction_reversals_first4s_over_1mm_s": [
+        0,
+        0,
+        0
+      ],
+      "contact_transitions_first1s": 0,
+      "contact_transitions_first4s": 10,
+      "contact_transitions_total": 24,
+      "sent_fz_min_N": -1.1992835189933442,
+      "sent_fz_max_N": 27.790839596386196,
+      "measured_base_fz_min_first14s_N": -2.3723138722287853,
+      "measured_base_fz_max_first14s_N": 116.48635023002855,
+      "plan_switches": [],
+      "logger_drops": 0,
+      "logger_write_errors": 0,
+      "drained": true
+    },
+    "R": {
+      "executor_dir": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_executor_20260926T170643_1790410003762802082_hjyzh_8_",
+      "provider_dir": "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_20260926T170644_1790410004435588336_fhh5hznt",
+      "command_rows": 15711,
+      "node_sent_rows": 5237,
+      "node_sent_max_gap_ms": 1040.0713800004269,
+      "sent_XYZ_direction_reversals_first4s_over_1mm_s": [
+        0,
+        0,
+        0
+      ],
+      "contact_transitions_first1s": 0,
+      "contact_transitions_first4s": 0,
+      "contact_transitions_total": 36,
+      "sent_fz_min_N": 0.0,
+      "sent_fz_max_N": 17.999999999999986,
+      "measured_base_fz_min_first14s_N": -0.5947762039343303,
+      "measured_base_fz_max_first14s_N": 67.29360023438132,
+      "plan_switches": [],
+      "logger_drops": 0,
+      "logger_write_errors": 0,
+      "drained": true
+    }
+  },
+  "interpretation_limits": [
+    "Requested trajectory jumps are not instantaneous physical robot displacements.",
+    "Measured force is base-frame republished Fz; commanded force depends on TCP controller settings. No frame-matched tracking error is claimed.",
+    "About 20 Hz feedback cannot resolve all high-frequency mechanical vibration or sensor acquisition timing.",
+    "The 35-point smoothing comparison is an offline mathematical comparison, not a validated hardware fix.",
+    "Absence of a driver log event does not rule out every scheduling or network disturbance."
+  ],
+  "C_plan_adjacency": [
+    {
+      "plan_id": 1,
+      "points": 128,
+      "raw_XYZ_step_mm_p50_p95_max": [
+        4.895686471647937,
+        9.621187648234317,
+        14.506029025856868
+      ],
+      "offline_MA35_XYZ_step_mm_p50_p95_max": [
+        0.617401165525644,
+        1.1706708955538108,
+        1.263109589142619
+      ]
+    },
+    {
+      "plan_id": 2,
+      "points": 128,
+      "raw_XYZ_step_mm_p50_p95_max": [
+        4.527749301715523,
+        8.541803052345317,
+        12.290590908625278
+      ],
+      "offline_MA35_XYZ_step_mm_p50_p95_max": [
+        0.6159934576243692,
+        0.9109169141366663,
+        1.0468815818957529
+      ]
+    },
+    {
+      "plan_id": 3,
+      "points": 128,
+      "raw_XYZ_step_mm_p50_p95_max": [
+        5.061831344878451,
+        9.877898396259996,
+        14.305346570948704
+      ],
+      "offline_MA35_XYZ_step_mm_p50_p95_max": [
+        0.7432025473550397,
+        1.2573431567171847,
+        1.5540439150530805
+      ]
+    },
+    {
+      "plan_id": 4,
+      "points": 128,
+      "raw_XYZ_step_mm_p50_p95_max": [
+        2.33851308815015,
+        5.735330690960124,
+        7.319800168826764
+      ],
+      "offline_MA35_XYZ_step_mm_p50_p95_max": [
+        0.7858943750777084,
+        1.5422433335036068,
+        1.620284724937145
+      ]
+    }
+  ],
+  "C_peak_measured_base_fz": {
+    "at_s": 4.699754698000106,
+    "fz_N": 127.25033046566024
+  },
+  "C_terminal_events": [
+    {
+      "source_seq": null,
+      "source_stamp_ns": null,
+      "receipt_ros_ns": 1790412691938145787,
+      "receipt_monotonic_ns": 4804754051357,
+      "stamp_basis": "receipt_only_no_header",
+      "source_clock": null,
+      "frame_id": null,
+      "source": "e2_executor",
+      "validity": "valid",
+      "event": "stop_requested",
+      "details": {
+        "session_id": "f3e9500a900948a183fe2e1cd3828edf",
+        "reason": "startup_reset",
+        "details": null,
+        "initial_reset": true,
+        "physical_stop_verified": false,
+        "spindle_stop_commanded": false
+      },
+      "logger_seq": 5,
+      "run_id": "RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf"
+    },
+    {
+      "source_seq": null,
+      "source_stamp_ns": null,
+      "receipt_ros_ns": 1790412713821917807,
+      "receipt_monotonic_ns": 4826637823707,
+      "stamp_basis": "receipt_only_no_header",
+      "source_clock": null,
+      "frame_id": null,
+      "source": "e2_executor",
+      "validity": "valid",
+      "event": "stop_requested",
+      "details": {
+        "session_id": "f3e9500a900948a183fe2e1cd3828edf",
+        "reason": "manual_abort",
+        "details": null,
+        "initial_reset": false,
+        "physical_stop_verified": false,
+        "spindle_stop_commanded": false
+      },
+      "logger_seq": 6125,
+      "run_id": "RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf"
+    },
+    {
+      "source_seq": null,
+      "source_stamp_ns": null,
+      "receipt_ros_ns": 1790412714922773183,
+      "receipt_monotonic_ns": 4827738682941,
+      "stamp_basis": "receipt_only_no_header",
+      "source_clock": null,
+      "frame_id": null,
+      "source": "e2_executor",
+      "validity": "valid",
+      "event": "manual_abort",
+      "details": {
+        "session_id": "f3e9500a900948a183fe2e1cd3828edf",
+        "controller_hold_verified": true,
+        "queue_cancel_verified": true,
+        "final_target_reached": false,
+        "retract_complete": false,
+        "home_pose_reached": false,
+        "physical_contact_release": "unknown",
+        "spindle_state": "operator controlled; not changed"
+      },
+      "logger_seq": 6168,
+      "run_id": "RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf"
+    }
+  ],
+  "reference_comparisons": {
+    "legacy_service_C": {
+      "run": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+      "checkpoint_same": true,
+      "normalizer_same": true,
+      "resolved_runtime_same": true,
+      "executor_settings_same": false,
+      "artifacts_old": {
+        "dataset_stats.pkl": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
+        "inference_metrics.py": "56b98ba025b8388e70f52966bdbb82e73a824719d6cd40f07d67ab23d5ab7cb4",
+        "execution_metrics.py": "367d341b4d2ae59a78ee746f793dcf5d7943a9e3e16300c3d6fdf14b7bab5156",
+        "inference_core.py": "796dce4ef0959ef9f666acc5760c4c727d7b199c5638a31b8c986c68885a77c5",
+        "inference_clean_single_cam.launch.py": "317ee0ad5977cbe28627bb8adf448b8a25df67f97fa5ed50c5b1be2fffdac9fd",
+        "inference_gradcam_single_cam.launch.py": "21569e4cce224e64dd16c2c7a1c3a2e76768be278bdd3542ba671bd459c105ce",
+        "flow_core.py": "4f3f8639d1bd8110e292a66cffa96f5409b141ff08989433d31a85225a27f74d",
+        "dataset.py": "a4e9954d70a0547542fe75a14280bf2c1c876e9a1c86564e430cb85513564b42",
+        "homography.json": "51c1c2bfad7d63af913ff7120ec6493e61c43c7252d2c9ab81cd8dbc515662c4",
+        "stain_origin_90deg_single.json": "2ed8012ca6dc34d7e77b0edf57b866ad0a51a5b4107643fb762a1b96da962162",
+        "stain_relative_frame.yaml": "798a978763d6bd7791aebe3e779383497975e1e6a94f66f8057aed3f34bb3e1f",
+        "setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+        "robot_motion.cpp": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+        "force_control.cpp": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f",
+        "FTGetMain.cpp": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc",
+        "spindle_gravity.yaml": "17fcba7ba68ed57a486067f6df7d161782816ac57dbc79d735eea46ffe57560b",
+        "RotationTransform.cpp": "f77f77aa53ee94784ca0d5bb45c138d481e4f53bde5ab93439cef6d14cadedcc"
+      },
+      "artifacts_current": {
+        "dataset_stats.pkl": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
+        "inference_metrics.py": "6573d57de7ad32a8c8dfe9066eb313f09f738b0e317d3b3498ac39690b3b03b7",
+        "execution_metrics.py": "27c6509008297fbb408eb31da5aa8718f60de8a334e853891932b74c1a91c483",
+        "inference_core.py": "4132fae4b60eaf0c44c70e65a3d6bedc1023750ba98d408986874dadb9a5df6f",
+        "inference_clean_single_cam.launch.py": "ce8dd00b7a03d952c2f05fcbb069d2dbee6ad2a68a8767fe7b9fab5c05c0ed5c",
+        "inference_gradcam_single_cam.launch.py": "453eac8d7f5012d9b747c49a2e19cce125a04f90b9c5099046ee4217524f6476",
+        "flow_core.py": "4f3f8639d1bd8110e292a66cffa96f5409b141ff08989433d31a85225a27f74d",
+        "dataset.py": "a4e9954d70a0547542fe75a14280bf2c1c876e9a1c86564e430cb85513564b42",
+        "homography.json": "51c1c2bfad7d63af913ff7120ec6493e61c43c7252d2c9ab81cd8dbc515662c4",
+        "stain_origin_90deg_single.json": "2ed8012ca6dc34d7e77b0edf57b866ad0a51a5b4107643fb762a1b96da962162",
+        "stain_relative_frame.yaml": "798a978763d6bd7791aebe3e779383497975e1e6a94f66f8057aed3f34bb3e1f",
+        "setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+        "robot_motion.cpp": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+        "force_control.cpp": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f",
+        "FTGetMain.cpp": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc",
+        "spindle_gravity.yaml": "17fcba7ba68ed57a486067f6df7d161782816ac57dbc79d735eea46ffe57560b",
+        "RotationTransform.cpp": "f77f77aa53ee94784ca0d5bb45c138d481e4f53bde5ab93439cef6d14cadedcc",
+        "config.json": "4a8466ef6937e4bfeef1a8dfee2bbae877c2dba74417ed53c7d7d7890f60d6e8"
+      }
+    },
+    "prior_vibrating_timed_C": {
+      "run": "E2_line_C_r01_20260920T201422_1789902862705332180_75h5dukq",
+      "checkpoint_same": true,
+      "normalizer_same": true,
+      "resolved_runtime_same": true,
+      "executor_settings_same": true,
+      "artifacts_old": {
+        "dataset_stats.pkl": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
+        "inference_metrics.py": "6573d57de7ad32a8c8dfe9066eb313f09f738b0e317d3b3498ac39690b3b03b7",
+        "execution_metrics.py": "27c6509008297fbb408eb31da5aa8718f60de8a334e853891932b74c1a91c483",
+        "inference_core.py": "4132fae4b60eaf0c44c70e65a3d6bedc1023750ba98d408986874dadb9a5df6f",
+        "inference_clean_single_cam.launch.py": "ce8dd00b7a03d952c2f05fcbb069d2dbee6ad2a68a8767fe7b9fab5c05c0ed5c",
+        "inference_gradcam_single_cam.launch.py": "453eac8d7f5012d9b747c49a2e19cce125a04f90b9c5099046ee4217524f6476",
+        "flow_core.py": "4f3f8639d1bd8110e292a66cffa96f5409b141ff08989433d31a85225a27f74d",
+        "dataset.py": "a4e9954d70a0547542fe75a14280bf2c1c876e9a1c86564e430cb85513564b42",
+        "homography.json": "51c1c2bfad7d63af913ff7120ec6493e61c43c7252d2c9ab81cd8dbc515662c4",
+        "stain_origin_90deg_single.json": "2ed8012ca6dc34d7e77b0edf57b866ad0a51a5b4107643fb762a1b96da962162",
+        "stain_relative_frame.yaml": "798a978763d6bd7791aebe3e779383497975e1e6a94f66f8057aed3f34bb3e1f",
+        "setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+        "robot_motion.cpp": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+        "force_control.cpp": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f",
+        "FTGetMain.cpp": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc",
+        "spindle_gravity.yaml": "17fcba7ba68ed57a486067f6df7d161782816ac57dbc79d735eea46ffe57560b",
+        "RotationTransform.cpp": "f77f77aa53ee94784ca0d5bb45c138d481e4f53bde5ab93439cef6d14cadedcc",
+        "config.json": "6eaeba35d1a8daaeb53d45bb48d4f0ce193315f142c271c0386937ab40afcee8"
+      },
+      "artifacts_current": {
+        "dataset_stats.pkl": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
+        "inference_metrics.py": "6573d57de7ad32a8c8dfe9066eb313f09f738b0e317d3b3498ac39690b3b03b7",
+        "execution_metrics.py": "27c6509008297fbb408eb31da5aa8718f60de8a334e853891932b74c1a91c483",
+        "inference_core.py": "4132fae4b60eaf0c44c70e65a3d6bedc1023750ba98d408986874dadb9a5df6f",
+        "inference_clean_single_cam.launch.py": "ce8dd00b7a03d952c2f05fcbb069d2dbee6ad2a68a8767fe7b9fab5c05c0ed5c",
+        "inference_gradcam_single_cam.launch.py": "453eac8d7f5012d9b747c49a2e19cce125a04f90b9c5099046ee4217524f6476",
+        "flow_core.py": "4f3f8639d1bd8110e292a66cffa96f5409b141ff08989433d31a85225a27f74d",
+        "dataset.py": "a4e9954d70a0547542fe75a14280bf2c1c876e9a1c86564e430cb85513564b42",
+        "homography.json": "51c1c2bfad7d63af913ff7120ec6493e61c43c7252d2c9ab81cd8dbc515662c4",
+        "stain_origin_90deg_single.json": "2ed8012ca6dc34d7e77b0edf57b866ad0a51a5b4107643fb762a1b96da962162",
+        "stain_relative_frame.yaml": "798a978763d6bd7791aebe3e779383497975e1e6a94f66f8057aed3f34bb3e1f",
+        "setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+        "robot_motion.cpp": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+        "force_control.cpp": "01b7230d4562160dd2047bc3e2ad39775b1daf94095115652c911c0c4141541f",
+        "FTGetMain.cpp": "f119fa05a7c945dd6487fc41c82b7d0416c79de3dda440b0b908ab052f3de1cc",
+        "spindle_gravity.yaml": "17fcba7ba68ed57a486067f6df7d161782816ac57dbc79d735eea46ffe57560b",
+        "RotationTransform.cpp": "f77f77aa53ee94784ca0d5bb45c138d481e4f53bde5ab93439cef6d14cadedcc",
+        "config.json": "4a8466ef6937e4bfeef1a8dfee2bbae877c2dba74417ed53c7d7d7890f60d6e8"
+      }
+    }
+  },
+  "source_sha256": {
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/metadata.json": "d102ba3f99ba9271f1c2fa238496e84ff2df3dfcb96b11131f3cb6fd8e0f301d",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/events.jsonl": "25e729f656e917c09c1f538eaf997583d2eb3e635200e13a7291ad04d168205e",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/commands.csv": "1656bcb29e3dab13bf7a55454e1e2d80e012ce7417771d4f8453897b25232a9a",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/tcp_pose.csv": "5b8c56737e917f1a9325c71b2c83ba2e2643a85e66450595d8a2caf7857ff341",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/wrench.csv": "05c80a8abfb5874a0be57728022567ede0b76d4440171cd4dbaece90a28f3fcf",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/summary.json": "a88f73967039d5baf60a6f5d1b021cedf64f94ae0f61936ecc0e99b09ac20b3c",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx/metadata.json": "f18038a238e884e1c3dde4f1c9e7bfce0378ce2d658134aaa3afa4b39fe3eda3",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx/events.jsonl": "d9f2f0387aef4af49912f15fbcfc8f08b994837688bf0bc79c10fb8a380f9c77",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx/commands.csv": "c8e0ed10a1591c79bd8a2a79811edc2878c3f444da37949939221a4f96d88410",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx/tcp_pose.csv": "0341a131337d505b3b27065ef621e049e5ce4943b5bf337c8ab798739ddb2232",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx/wrench.csv": "ef685eacb22910e45f373973d3c65d1d29d7160d96172b5ab98ffec697764e88",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx/summary.json": "4a976b72fdd748c2d4bdf3bbeb325499b78d912d7e9c4685599eefcd678d14ba"
+  }
+}

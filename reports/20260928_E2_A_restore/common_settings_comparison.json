@@ -1,0 +1,66 @@
+{
+  "executor": true,
+  "motion_postprocessor": true,
+  "sampling": true,
+  "task": true,
+  "results/20260926/E2/E2_BC_01/B/E2_B_20260926T205903_fc196a96a836/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/B/E2_B_20260926T210226_5f6f8582e483/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/B/E2_B_20260926T210121_74e063286a9d/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/B/E2_B_20260926T210312_e1acef16f3d3/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/B/E2_B_20260926T210012_8eee50ef8114/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/C/E2_C_20260926T210656_54d690bc0ac4/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/C/E2_C_20260926T210502_45f3d160b730/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/C/E2_C_20260926T210537_4d8c6a706394/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/C/E2_C_20260926T210425_04dc3a12e7ce/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  },
+  "results/20260926/E2/E2_BC_01/C/E2_C_20260926T210618_9b054a7512d7/config.json": {
+    "executor": true,
+    "motion_postprocessor": true,
+    "sampling": true,
+    "task": true
+  }
+}

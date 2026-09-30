@@ -66,7 +66,8 @@ class InferenceMetrics:
         if context_path:
             artifacts.append(Path(context_path).expanduser())
         ckpt = Path(node.ckpt_dir) / "policy_best.ckpt"
-        ckpt_stat = ckpt.stat()
+        learned = getattr(node, "execution_method", "il") == "il"
+        ckpt_stat = ckpt.stat() if learned else None
         resolved_names = ["use_force_observation", "use_force_history", "force_history_len", "chunk_size",
             "action_dim", "flow_infer_steps", "flow_deterministic_noise", "flow_noise_seed",
             "obs_force_xy_zeroed", "rel_use_relative", "rel_transform_version", "denorm_action_enabled",
@@ -77,8 +78,8 @@ class InferenceMetrics:
             force_observation="ON" if node.use_force_observation else "OFF",
             force_observation_method="measured" if node.use_force_observation else "constant_zero_after_channel_normalization",
             runtime_parameters=params, resolved_runtime={k: getattr(node, k, None) for k in resolved_names},
-            checkpoint=dict(path=str(ckpt), bytes=ckpt_stat.st_size, mtime_ns=ckpt_stat.st_mtime_ns,
-                            sha256=None, identity_note="path+size+mtime; no large weight read in logging startup"),
+            checkpoint=(dict(path=str(ckpt), bytes=ckpt_stat.st_size, mtime_ns=ckpt_stat.st_mtime_ns,
+                            sha256=None, identity_note="path+size+mtime; no large weight read in logging startup") if learned else None),
             checkpoint_config=getattr(node, "_metrics_checkpoint_config", None),
             normalizer=dict(path=str(Path(node.ckpt_dir) / "dataset_stats.pkl"), hash_in="artifacts"),
             artifact_paths=[str(p) for p in artifacts], operator_context=context,
@@ -119,6 +120,33 @@ class InferenceMetrics:
             warnings=["No hardware verification", "No surface normal/contact footprint/Preston coefficient",
                       "Clock synchronization and active external calibration unverified",
                       "No physical task/point-transition completion signal; use manual intervals"])
+        metadata["execution_method"] = getattr(node, "execution_method", "il")
+        metadata["method"] = {"il": "C" if node.use_force_observation else "B", "rule": "R", "replay": "T"}[metadata["execution_method"]]
+        metadata["e2_configuration"] = getattr(node, "_e2_context", None)
+        context_e2 = getattr(node, '_e2_context', {})
+        if context_e2.get('schema') == 'E2_ABC_force_ablation_v1':
+            metadata.update(experiment_id='E2', method=context_e2['condition'], run=context_e2.get('run'),
+                execution_contract_hash=context_e2['execution_contract_hash'],
+                predicted_force='not_predicted' if context_e2['condition']=='A' else 'policy',
+                F_cmd_applied=None, force_provenance=context_e2['calibration'])
+        if getattr(node, "_e2_transport", False):
+            metadata["e2_session_id"] = node.e2_session_id
+            metadata["execution_transport"] = "e2_timed_topic_v1"
+            metadata["e2_config_sha256"] = node._e2_config_hash
+            common = node._e2_context.get("common", {})
+            metadata["rpm_status"] = common.get("rpm_status", "unspecified")
+            metadata["rpm_unknown_reason"] = common.get("rpm_unknown_reason")
+        if not learned:
+            metadata["force_observation"] = "not_applicable"
+            metadata["force_observation_method"] = "no_learned_policy"
+            metadata["normalizer"] = None
+        metadata["offline_mock"] = bool(getattr(node, "_offline_mock_test", False))
+        if not learned:
+            metadata["force_observation"] = "not_applicable_nonlearned_provider"
+            metadata["force_observation_method"] = "sensor retained for shared lower control and safety"
+            metadata["normalizer"] = None
+            actions = getattr(node, "_e2_actions", None)
+            metadata["provider"] = actions.metadata if actions is not None else None
         if rpm is None:
             metadata["warnings"].append("RPM UNKNOWN: supply metrics_rpm_setpoint (logging only)")
             node.get_logger().warn("[METRICS] RPM unknown: recorded null; not a spindle command")
@@ -286,6 +314,8 @@ class InferenceMetrics:
         if self.recorder.emit("roi", row):
             self.reference_saved = True
             self.event("reference_fixed", reference=row)
+            if getattr(self.node, "e2_config", "") or getattr(self.node, "_e2_context", None):
+                self.event("reference_ready", reference=row, physical_processing_started=False)
 
     def image(self, msg, rgb):
         if not self.snapshot_enabled:
@@ -305,27 +335,57 @@ class InferenceMetrics:
         self.inference_id += 1
         self.stage()
         vals = [float(x) for row in force_history for x in row]
+        learned = getattr(self.node, "execution_method", "il") == "il"
         self.event("inference_start", inference_id=self.inference_id,
-            force_observation=bool(self.node.use_force_observation),
-            force_observation_method="measured" if self.node.use_force_observation else "constant_zero",
+            force_observation=bool(self.node.use_force_observation) if learned else None,
+            force_observation_method=("measured" if self.node.use_force_observation else "constant_zero") if learned else "not_applicable_nonlearned_provider",
             raw_history_norm=math.sqrt(sum(x*x for x in vals)), raw_history_shape=[len(force_history), 3],
             conditioned_force_norm=None if self.node.use_force_observation else 0.0,
             norm_note="raw host history before padding/normalization; ON normalized norm not copied from GPU")
 
     def prediction(self, seq):
-        self.predicted_force = seq[:, 6:9].copy()
+        motion_only = seq.shape[1] == 6
+        self.predicted_force = None if motion_only else seq[:, 6:9].copy()
         frame = "stain_relative_xy_base_z" if self.node.rel_use_relative else "robot_base"
-        timing = self.timing(source="denormalized_policy_prediction")
+        learned = getattr(self.node, "execution_method", "il") == "il"
+        timing = self.timing(source="denormalized_policy_prediction" if learned else "native_provider_prediction")
+        if self._prepared_snapshot(seq, "provider_prediction", frame, timing):
+            return
         for i, vals in enumerate(seq.tolist()):
             row = dict(timing, inference_id=self.inference_id, plan_id=self.inference_id, action_index=i,
-                command_stage="policy_prediction", semantic_frame=frame, orientation_unit="rotvec_rad",
-                position_unit="mm", force_unit="N", execution_status="prediction_only_not_sent",
-                raw_values=vals, validity="valid" if numeric_valid(vals, 9) else "invalid")
+                command_stage="policy_prediction" if learned else "provider_prediction", semantic_frame=frame, orientation_unit="rotvec_rad",
+                position_unit="mm", force_unit=None if motion_only else "N", execution_status="prediction_only_not_sent",
+                raw_values=vals, validity="valid" if numeric_valid(vals, 6 if motion_only else 9) else "invalid",
+                details=dict(predicted_force=None if motion_only else vals[6:9],
+                             force_status='not_predicted' if motion_only else 'policy_prediction'))
             row.update(zip(["x", "y", "z", "rx", "ry", "rz", "fx", "fy", "fz"], vals))
+            actions = getattr(self.node, "_e2_actions", None)
+            if actions is not None:
+                row["details"] = dict(provider_elapsed_s=float(actions.time[i]), phase=str(actions.phase[i]))
             self.recorder.emit("commands", row)
+
+    def _prepared_snapshot(self, seq, kind, frame, timing):
+        actions = getattr(self.node, "_e2_actions", None)
+        if (getattr(self.node, "execution_method", "il") == "il" or
+                actions is None or len(seq) <= 512):
+            return False
+        # Exact native and postprocessed knots remain available independently of
+        # per-tick requested/gated/sent CSV records in the shared executor.
+        accepted = self.recorder.emit("plan_snapshot", dict(timing, kind=kind,
+            inference_id=self.inference_id, action=seq.copy(), time=actions.time.copy(),
+            phase=actions.phase.copy(), semantic_frame=frame,
+            position_unit="mm", orientation_unit="rotvec_rad", force_unit="N",
+            command_stage=kind, execution_status="prepared_not_sent"))
+        if not accepted:
+            raise RuntimeError("Prepared plan snapshot could not be queued")
+        return True
 
     def postprocess(self, seq):
         # Existing CPU denormalized arrays only; no GPU reads or new control transforms.
+        if self.predicted_force is None:
+            self.event('policy_force_postprocess',inference_id=self.inference_id,predicted_force=None,
+                       force_status='not_predicted',force_source='external scheduler in executor processing phase')
+            return
         changed = (self.predicted_force != seq[:, 6:9]).any(axis=1)
         self.event("policy_force_postprocess", inference_id=self.inference_id,
             changed_action_indices=changed.nonzero()[0].tolist(),
@@ -334,6 +394,18 @@ class InferenceMetrics:
             reason="existing XY command disable/limit and Fz hard limit; prediction preserved in commands.csv")
 
     def plan(self, plan):
+        if getattr(self.node, "e2_config", "") or getattr(self.node, "_e2_context", None):
+            if not self.plan_ids:
+                self.event("first_executable_command_ready", physical_processing_started=False)
+            snapshot = self._prepared_snapshot(plan.seq_den, "postprocessed", "robot_base",
+                self.timing(source="shared_postprocessor"))
+            for i, vals in enumerate([] if snapshot else plan.seq_den.tolist()):
+                row = dict(self.timing(source="shared_postprocessor"), inference_id=self.inference_id,
+                    plan_id=self.inference_id, action_index=i, command_stage="postprocessed",
+                    semantic_frame="robot_base", orientation_unit="rotvec_rad", position_unit="mm",
+                    force_unit="N", execution_status="prepared_not_sent", raw_values=vals)
+                row.update(zip(["x", "y", "z", "rx", "ry", "rz", "fx", "fy", "fz"], vals))
+                self.recorder.emit("commands", row)
         self.plan_ids[id(plan)] = self.inference_id
         if len(self.plan_ids) > 256:
             del self.plan_ids[next(iter(self.plan_ids))]

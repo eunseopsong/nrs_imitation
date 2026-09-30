@@ -1,0 +1,154 @@
+[
+  {
+    "path": "/home/eunseop/nrs_imitation/logs/inference_metrics/C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+    "metadata_sha256": "12903fa9aa7d932bc118e74c2719c677b06c99c3443698c01b8e479354d88b7b",
+    "commands_sha256": "164f1d35032cd9332acbf1ad8ad2fd388b6ac69fca8428e08e002290dfe950ef",
+    "transport": "service_stream inferred from recorded modes/runtime",
+    "method": "C",
+    "runtime_parameters": {
+      "ckpt_dir": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531",
+      "use_force_observation": true,
+      "force_history_len": 30,
+      "flow_replan_interval_steps": 120,
+      "trajectory_hz": 30.0,
+      "infer_hz": 5.0,
+      "control_hz": 125.0,
+      "fz_hard_limit": 0.0,
+      "contact_on_thr": 3.0,
+      "contact_off_thr": 1.2,
+      "ptp9d_use_stream": true,
+      "ptp9d_stream_stride": 2,
+      "ptp9d_stream_smooth_window": 35,
+      "ptp9d_stream_topup_points": 40,
+      "ptp9d_stream_min_lookahead_sec": 2.5,
+      "ptp9d_stream_force_min_interval_sec": 0.1,
+      "metrics_sample_hz": 20.0,
+      "metrics_extra_telemetry_enable": false
+    },
+    "node_sent_rows_by_mode": {
+      "cmdMotion": 1,
+      "PTP": 1,
+      "Force": 1,
+      "PTP9D_STREAM_STOP": 1,
+      "PTP9D_STREAM_START": 1,
+      "PTP9D_STREAM_APPEND": 673,
+      "PTP9D_STREAM_SET_FORCE": 40
+    },
+    "unique_messages_by_mode": {
+      "PTP9D_STREAM_APPEND": 398,
+      "PTP9D_STREAM_SET_FORCE": 40,
+      "cmdMotion": 1,
+      "PTP9D_STREAM_START": 1,
+      "PTP9D_STREAM_STOP": 1,
+      "PTP": 1,
+      "Force": 1
+    },
+    "current_E1_trial": false,
+    "physical_execution_not_inferred_from_rows": true
+  },
+  {
+    "path": "/home/eunseop/nrs_imitation/logs/inference_metrics/E2_line_R_validation_02_executor_20260920T195830_1789901910681378337_w5_mo1k8",
+    "metadata_sha256": "d78dbc9e7529d3f844e6ca841d8f5a0f96d13803fda67618ef0b458f38d0d026",
+    "commands_sha256": "2d32d7b6455136ea309f25bb7cdc1caa0e3592052fda241effbd3c32f4237883",
+    "transport": "e2_timed_topic_v1",
+    "method": "R",
+    "runtime_parameters": {
+      "ckpt_dir": null,
+      "use_force_observation": null,
+      "force_history_len": null,
+      "flow_replan_interval_steps": null,
+      "trajectory_hz": null,
+      "infer_hz": null,
+      "control_hz": null,
+      "fz_hard_limit": null,
+      "contact_on_thr": null,
+      "contact_off_thr": null,
+      "ptp9d_use_stream": null,
+      "ptp9d_stream_stride": null,
+      "ptp9d_stream_smooth_window": null,
+      "ptp9d_stream_topup_points": null,
+      "ptp9d_stream_min_lookahead_sec": null,
+      "ptp9d_stream_force_min_interval_sec": null,
+      "metrics_sample_hz": null,
+      "metrics_extra_telemetry_enable": null
+    },
+    "node_sent_rows_by_mode": {
+      "cmdMotion": 5242
+    },
+    "unique_messages_by_mode": {
+      "cmdMotion": 5242
+    },
+    "current_E1_trial": false,
+    "physical_execution_not_inferred_from_rows": true
+  },
+  {
+    "path": "/home/eunseop/nrs_imitation/logs/inference_metrics/E2_line_T_r01_executor_20260920T201023_1789902623731930402_xpzzpqr3",
+    "metadata_sha256": "7cceb331373d0bdda1e19ae33bc9e99a577bce1df52f2099379309c739652451",
+    "commands_sha256": "9fad1c6c480c4db0f7a1a47ba79f0fed563eab7aed8f97ee0e5d3e30031598b6",
+    "transport": "e2_timed_topic_v1",
+    "method": "T",
+    "runtime_parameters": {
+      "ckpt_dir": null,
+      "use_force_observation": null,
+      "force_history_len": null,
+      "flow_replan_interval_steps": null,
+      "trajectory_hz": null,
+      "infer_hz": null,
+      "control_hz": null,
+      "fz_hard_limit": null,
+      "contact_on_thr": null,
+      "contact_off_thr": null,
+      "ptp9d_use_stream": null,
+      "ptp9d_stream_stride": null,
+      "ptp9d_stream_smooth_window": null,
+      "ptp9d_stream_topup_points": null,
+      "ptp9d_stream_min_lookahead_sec": null,
+      "ptp9d_stream_force_min_interval_sec": null,
+      "metrics_sample_hz": null,
+      "metrics_extra_telemetry_enable": null
+    },
+    "node_sent_rows_by_mode": {
+      "cmdMotion": 1864
+    },
+    "unique_messages_by_mode": {
+      "cmdMotion": 1864
+    },
+    "current_E1_trial": false,
+    "physical_execution_not_inferred_from_rows": true
+  },
+  {
+    "path": "/home/eunseop/nrs_imitation/logs/inference_metrics/E2_line_C_r01_executor_20260920T201420_1789902860394556982_3l8f6539",
+    "metadata_sha256": "9fa2d1c0371547a280215731cb127065c75ba655972b1891e78e37523a5bf55a",
+    "commands_sha256": "aec03227eac7d2d88b6b1232a69af6faf7a4b7f5d57668dc44bcac85e3b8679d",
+    "transport": "e2_timed_topic_v1",
+    "method": "C",
+    "runtime_parameters": {
+      "ckpt_dir": null,
+      "use_force_observation": null,
+      "force_history_len": null,
+      "flow_replan_interval_steps": null,
+      "trajectory_hz": null,
+      "infer_hz": null,
+      "control_hz": null,
+      "fz_hard_limit": null,
+      "contact_on_thr": null,
+      "contact_off_thr": null,
+      "ptp9d_use_stream": null,
+      "ptp9d_stream_stride": null,
+      "ptp9d_stream_smooth_window": null,
+      "ptp9d_stream_topup_points": null,
+      "ptp9d_stream_min_lookahead_sec": null,
+      "ptp9d_stream_force_min_interval_sec": null,
+      "metrics_sample_hz": null,
+      "metrics_extra_telemetry_enable": null
+    },
+    "node_sent_rows_by_mode": {
+      "cmdMotion": 2289
+    },
+    "unique_messages_by_mode": {
+      "cmdMotion": 2289
+    },
+    "current_E1_trial": false,
+    "physical_execution_not_inferred_from_rows": true
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "checkpoint_candidates.json": "0bddd15a95f49fa01b5c107b42fc37af604b50db6ba7f169ee2b2f6e92f05b4a",
+  "log_transport_evidence.json": "598dce68204f468b4cef7aefd78c39e27c97479e10f1a589dfd223ebd7f46e23",
+  "README.md": "1e6eb9c79ba40c360c65d9d0ee6a4c54cdddb717d12cd7b12541688f0a31680c",
+  "source_hashes.json": "15a42d4b80dd41b7be2278ba379385da3c3e6822e808741ab4f175822b904372",
+  "verification.json": "a283a1758d45fac64dcf36149a6881e03c9303b9a7cfc6d2e89353d590917fbc",
+  "minimum_change_plan.md": "d5d3f529ffdf1735fb04b3fb099589ecb2fc9c9457bf95ada8c23b5a3725b386",
+  "episode_inventory.csv": "ff3b87da81858f4712ac8bad3f90b0031b2f3dab907fe968362fdff45c6581bd",
+  "audit_manifest.json": "80e3071b2e8c69e7bd33355ed9c6e6d1a17889c9373ed886f076defc3edbf3a1",
+  "execution_path_audit.md": "d583c40d8473e15a5744958235baa1d3ad4eb5f3cf8953b13bfa541cbc9319db",
+  "git_status_at_audit.txt": "5b8247feb52258b3a41b7b821a1e1647aef2eb1e68ccbd99178ce8f86beda0b5",
+  "dataset_verification.json": "dec9a02ef8845c6460e65352f3ed054efdc8d802ac9f50b6877f97ddc9641a48"
+}

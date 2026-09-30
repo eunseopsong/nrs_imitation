@@ -1,0 +1,46 @@
+{
+  "schema": "E2_A_commissioning_v1",
+  "status": "approved",
+  "approved_by": "user_via_conversation",
+  "approved_at": "2026-09-27T18:26:46+09:00",
+  "scope_sha256": "eabcdb79cc036ad1e2dea8f0dff44622603b75f37ff2bcbc36766ff387e7b84b",
+  "command_frame": "controller_tcp",
+  "command_axis": "Fz",
+  "command_unit": "N",
+  "processing_command_fz_range_N": [
+    23.0,
+    23.0
+  ],
+  "measured_force_abs_limits_N": null,
+  "measured_torque_abs_limits_Nm": null,
+  "measured_wrench_frame": null,
+  "acquisition_max_age_s": null,
+  "applicability_evidence": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_pilot_preparation/existing_command_convention.json",
+    "sha256": "be33f65a550dc403692741625b1f214b6713f3bcb74482179298d5ece0640133"
+  },
+  "command_direction_evidence": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_pilot_preparation/existing_command_convention.json",
+    "sha256": "be33f65a550dc403692741625b1f214b6713f3bcb74482179298d5ece0640133"
+  },
+  "limits_evidence": null,
+  "sensor_overload_evidence": null,
+  "workspace_evidence": null,
+  "automatic_stop_evidence": null,
+  "approach_exit_evidence": null,
+  "note": "User consent recorded at approved_at (capture time). Unknown protection values/evidence remain null. No abort threshold is derived from F0, demo averages, sensor ratings, historical peaks or analysis 50 N. Software preflight and runtime protection requirements remain enforced.",
+  "sensor_raw_force_abs_limits_N": null,
+  "sensor_raw_torque_abs_limits_Nm": null,
+  "sensor_driver_deployment_evidence": null,
+  "approval_scope": "Operator consent to the 23 N candidate pilot. Protective numeric settings and physical evidence remain incomplete; not commissioning validation.",
+  "approval_evidence": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_operator_confirmation/operator_statement.json",
+    "sha256": "80836ece824cf05472c45e103cee5150894e1d47b435c8702687e4469fecde39"
+  },
+  "processing_command_fz_range_scope": "f0_parameter_selection_only",
+  "processing_command_fz_range_note": "Checks only config.f0.command_fz_N at preflight. Approach/retract request zero; gate and 30 N/s slew determine the sent series. This range does not constrain sensor readings or replace measured-load protection.",
+  "execution_settings_evidence": {
+    "path": "/home/eunseop/nrs_imitation/reports/20260927_E2_A_BC_settings/settings_basis.json",
+    "sha256": "e10df78c6021b531e1b9e50b537ad40139e7b0cd2881f347177b3b2c7ce5e16b"
+  }
+}

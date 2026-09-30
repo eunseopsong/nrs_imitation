@@ -1,0 +1,92 @@
+{
+  "dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
+  "episodes": 42,
+  "train_ids": [
+    "episode_0.hdf5",
+    "episode_1.hdf5",
+    "episode_10.hdf5",
+    "episode_11.hdf5",
+    "episode_12.hdf5",
+    "episode_13.hdf5",
+    "episode_14.hdf5",
+    "episode_15.hdf5",
+    "episode_16.hdf5",
+    "episode_17.hdf5",
+    "episode_18.hdf5",
+    "episode_19.hdf5",
+    "episode_2.hdf5",
+    "episode_20.hdf5",
+    "episode_21.hdf5",
+    "episode_23.hdf5",
+    "episode_24.hdf5",
+    "episode_25.hdf5",
+    "episode_26.hdf5",
+    "episode_27.hdf5",
+    "episode_28.hdf5",
+    "episode_29.hdf5",
+    "episode_3.hdf5",
+    "episode_30.hdf5",
+    "episode_31.hdf5",
+    "episode_32.hdf5",
+    "episode_33.hdf5",
+    "episode_34.hdf5",
+    "episode_36.hdf5",
+    "episode_38.hdf5",
+    "episode_4.hdf5",
+    "episode_40.hdf5",
+    "episode_41.hdf5",
+    "episode_5.hdf5",
+    "episode_6.hdf5",
+    "episode_7.hdf5",
+    "episode_8.hdf5",
+    "episode_9.hdf5"
+  ],
+  "validation_ids": [
+    "episode_22.hdf5",
+    "episode_35.hdf5",
+    "episode_37.hdf5",
+    "episode_39.hdf5"
+  ],
+  "split_provenance": "reconstructed loader lexical order, default_rng(seed=0), 90/10; not a historically saved ID list",
+  "checks_by_checkpoint": {
+    "20260910_90deg_rel_single/20260910_1606": {
+      "train_count": 38,
+      "validation_count": 4,
+      "reconstructed_train_timesteps": 14481,
+      "stats_train_timesteps": 14481,
+      "action_extrema_match": true,
+      "observation_extrema_match": true
+    },
+    "e1_force_observation_20260916/on/20260916_1531": {
+      "train_count": 38,
+      "validation_count": 4,
+      "reconstructed_train_timesteps": 14481,
+      "stats_train_timesteps": 14481,
+      "action_extrema_match": true,
+      "observation_extrema_match": true
+    },
+    "e1_force_observation_20260916/on/20260916_1515": {
+      "train_count": 38,
+      "validation_count": 4,
+      "reconstructed_train_timesteps": 14481,
+      "stats_train_timesteps": 14481,
+      "action_extrema_match": true,
+      "observation_extrema_match": true
+    },
+    "e1_force_observation_20260916/off/20260916_1531": {
+      "train_count": 38,
+      "validation_count": 4,
+      "reconstructed_train_timesteps": 14481,
+      "stats_train_timesteps": 14481,
+      "action_extrema_match": true,
+      "observation_extrema_match": true
+    }
+  },
+  "all_timestamp_monotonic": true,
+  "all_source_index_identity": true,
+  "all_action_force_equal_filtered_ft": true,
+  "all_pose_mappings_match": true,
+  "max_source_interval_s": 0.0670466423034668,
+  "normal_force_calibration_verified": false,
+  "independent_reference_verified": false
+}

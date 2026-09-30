@@ -1,0 +1,49 @@
+{
+  "checked_at": "2026-09-27T14:01:00.494033+09:00",
+  "checkpoint": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/registered_models/A_c05e06da163127f1/policy_best.ckpt",
+  "checkpoint_sha256": "c05e06da163127f15b31e1ed77cc083688d830dc87abc857fc0be5d7031c90d6",
+  "selected_epoch_zero_based": 499,
+  "strict_state_dict_load": true,
+  "actual_ROS_startup_loader": true,
+  "loaded_weights_exactly_match_checkpoint": true,
+  "state_dim": 6,
+  "device": "cpu",
+  "actual_checkpoint_inference": true,
+  "validation_episode": "episode_35.hdf5",
+  "sample_index": 191,
+  "model_output_shape": [
+    128,
+    6
+  ],
+  "transport_shape": [
+    128,
+    9
+  ],
+  "transport_force_placeholders_zero": true,
+  "finite_predictions": true,
+  "force_observation_invariant": true,
+  "max_force_perturbation_prediction_difference": 0.0,
+  "force_prediction_logged_as_null": true,
+  "common_motion_normalizers_match_BC": true,
+  "launch_parameter_types_checked": 106,
+  "exact_registered_checkpoint_resolution": true,
+  "sampling_steps": 10,
+  "logging": [
+    {
+      "prediction_rows": 128,
+      "force_fields_null": true,
+      "logger_drop_count": 0,
+      "write_errors": 0
+    },
+    {
+      "prediction_rows": 128,
+      "force_fields_null": true,
+      "logger_drop_count": 0,
+      "write_errors": 0
+    }
+  ],
+  "ros_context_initialized": false,
+  "hardware_io": false,
+  "F0_frozen": false,
+  "physical_quality_validated": false
+}

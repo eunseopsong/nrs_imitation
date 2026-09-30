@@ -1,0 +1,39 @@
+{
+  "schema": "E1_RTC_audit_v1",
+  "paper_experiment": "E1",
+  "paper_comparison": [
+    "R",
+    "T",
+    "C"
+  ],
+  "created_at": "2026-09-26T15:07:29.944724+09:00",
+  "stage": "audit_only_awaiting_execution_change_approval",
+  "project_root": "/home/eunseop/nrs_imitation",
+  "git_head": "a556c58333f53c265a1939a1a8e88b48242652ed",
+  "legacy_paths": [
+    "experiments/e2_rule_replay_20260920",
+    "experiments/e1_force_observation_20260916",
+    "experiments/e1_inference_logging_20260917"
+  ],
+  "legacy_numbering_note": "R/T/C is now paper E1; force-observation ablation belongs to paper E2. Old paths preserved.",
+  "C_checkpoint_selected": null,
+  "T_episode_selected": null,
+  "F_ref_selected": null,
+  "execution_equivalence": "unverified",
+  "implementation_complete": false,
+  "offline_validation_complete": false,
+  "hardware_verification_complete": false,
+  "experiment_complete": false,
+  "robot_commands_sent": false,
+  "spindle_commands_sent": false,
+  "existing_runtime_files_modified": false,
+  "artifacts_are_audit_not_active_config": true,
+  "blockers": [
+    "approval for common service/timing change",
+    "explicit current-E1 C checkpoint",
+    "explicit current-E1 T episode/reference selection",
+    "original service lacks waypoint times and synchronized force schedule",
+    "deployed controller and normal-force calibration unverified",
+    "RPM/recipe/safety/time budgets and evaluation spec not frozen"
+  ]
+}

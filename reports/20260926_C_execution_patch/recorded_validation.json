@@ -1,0 +1,223 @@
+{
+  "scope": "C-only offline pose command validation; R/T recordings retained",
+  "common_executor_settings_unchanged": true,
+  "common_config_unchanged": true,
+  "C_profile": {
+    "profile": "c_pose_conditioning_20260926_v1",
+    "pose_smooth_window": 35,
+    "handover_s": 0.5,
+    "linear_acceleration_mm_s2": 25.0,
+    "angular_acceleration_rad_s2": 1.7453292519943295,
+    "scope": "C pose only; R/T, source time axes, signed force samples, common contact gate and existing gain/speed/force-rate limits unchanged",
+    "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+    "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+  },
+  "R_T_regressions": [
+    {
+      "run": "RTC_R_20260926T170642",
+      "compared_ticks": 4085,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_R_20260926T171118",
+      "compared_ticks": 4085,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_R_20260926T171328",
+      "compared_ticks": 4085,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_R_20260926T171650",
+      "compared_ticks": 4085,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_R_20260926T172034",
+      "compared_ticks": 4085,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_T_20260926T172827",
+      "compared_ticks": 1864,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_T_20260926T174111",
+      "compared_ticks": 1864,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_T_20260926T174216",
+      "compared_ticks": 1864,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_T_20260926T174311",
+      "compared_ticks": 1864,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    },
+    {
+      "run": "RTC_T_20260926T174414",
+      "compared_ticks": 1864,
+      "all_9d_commands_bitwise_equal": true,
+      "source_timestamps_preserved": true
+    }
+  ],
+  "robot_executed": false,
+  "physical_vibration_resolved": null,
+  "contact_replay": "recorded per-tick gate states, not simulated/measured post-patch feedback",
+  "force_samples_gate_thresholds_and_force_rate_unchanged": true,
+  "C": {
+    "run": "RTC_C_20260926T175131",
+    "before": {
+      "first4s_abrupt_direction_reversals_XYZ_over_1mm_s": [
+        10,
+        8,
+        0
+      ],
+      "first4s_full_direction_reversals_with_1mm_s_deadband": [
+        13,
+        12,
+        0
+      ],
+      "max_abs_axis_speed_mm_s": [
+        10.0,
+        10.0,
+        10.000000000001563
+      ],
+      "max_abs_axis_acceleration_mm_s2": [
+        2499.9999999997513,
+        2499.9999999997513,
+        1886.6964377484503
+      ],
+      "max_plan_preparation_ms": 0.0042279998524463736,
+      "tick_ms_p50_p95_p99_max": [
+        0.06005500017636223,
+        0.07659399943804601,
+        0.11066425008721126,
+        1.25187100002222
+      ]
+    },
+    "after": {
+      "first4s_abrupt_direction_reversals_XYZ_over_1mm_s": [
+        0,
+        0,
+        0
+      ],
+      "first4s_full_direction_reversals_with_1mm_s_deadband": [
+        1,
+        2,
+        0
+      ],
+      "max_abs_axis_speed_mm_s": [
+        10.0,
+        10.0,
+        10.000000000001563
+      ],
+      "max_abs_axis_acceleration_mm_s2": [
+        25.000000000829914,
+        25.000000000845034,
+        25.000000000425167
+      ],
+      "max_plan_preparation_ms": 0.4555400000754162,
+      "tick_ms_p50_p95_p99_max": [
+        0.11820100007753354,
+        0.13968450048196246,
+        0.1964977500392706,
+        0.3832829997918452
+      ]
+    },
+    "handovers": [
+      {
+        "at_s": 4.093764807000298,
+        "position_discontinuity_mm": 0.0,
+        "rotation_discontinuity_rad": 2.168404344971009e-19
+      },
+      {
+        "at_s": 8.302500185000099,
+        "position_discontinuity_mm": 0.0,
+        "rotation_discontinuity_rad": 1.110494075168278e-16
+      },
+      {
+        "at_s": 12.492907114000445,
+        "position_discontinuity_mm": 0.0,
+        "rotation_discontinuity_rad": 0.0
+      }
+    ],
+    "compared_ticks": 1776
+  },
+  "source_sha256": {
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/metadata.json": "d102ba3f99ba9271f1c2fa238496e84ff2df3dfcb96b11131f3cb6fd8e0f301d",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/events.jsonl": "25e729f656e917c09c1f538eaf997583d2eb3e635200e13a7291ad04d168205e",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/commands.csv": "1656bcb29e3dab13bf7a55454e1e2d80e012ce7417771d4f8453897b25232a9a",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_executor_20260926T175131_1790412691920690153_40pdakyf/tcp_pose.csv": "5b8c56737e917f1a9325c71b2c83ba2e2643a85e66450595d8a2caf7857ff341",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_C_20260926T175131_20260926T175134_1790412694442221395_2dzi0tlx/commands.csv": "c8e0ed10a1591c79bd8a2a79811edc2878c3f444da37949939221a4f96d88410",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_executor_20260926T170643_1790410003762802082_hjyzh_8_/metadata.json": "0692e140f06379d6edc77090114fc7c303c1810b133f6334a2fe42f30a98a0ca",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_executor_20260926T170643_1790410003762802082_hjyzh_8_/events.jsonl": "590eb69020039e451bacc524e1432a1b8eb09e87e36629663e22bc7a1d97a534",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_executor_20260926T170643_1790410003762802082_hjyzh_8_/commands.csv": "907fe53724e96506b9b6a9d012e9d5c1bb74ec3edf9ee84c301d5aef487e1286",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_executor_20260926T170643_1790410003762802082_hjyzh_8_/tcp_pose.csv": "5f197569ac58b64d322cbf9d5a967dd2ffec7719c1a544fad32a2d14aec4a6b3",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_20260926T170644_1790410004435588336_fhh5hznt/commands.csv": "eaab8d01c865002032dbd066ea2531155c78511fb6515c946d3bcbe444216473",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T170642_20260926T170644_1790410004435588336_fhh5hznt/prepared_plans/000001_postprocessed.npz": "5e10da67f9d80bcd02eee6456591289bb8e7e57c3fbcd1071401bc68141b0e34",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171118_executor_20260926T171119_1790410279662742419_mayax94c/metadata.json": "e10152bddd0e1d36ff11127137b068b0a77da7a436e1f71822e10f31843c5aae",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171118_executor_20260926T171119_1790410279662742419_mayax94c/events.jsonl": "5c2095e0abd3154713b43bf6d711f44acf6c402cc793db325772924b9ad99d7b",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171118_executor_20260926T171119_1790410279662742419_mayax94c/commands.csv": "42fe393e9d32ae317da0d7975e37c43a3e3e9685db926bb01893793232b9a2bc",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171118_executor_20260926T171119_1790410279662742419_mayax94c/tcp_pose.csv": "87e452069d417c1c5f43b68811ab2b677aa064ae50bba4cd7d71ea5ae6691141",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171118_20260926T171120_1790410280349607268_043tznwz/commands.csv": "49db541784a67a607edd524e4bd3f0858cf6f1f7e660dda6e00177a14cd69130",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171118_20260926T171120_1790410280349607268_043tznwz/prepared_plans/000001_postprocessed.npz": "9391705cb70a74e1fcb28dcad70e2bc816cab0bcc82ac2474f8c17a5079f6d96",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171328_executor_20260926T171329_1790410409421232182_9nhzzix_/metadata.json": "4a23e8c9f84ac618e53ecf94ef192cd9bb067dad16856ea1c98cf9e1710a0f49",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171328_executor_20260926T171329_1790410409421232182_9nhzzix_/events.jsonl": "f991ce6dc6e8c546f851cf6f2e6171e7c0fa9107439412695b0dbed479c42909",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171328_executor_20260926T171329_1790410409421232182_9nhzzix_/commands.csv": "467a856f5f500ac284f7cc0b2c741ffafcb589400b7f22432f7ab10989087710",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171328_executor_20260926T171329_1790410409421232182_9nhzzix_/tcp_pose.csv": "39956118091f3129696c1ebf29fa45bdbe4d59a047dc2433a5ab51fd47f2d083",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171328_20260926T171330_1790410410101483480_p54gawqx/commands.csv": "494c1bb56dc707e158cebf6b336142d0385dca816ff377834220fa70708e3122",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171328_20260926T171330_1790410410101483480_p54gawqx/prepared_plans/000001_postprocessed.npz": "ecd813067db2f4d9e41791765e3d276b552d6b1b4e4573702b2ee0ba897107be",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171650_executor_20260926T171650_1790410610994845562_axfuiaxp/metadata.json": "42d9cf5e719de2afa5dcb79879bccf4587f537ca408cd9b4ff6a274d1a637e67",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171650_executor_20260926T171650_1790410610994845562_axfuiaxp/events.jsonl": "add5536cea751c5382c1e191f28f7435bced29173780c591013252ce96261464",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171650_executor_20260926T171650_1790410610994845562_axfuiaxp/commands.csv": "68af991db30d47cf116619ca0746f1464241ee93827ef0995103ff0b9cfd75db",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171650_executor_20260926T171650_1790410610994845562_axfuiaxp/tcp_pose.csv": "7ca3316aa864d9881c9fe14248054bdefbf6fb51877bb6dca02621e691a3d545",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171650_20260926T171651_1790410611685746589_edv9q_l7/commands.csv": "922f035b8328a2167261637637043581648b5239294427ad2d8eace480db1ba8",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T171650_20260926T171651_1790410611685746589_edv9q_l7/prepared_plans/000001_postprocessed.npz": "d7ca2335f0e64d56014ecec1bac5a2c5b4eb7f132128d7016d6286953daf19d7",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T172034_executor_20260926T172035_1790410835446352027_7n9a8ps6/metadata.json": "766fea7c0ed2f608c60bbfb8f29c93240803884a8e7b455f1d35c687a2fd5aaf",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T172034_executor_20260926T172035_1790410835446352027_7n9a8ps6/events.jsonl": "5ed413831f8d6733fe8b496bf7e646fd64566bb3396b3313e53c28ee70adfc0f",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T172034_executor_20260926T172035_1790410835446352027_7n9a8ps6/commands.csv": "374eb9ded9b8446bb41afec49863d61d16294c8ef7776069dd3541e3bf0c8251",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T172034_executor_20260926T172035_1790410835446352027_7n9a8ps6/tcp_pose.csv": "ceee834c0333c2d36b533e9edb5e0e49ce6c32e9f7c23fccc44ee9ad61cf2a1f",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T172034_20260926T172036_1790410836108075672_6_j6yp4s/commands.csv": "c95613ee168781e2613067217c31c182dfa434a457cdc579599c784f9c514acd",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_R_20260926T172034_20260926T172036_1790410836108075672_6_j6yp4s/prepared_plans/000001_postprocessed.npz": "d71965b8e26b3d77409c18d3d49a1398f09d68dcc008b0bb5a2a7de04acce652",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T172827_executor_20260926T172828_1790411308738816535__tr5tupl/metadata.json": "020acb42491b2cd359abee30c1f43c38cd8a33b53a4979e6b96efd26f555b879",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T172827_executor_20260926T172828_1790411308738816535__tr5tupl/events.jsonl": "ffd6d8bccc24d1c4410ab1c962d0d0902cadb54ab2b49e57c752fccb37feaced",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T172827_executor_20260926T172828_1790411308738816535__tr5tupl/commands.csv": "e72a09bec7564fb6df36c085a858b2085b1f3a96bbce46d90becab1efd053232",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T172827_executor_20260926T172828_1790411308738816535__tr5tupl/tcp_pose.csv": "4e2289397a9e4a21d5cd8f4a78711ffd95a61a8013e98fd6005807f64e640dda",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T172827_20260926T172829_1790411309404284383_elz8ahc8/commands.csv": "56f8fe62bc01503e6b153a38a2d0b7fb28e6f3df1a165fec67be0e4b17705601",
+    "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/templates/episode_29_selected.npz": "4a14dd346a8551200cadb32faccbbee79e5f765ca36c98c9d70de9bdd957ac30",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174111_executor_20260926T174112_1790412072875639201_iupu_04x/metadata.json": "869c576e900e7c545a1533fb32965e9e2410bc2df41a2fbc92d2fbc89f5ac2aa",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174111_executor_20260926T174112_1790412072875639201_iupu_04x/events.jsonl": "5c1876c063b9b06fba56914c5ef0470d4d4549080a0d01afe5531a657df9cef6",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174111_executor_20260926T174112_1790412072875639201_iupu_04x/commands.csv": "200a60595fa09d6b2ea19b83164e5fb251f3c20031c86606096bf9d45324331f",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174111_executor_20260926T174112_1790412072875639201_iupu_04x/tcp_pose.csv": "a83ac7204d4e1a244b19ff6811744fca7c6d070e51458fcf8d36029822bce63e",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174111_20260926T174113_1790412073535719213_chkx2ru_/commands.csv": "425ab56bb479f19971ea5dbbcdf380cfc6800ad715566f52f2909a985622ab94",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174216_executor_20260926T174217_1790412137101159951_6tdsli24/metadata.json": "0052c56d270384e7eb04dc8b7039ce499cc56422d9e9117dec5fff5d5a12d631",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174216_executor_20260926T174217_1790412137101159951_6tdsli24/events.jsonl": "4e158cd43216211c3095046ab4bf19b80d5e1ad3d01d44714947a3591fd2b99c",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174216_executor_20260926T174217_1790412137101159951_6tdsli24/commands.csv": "32b4ba9fa552a5407cf81e10113434afc5873d7b61edbe188792e1fe1b3c2c77",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174216_executor_20260926T174217_1790412137101159951_6tdsli24/tcp_pose.csv": "f977aeed4c8f0f9e552ca20f78652d7fe561f821cd3a56a4a5a3bd6a03ddd111",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174216_20260926T174217_1790412137758194961_fmq57ijo/commands.csv": "f58bf89f156aefa423e6f0b4dab5e9fba0ff62e1fe219e0d8bf6705755728352",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174311_executor_20260926T174312_1790412192846237668_x7gp49fu/metadata.json": "b45ba3c300cbfaa94cdd6aaca6aa25fc83c79c5ad481d6e9dff7d09e941a78ca",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174311_executor_20260926T174312_1790412192846237668_x7gp49fu/events.jsonl": "4233426dd48034cb63da62109f5a46d145108d947f377d0fde499385249f6efa",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174311_executor_20260926T174312_1790412192846237668_x7gp49fu/commands.csv": "14320a65fa46b77a5c3ea36156ed13a3f3b3e61620798302fce1164f0ec18b8f",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174311_executor_20260926T174312_1790412192846237668_x7gp49fu/tcp_pose.csv": "58ae9097a60ae6d2a7737ca7b01552080f99a8135b548d1c7f9cfcbf7bdffd6c",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174311_20260926T174313_1790412193499309526_moi7a5u9/commands.csv": "82ef0147dd0f9d2f9ee5950932afae3a39bb60bc623992338d85b997b3d2757b",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174414_executor_20260926T174415_1790412255162873318_n99zdbbj/metadata.json": "8f4ce838d6454b1667fece26f51a90aa199404c4c46539cca87ff77438b5e463",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174414_executor_20260926T174415_1790412255162873318_n99zdbbj/events.jsonl": "1d54126683f5b824f95bd7deccc74a2a5d6d16430ee96821459e60439664530a",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174414_executor_20260926T174415_1790412255162873318_n99zdbbj/commands.csv": "ee51206d375e56c69f2e96fc7850a550402b30fb878139067c5c82e14f3980f7",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174414_executor_20260926T174415_1790412255162873318_n99zdbbj/tcp_pose.csv": "8747eada33dd1836f2aa8cbb131518dfff51c5f9a27b28e00985d498fad5b345",
+    "/home/eunseop/nrs_imitation/logs/inference_metrics/RTC_T_20260926T174414_20260926T174415_1790412255820505786_hohi48jz/commands.csv": "ff488135e896f8c8b73601bb09e0a568b61d3ff6359f9ed357660aa96b6c8d47"
+  }
+}

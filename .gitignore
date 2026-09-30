@@ -7,3 +7,54 @@ datasets/
 checkpoints/
 __pycache__
 .git/
+
+# Generated ROS/colcon workspaces, including experiment and report copies.
+build/
+install/
+log/
+.pytest_cache/
+*.py[cod]
+
+# Local runtime logs and experiment outputs (keep the files on disk).
+/logs/
+/results/
+
+# Git ignore rules match paths, not file sizes.
+# Trained weights and exported models.
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.onnx
+*.engine
+
+# Binary datasets and ROS bag recordings.
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.zarr/
+*.bag
+*.db3
+*.db3-shm
+*.db3-wal
+*.mcap
+
+# Generated archives, recordings, and runtime logs.
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tar.xz
+*.7z
+*.rar
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.log
+/experiments/**/dry_runs/
+
+# Local training process locks.
+/experiments/**/training_runs/*.lock

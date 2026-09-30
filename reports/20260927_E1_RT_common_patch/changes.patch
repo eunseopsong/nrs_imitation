@@ -1,0 +1,779 @@
+--- a/behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/rtc_timed.launch.py
+@@ -20,6 +20,7 @@
+ from launch.substitutions import LaunchConfiguration
+ 
+ from nrs_imitation.e2_providers import file_hash, hardware_blockers, load_config
++from nrs_imitation.e2_timed_execution import executor_settings
+ 
+ 
+ ROOT = Path('/home/eunseop/nrs_imitation')
+@@ -92,8 +93,11 @@
+     info = ('RTC %s: existing e2_timed_topic_v1; config=%s; '
+             'execution_equivalence=unverified. This is not the proposed E1 service executor.'
+             % (args['method'], path))
+-    profile = cfg.get('il', {}).get('pose_conditioning') if args['method'] == 'C' else None
+-    info += ' C pose conditioning: ' + (profile['profile'] if profile else 'inactive') + '.'
++    settings = executor_settings(cfg, METHODS[args['method']])
++    profile = settings.get('c_pose_conditioning')
++    info += ' Pose conditioning: ' + (profile['profile'] if profile else 'inactive') + '.'
++    if cfg.get('rtc_pose_conditioning'):
++        info += ' Shared E1 R/T/C profile; pose grid=30 Hz; reference=C 2026-09-26.'
+     if args['mode'] == 'check':
+         return [LogInfo(msg=info), LogInfo(msg='Configuration check passed; no nodes started. '
+                     'Hardware calibration and E1 protocol readiness are not certified.')]
+@@ -106,7 +110,9 @@
+     run_cfg['launch_context'] = dict(entry='rtc_timed.launch.py', method=args['method'],
+         legacy_config_path=str(path), legacy_config_sha256=file_hash(path),
+         checkpoint_argument=args['checkpoint'] or None, episode_argument=args['episode'] or None,
+-        c_pose_conditioning=profile,
++        c_pose_conditioning=profile if args['method'] == 'C' else None,
++        pose_conditioning=profile,
++        rtc_pose_conditioning=cfg.get('rtc_pose_conditioning'),
+         scope='existing timed executor only; common service E1 preparation incomplete')
+     log_root = ROOT / 'logs/rtc_launch_context'
+     log_root.mkdir(parents=True, exist_ok=True)
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+@@ -78,6 +78,7 @@
+         metadata = dict(method={'il':'C','rule':'R','replay':'T'}[self.method],
+             execution_method=self.method,transport=TRANSPORT_VERSION,session_id=self.session,
+             c_pose_conditioning=self.settings.get('c_pose_conditioning'),
++            rtc_pose_conditioning=self.config.get('rtc_pose_conditioning'),
+             code_root=str(root),config=self.config,config_sha256=self.identity,
+             controller_applied_force=None,raw_sensor_available=False,rpm_measured=None,
+             rpm_setpoint=self.config["common"].get("rpm_setpoint"),
+@@ -284,7 +285,7 @@
+             force_unit=None if position_mode and stage=='node_sent' else 'N',raw_values=values.tolist(),
+             execution_status='sent_not_verified_executed' if stage=='node_sent' else 'requested_not_sent',
+             limited=result['limited'],limiting_reason=('common contact gate + legacy gain/rate limits' +
+-                (' + C pose smoothing/handover/acceleration' if result.get('conditioning_profile') else '')),
++                (' + pose smoothing/handover/acceleration' if result.get('conditioning_profile') else '')),
+             details=dict(elapsed_s=result['elapsed_s'],contact=result['contact'],phase=result['phase'],dt_s=result['dt_s'],
+                 endpoint_lateness_s=result['endpoint_lateness_s'],
+                 conditioning_profile=result.get('conditioning_profile'),
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
+@@ -59,12 +59,13 @@
+ 
+ 
+ class CPoseConditioner:
+-    """C-only pose preparation; never changes plan clocks or force samples.
++    """Archived C pose preparation, optionally shared by explicit E1 R/T runs.
+ 
+     Restore the legacy 35-point pose smoothing, averaging orientation on SO(3)
+     rather than across rotation-vector branch cuts. Blend a replacement from
+     the previous reference and its velocity, then bound commanded acceleration.
+-    R/T do not instantiate this class: their recorded execution remains intact.
++    The opt-in finite-pose grid matches C's sampling period. The execution
++    engine retains the original finite plan for force, phases and completion.
+     """
+     def __init__(self, settings):
+         self.cfg = dict(settings)
+@@ -152,6 +153,54 @@
+         return self.velocity*period
+ 
+ 
++class FinitePoseConditioner(CPoseConditioner):
++    """Present an R/T pose path to the archived C conditioner in equal chunks.
++
++    Only this private pose view is sampled at 30 Hz / 128 points / 120 stride.
++    The execution engine keeps the complete original force/phase/time plan.
++    End padding only supplies the smoothing window; it never extends execution.
++    """
++    def __init__(self, settings, hz, horizon, stride):
++        super().__init__(settings)
++        self.hz, self.horizon, self.stride = hz, horizon, stride
++        self.source = None
++        self.started_at = None
++        self.chunk = 0
++
++    def _chunk_plan(self, chunk, generated_at):
++        time = np.arange(self.horizon)/self.hz
++        source_time = np.minimum(time+chunk*self.stride/self.hz, self.source.time[-1])
++        action = np.stack([np.interp(source_time, self.source.time, self.source.action[:, k])
++                           for k in range(9)], axis=1)
++        action[:, 3:6] = self.source.rotation(source_time).as_rotvec()
++        indices = np.searchsorted(self.source.time, source_time)
++        exact = self.source.time[indices] == source_time
++        action[exact] = self.source.action[indices[exact]]
++        phase = self.source.phase[np.searchsorted(self.source.time, source_time, side='right')-1]
++        return TimedPlan(chunk+1, generated_at, time, action, phase, False)
++
++    def accept(self, plan, now):
++        if not plan.final or self.source is not None:
++            raise ExecutionFault('Shared E1 R/T conditioning requires one finite source plan')
++        self.source = plan
++        super().accept(self._chunk_plan(0, plan.generated_at), now)
++
++    def start(self, now, pose):
++        self.started_at = now
++        super().start(now, pose)
++
++    def sample(self, now):
++        if self.started_at is not None:
++            due = int(max(0., now-self.started_at)/(self.stride/self.hz))
++            while self.chunk < due:
++                # Increment before accept: its left-limit sample calls this
++                # method too and must not recursively accept the same chunk.
++                self.chunk += 1
++                at = self.started_at+self.chunk*self.stride/self.hz
++                super().accept(self._chunk_plan(self.chunk, at), at)
++        return super().sample(now)
++
++
+ class TimedExecution:
+     def __init__(self, settings):
+         self.cfg = dict(settings)
+@@ -164,6 +213,9 @@
+         self.endpoint_sent = False
+         profile = self.cfg.get('c_pose_conditioning')
+         self.conditioner = CPoseConditioner(profile) if profile is not None else None
++        if profile is not None and self.cfg.get('finite_pose_sampling_hz') is not None:
++            self.conditioner = FinitePoseConditioner(profile, self.cfg['finite_pose_sampling_hz'],
++                self.cfg['finite_pose_horizon'], self.cfg['finite_pose_stride'])
+ 
+     def accept(self, plan, now):
+         if self.closed:
+@@ -324,6 +376,13 @@
+                     task_time_budget_s=config['common']['task_time_budget_s'])
+     if method == 'il' and 'pose_conditioning' in config.get('il', {}):
+         settings['c_pose_conditioning'] = dict(config['il']['pose_conditioning'])
++    shared = config.get('rtc_pose_conditioning')
++    if shared is not None and method in ('rule', 'replay', 'il'):
++        settings['c_pose_conditioning'] = dict(shared['profile'])
++        if method in ('rule', 'replay'):
++            settings['finite_pose_sampling_hz'] = shared['pose_sampling_hz']
++            settings['finite_pose_horizon'] = shared['horizon_points']
++            settings['finite_pose_stride'] = shared['stride_points']
+     return settings
+ 
+ 
+@@ -358,6 +417,20 @@
+         if not isinstance(value,(int,float)) or not np.isfinite(value) or value <= 0:
+             errors.append('Invalid common.workspace_limits.'+key)
+     profile = config.get('il', {}).get('pose_conditioning')
++    shared = config.get('rtc_pose_conditioning')
++    if shared is not None:
++        if not isinstance(shared, dict):
++            return errors + ['Invalid rtc_pose_conditioning']
++        if (config.get('experiment_id') == 'E2' or
++                shared.get('schema') != 'E1_RTC_shared_pose_v1' or
++                not isinstance(profile, dict) or
++                shared.get('profile') != profile or
++                shared.get('pose_sampling_hz') != 30. or
++                shared.get('horizon_points') != 128 or shared.get('stride_points') != 120 or
++                config.get('il', {}).get('trajectory_hz') != 30. or
++                config.get('il', {}).get('chunk_size') != 128 or
++                config.get('il', {}).get('replan_interval_steps') != 120):
++            errors.append('rtc_pose_conditioning must match the archived E1 C profile and 30 Hz pose grid')
+     if profile is not None:
+         if not isinstance(profile, dict):
+             return errors + ['Invalid il.pose_conditioning']
+--- a/experiments/e2_force_ablation_20260926/config.json
++++ b/experiments/e2_force_ablation_20260926/config.json
+@@ -183,7 +183,7 @@
+   },
+   "schema": "E2_ABC_force_ablation_v1",
+   "experiment_id": "E2",
+-  "cohort_id": "E2_4c14bf2b2aa13bb3",
++  "cohort_id": "E2_baa3a8353fc8965e",
+   "source_E1_archive": "results/20260926/E1; reference/regression only; not new E2 trials",
+   "motion_postprocessor": {
+     "profile": "c_pose_conditioning_20260926_v1",
+@@ -375,7 +375,7 @@
+     "B": "pose6+zero normalized force observation/history; learned force action retained",
+     "C": "measured force observation/history; learned force action retained"
+   },
+-  "execution_contract_hash": "0dc9c494fb1d2e0b8f00afadc8e38345d5736ec4480569a7980c11f0b4d14409",
++  "execution_contract_hash": "3bae7fde33664376a910393b7e2d7fa92baa3ebf1f51b42c011728162a7ecd86",
+   "comparison_status": "exploratory when newly trained A is combined with historical best-selected B/C; paired fixed-epoch A/B/C training commands provided separately",
+   "implementation_revisions": [
+     {
+--- a/experiments/rtc_launch_20260926/README.md
++++ b/experiments/rtc_launch_20260926/README.md
+@@ -1,4 +1,8 @@
+ # R/T/C를 ros2 launch로 실행
++
++**2026-09-27 R/T 재실행:** 어제 C와 같은 후처리를 적용한 새 설정과 명령은
++[R/T 공통 패치 실행 안내](../e1_rt_common_20260927/README.md)를 사용한다.
++아래는 2026-09-26 실행을 재현하는 기존 설정 안내이며, 기존 config에서는 R/T 전용 후처리를 켜지 않는다.
+ 
+ `rtc_timed.launch.py`는 기존 `e2_timed_topic_v1` 실행기의 직접 launch 진입점이다.
+ 기존 shell 실행 스크립트 없이 method=R/T/C를 선택할 수 있다.
+--- /dev/null
++++ b/behavior_ws/src/nrs_imitation/test/test_e1_rt_common_pose.py
+@@ -0,0 +1,121 @@
++"""E1 R/T stabilization parity with archived C; no ROS or hardware execution."""
++import copy
++import json
++from pathlib import Path
++
++import numpy as np
++import pytest
++from scipy.spatial.transform import Rotation
++
++from nrs_imitation.e2_timed_execution import (
++    TimedExecution, TimedPlan, ExecutionFault, executor_settings, validate_settings,
++)
++from nrs_imitation.e2_providers import rule_actions, TimedActions
++
++ROOT = Path(__file__).resolve().parents[4]
++CONFIG = ROOT / 'experiments/e1_rt_common_20260927/config.json'
++
++
++def config():
++    return json.loads(CONFIG.read_text())
++
++
++def source_plan():
++    t = np.arange(0., 13.001, .008)
++    a = np.zeros((len(t), 9))
++    a[:, 0] = 10*np.sin(t*.8)
++    a[:, 1] = 3*np.cos(t*5)
++    a[:, 5] = np.deg2rad(np.where(np.sin(t) >= 0, 179., -179.))
++    a[:, 8] = 12*np.sin(t*3)
++    return TimedPlan(1, 10., t, a, np.full(len(t), 'work'), True)
++
++
++@pytest.mark.parametrize('method', ['rule', 'replay'])
++def test_finite_matches_c_pose_chunks_and_preserves_original_force_clock(method):
++    c = config(); p = source_plan(); original = p.action.copy()
++    e = TimedExecution(executor_settings(c, method))
++    old_cfg = copy.deepcopy(c); old_cfg.pop('rtc_pose_conditioning')
++    unconditioned = TimedExecution(executor_settings(old_cfg, method))
++    reference = TimedExecution(executor_settings(c, 'il'))
++    initial = np.array([0., 0., 0., 0., 0., np.pi])
++    for engine in [e, unconditioned]:
++        engine.accept(p, 10.); engine.start(10., initial)
++
++    def c_chunk(index):
++        times = np.arange(128)/30.
++        values = [p.sample(min(t+4*index, p.time[-1])) for t in times]
++        return TimedPlan(index+1, 10.+4*index, times,
++            np.array([v[0] for v in values]), np.full(128, 'work'), False)
++
++    reference.accept(c_chunk(0), 10.); reference.start(10., initial)
++    previous = e.command.copy(); velocity = np.zeros(6); chunk = 0
++    for i in range(1, len(p.time)):
++        now = 10.+i*.008
++        due = int((now-10.)/4.)
++        if due > chunk:
++            chunk = due; reference.accept(c_chunk(chunk), 10.+4*chunk)
++        f = [0., 0., 6. if i % 53 < 30 else .5]
++        result = e.tick(now, previous[:6], f, 0., 0.)
++        before = unconditioned.tick(now, previous[:6], f, 0., 0.)
++        expected = reference.tick(now, previous[:6], f, 0., 0.)
++        for stage in ['conditioned', 'gated', 'sent']:
++            np.testing.assert_allclose(result[stage][:6], expected[stage][:6], atol=2e-8, rtol=0)
++        np.testing.assert_array_equal(result['requested'], before['requested'])
++        for stage in ['requested', 'gated', 'sent']:
++            np.testing.assert_array_equal(result[stage][6:], before[stage][6:])
++        assert result['contact'] == before['contact']
++        assert result['elapsed_s'] == before['elapsed_s']
++        delta = np.r_[result['sent'][:3]-previous[:3],
++            (Rotation.from_rotvec(result['sent'][3:6])*Rotation.from_rotvec(previous[3:6]).inv()).as_rotvec()]
++        dt = min(result['dt_s'], .008)
++        current = delta/dt
++        assert np.max(np.abs(current[:3]-velocity[:3])/dt) <= 25.+1e-6
++        assert np.max(np.abs(current[3:]-velocity[3:])/dt) <= np.deg2rad(100.)+1e-6
++        previous, velocity = result['sent'], current
++    assert e.tick(10.+p.time[-1]+.016, previous[:6], f, 0., 0.)['end'] == 'trajectory_end'
++    np.testing.assert_array_equal(p.action, original)
++    np.testing.assert_array_equal(e.plan.time, p.time)
++    with pytest.raises(ExecutionFault, match='cannot be replaced'):
++        e.accept(TimedPlan(2, 23., p.time, p.action, p.phase, True), 23.)
++
++
++@pytest.mark.parametrize('method', ['rule', 'replay'])
++def test_actual_selected_r_t_plans_finish_on_original_clock(method):
++    c = config()
++    actions = rule_actions(c['task'], c['recipe']) if method == 'rule' else TimedActions.load(c['replay']['template'])
++    values = actions.action.astype(float); values[:, :2] += [400., 400.]
++    p = TimedPlan(1, 10., actions.time, values, actions.phase, True)
++    e = TimedExecution(executor_settings(c, method)); e.accept(p, 10.); e.start(10., values[0, :6])
++    times = np.r_[np.arange(.008, p.time[-1], .008), p.time[-1]]
++    for t in times:
++        result = e.tick(10.+t, e.command[:6], [0., 0., 6.], 0., 0.)
++        assert 'end' not in result
++    # Kinematic command test only: no claim about real measured TCP tracking.
++    if method == 'rule':
++        assert np.linalg.norm(result['sent'][:3]-values[-1, :3]) < c['executor']['completion_position_tolerance_mm']
++    # T's recorded source returns faster than the common 10 mm/s cap near
++    # the end. Original T also stopped short. Keep its clock; do not silently
++    # extend it until the endpoint is reached or relabel that as success.
++    assert e.tick(10.+p.time[-1]+.008, e.command[:6], [0., 0., 6.], 0., 0.)['end'] == 'trajectory_end'
++
++
++@pytest.mark.parametrize('key,value', [('pose_sampling_hz', 125.), ('horizon_points', 64),
++                                     ('stride_points', 128), ('profile', {})])
++def test_mismatched_c_filter_contract_is_rejected(key, value):
++    c = config(); c['rtc_pose_conditioning'][key] = value
++    assert any('rtc_pose_conditioning' in message for message in validate_settings(c))
++
++
++@pytest.mark.parametrize('method', ['R', 'T', 'C'])
++def test_shared_launch_profile_is_resolved_without_starting_nodes(method, monkeypatch, tmp_path):
++    from test_rtc_launch import rtc, context
++    from launch.actions import LogInfo
++    c = config(); ctx = context(method)
++    ctx.launch_configurations.update(config=str(CONFIG), checkpoint=c['il']['checkpoint'], episode=c['replay']['episode_id'])
++    monkeypatch.setattr(rtc, 'ROOT', tmp_path)
++    actions = rtc.configure(ctx)
++    assert all(isinstance(a, LogInfo) for a in actions)
++    assert list(tmp_path.iterdir()) == []
++    for original in c['rtc_pose_conditioning']['reference_C_runs']:
++        archived = json.loads(Path(original['config']).read_text())
++        assert executor_settings(c, 'il') == executor_settings(archived, 'il')
+--- /dev/null
++++ b/experiments/e1_rt_common_20260927/config.json
+@@ -0,0 +1,369 @@
++{
++  "schema": "E2_timed_execution_v2",
++  "task": {
++    "task_type": "line",
++    "direction_label_deg": 90,
++    "endpoints_relative_mm": [
++      [
++        -15.225713729858398,
++        30.618316650390625,
++        167.10179138183594
++      ],
++      [
++        43.69847869873047,
++        -39.007537841796875,
++        167.10179138183594
++      ]
++    ],
++    "orientation_rotvec_rad": [
++      -0.04183447694024232,
++      0.06973036142223078,
++      2.3905397824305816
++    ],
++    "line_width_mm": null,
++    "effective_contact_width_mm": null
++  },
++  "common": {
++    "specimen_id": "default",
++    "region_id": null,
++    "block_id": null,
++    "repeat_id": null,
++    "use_stain_mask": false,
++    "stain_canon_enable": false,
++    "frame": "stain_relative_v1",
++    "reference_detection": "existing stain_origin_online frozen translation only",
++    "rpm_setpoint": null,
++    "rpm_measured": null,
++    "spindle_control_procedure": {
++      "mode": "operator controlled; no spindle command sent by inference",
++      "procedure": "Keep the same physical spindle setting for R/T/C; operator handles spindle ON/OFF.",
++      "rpm_measured": false,
++      "same_setting_verified": false,
++      "note": "Prescribed experiment procedure, not a claim that equal actual RPM was measured."
++    },
++    "surface_normal_base": null,
++    "tcp_calibration_id": "expected local setup_parameters.yaml sha256:18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
++    "force_frame_sign_verification": {
++      "basis": "Same E1 controller/sensor/tool setup explicitly confirmed by operator; reuse existing signed Fz command convention without transformation",
++      "reference_run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
++      "target_axis": "controller cmdMotion/SET_FORCE Fz, N",
++      "command_sign": "positive, unchanged from acknowledged E1 +17.694 N median target",
++      "sensor_topic": "/ur10skku/currentF",
++      "measured_Fz_median_N_in_reference_interval": 20.575218166583955,
++      "surface_normal_calibrated": false,
++      "teacher_axis_equivalence_newly_verified": false,
++      "remote_controller_configuration_readback": false,
++      "evidence_commands_sha256": "164f1d35032cd9332acbf1ad8ad2fd388b6ac69fca8428e08e002290dfe950ef"
++    },
++    "frozen_roi": {
++      "detect_params_file": "/home/eunseop/nrs_imitation/checkpoints/stain_relative_frame/stain_origin_90deg_single.json",
++      "sha256": "2ed8012ca6dc34d7e77b0edf57b866ad0a51a5b4107643fb762a1b96da962162",
++      "method": "dark",
++      "dark_thresh": 65,
++      "plate_roi": [
++        130,
++        58,
++        346,
++        122
++      ],
++      "tool_box": [
++        258,
++        115,
++        292,
++        122
++      ]
++    },
++    "workspace_limits": {
++      "max_xy_from_start_mm": 140.0,
++      "max_z_down_from_start_mm": 85.0,
++      "max_z_up_from_start_mm": 95.0,
++      "max_xyz_from_current_mm": 200.0
++    },
++    "task_time_budget_s": 50.0,
++    "approach_retract_protocol": {
++      "approach": "Common existing demo-start alignment; R explicit source-backed waypoint approach, T original teacher approach, C policy approach; common executor/gates/rate limits",
++      "finish": "Idling, queue cancellation, Position hold, fresh stationary TCP verification",
++      "retract": "R normal finite completion: cancel queue and verify Position hold, lift at actual XY to demo-start Z, verify low absolute measured Fz and stationary clearance, then return to absolute demo-start using frozen stain origin. Abort/fault holds only. T/C unchanged.",
++      "completion_scope": "R: verified home arrival, Position hold and measured contact release; T/C: controlled stationary hold only; spindle operator-controlled"
++    },
++    "controller_deployment_id": "operator-confirmed unchanged since C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
++    "demo_start_pose6": [
++      18.008996963500977,
++      -2.49249267578125,
++      214.15731811523438,
++      -0.16068577766418457,
++      0.014244713820517063,
++      2.3556406497955322
++    ],
++    "metrics_sample_hz": 20,
++    "metrics_extra_telemetry_enable": false,
++    "video_auto_record": true,
++    "viewers": false,
++    "workspace_limits_provenance": "existing inference_core defaults, applied identically to R/T/C",
++    "expected_controller_sources": {
++      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
++      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
++      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
++      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
++    },
++    "tcp_calibration_note": "Expected source identity only. controller_deployment_id must identify the matching active controller/calibration; not auto-verified.",
++    "rpm_status": "unknown",
++    "rpm_unknown_reason": "Operator stated RPM is unknown on 2026-09-20; not inferred from E1 logs or spindle control.",
++    "setup_confirmation": {
++      "date": "2026-09-20",
++      "operator_statement": "바꾼 거 없어",
++      "scope": [
++        "specimen fixture position and height",
++        "tool/TCP",
++        "force controller settings"
++      ],
++      "reference_run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
++      "remote_binary_hash_verified": false,
++      "new_calibration_performed": false
++    }
++  },
++  "recipe": {
++    "simulation_only": false,
++    "force_reference_N": 18.0,
++    "feed_speed_mm_s": 10.0,
++    "pass_count": 1,
++    "offset_spacing_mm": 0.0,
++    "force_ramp_s": 1.125,
++    "task_time_budget_s": 50.0,
++    "force_reference_source": {
++      "report": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/force_reference_from_e1.json",
++      "report_sha256": "48b1d953361e86c3700a0e75794baaf7d6879723714de9ddbadad0c257375f4d",
++      "run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
++      "selection": "longest continuous acknowledged nonzero contact-gate-ON interval; time-weighted empirical median",
++      "unrounded_N": 17.694250106811523,
++      "status": "E1-derived initial baseline; R hardware validation not performed"
++    },
++    "approach": {
++      "waypoints_pose6": [
++        [
++          18.008996963500977,
++          -2.49249267578125,
++          214.15731811523438,
++          -0.16068577766418457,
++          0.014244713820517063,
++          2.3556406497955322
++        ],
++        [
++          9.436792373657227,
++          1.031402587890625,
++          209.8856964111328,
++          -0.14013801515102386,
++          0.03177563473582268,
++          2.358074426651001
++        ],
++        [
++          -3.4910035133361816,
++          14.313385009765625,
++          197.02816772460938,
++          -0.15247561037540436,
++          0.04999037832021713,
++          2.4145352840423584
++        ],
++        [
++          -14.678319931030273,
++          30.8529052734375,
++          174.97311401367188,
++          -0.0809587687253952,
++          0.045532286167144775,
++          2.42907452583313
++        ],
++        [
++          -15.225713729858398,
++          30.618316650390625,
++          166.96295166015625,
++          -0.05493294820189476,
++          0.06041689217090607,
++          2.4225730895996094
++        ],
++        [
++          -15.225713729858398,
++          30.618316650390625,
++          167.10179138183594,
++          -0.04183447694024232,
++          0.06973036142223078,
++          2.3905397824305816
++        ]
++      ],
++      "peak_speed_mm_s": 10.0,
++      "peak_angular_speed_rad_s": 0.6981317007977318,
++      "force_N": 0.0,
++      "interpolation": "quintic rest-to-rest XYZ; SO3 shortest-arc orientation",
++      "source_indices": [
++        0,
++        22,
++        43,
++        64,
++        85
++      ],
++      "source_template": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/templates/episode_29_candidate.npz",
++      "source_template_sha256": "ba8ad17b725b756c2ab7941b73d90d840808ea849966175978883d7b99290cd1"
++    },
++    "validation_status": "operator_authorized_initial_hardware_validation",
++    "main_experiment_ready": false,
++    "geometry_recipe_source": {
++      "source_template": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/templates/episode_29_candidate.npz",
++      "source_template_sha256": "ba8ad17b725b756c2ab7941b73d90d840808ea849966175978883d7b99290cd1",
++      "source_episode": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form/episode_29.hdf5",
++      "source_episode_sha256": "beb566a7225e16848575d5139ca90a0df1075bb7e925edf6dcb8a6b1a98f94dc",
++      "source_success_confirmed": false,
++      "source_selection": "episode_29 already previewed; proposed R geometry only, not selected as successful T",
++      "geometry_selection": "longest contiguous source Fz > existing 3 N gate threshold; proxy only",
++      "source_work_indices": [
++        85,
++        296
++      ],
++      "source_work_time_s": [
++        2.8348169326782227,
++        9.873551845550537
++      ],
++      "endpoints": "source segment boundary XY; constant median source Z, no pixel-to-mm conversion",
++      "orientation": "SO3 mean over the same source segment",
++      "approach": "five actual source poses at equal source-time intervals plus first working pose",
++      "feed": "existing common executor 10 mm/s limit, interpreted as norm peak for R",
++      "passes": "one endpoint-to-endpoint stroke, explicitly requested to match one-way teaching",
++      "force_ramp": "quintic ramp peak derivative equals existing 30 N/s limit",
++      "budget": "proposed common ceiling: round total R duration up to next 10 s",
++      "force": "E1-derived +18 N signed controller Fz target; not calibrated surface-normal force",
++      "status": "OFFLINE CANDIDATE; path and recipe not validated on hardware"
++    },
++    "validation_run_tag": "E2_line_R_validation_02",
++    "operator_authorization": {
++      "recorded_at": "2026-09-20T19:34:56.364885+09:00",
++      "statement": "어 적용해줘",
++      "scope": "Apply reviewed R candidate for an operator-run validation trial; not a completed hardware validation or main experiment",
++      "reviewed_candidate": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/rule_validation_candidate/config.R_validation_candidate.json",
++      "reviewed_candidate_sha256": "823689c79e6c810ba54d32574c324be86ce72e1dd25b7b0fc640365e48607212",
++      "hardware_execution_by_assistant": false
++    },
++    "return_home": {
++      "enabled": true,
++      "home_source": "common.demo_start_pose6",
++      "timeout_s": 50.0,
++      "verification_timeout_s": 2.0,
++      "release_abs_fz_N": 1.2,
++      "provenance": "Operator requested single pass then contact release and return, explicitly selected demo-start. Lift at measured XY to demo-start Z; reuse common speeds, stationary window and contact-OFF threshold. Return deadline is separate from the 50 s task budget."
++    },
++    "revision_authorization": {
++      "date": "2026-09-20",
++      "request": "편도 끝나면 접촉을 해제하고 home pose 로 돌아오게 해줘",
++      "home_confirmation": "교시 시작 자세로 복귀",
++      "hardware_validation_completed": false
++    }
++  },
++  "replay": {
++    "template": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/templates/episode_29_selected.npz",
++    "source_dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
++    "episode_id": "episode_29",
++    "success_evidence": "Operator explicitly selected episode_29 as the successful T reference on 2026-09-20: 응 29로 보내줘. Selection is user-confirmed; no independent success label was inferred.",
++    "time_axis": "source sample_time_unix",
++    "resample_hz": 125.0,
++    "smoothing": "none",
++    "scaling": 1.0,
++    "template_sha256": "4a14dd346a8551200cadb32faccbbee79e5f765ca36c98c9d70de9bdd957ac30",
++    "selection_recorded_at": "2026-09-20T20:05:10.349655+09:00"
++  },
++  "il": {
++    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531/policy_best.ckpt",
++    "checkpoint_sha256": "5d44775bae8cbb4a259c592e5634b2c113a11294437b8e48d42b16b2855336b8",
++    "normalizer_sha256": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
++    "use_force_observation": true,
++    "force_action": true,
++    "seed": 0,
++    "flow_infer_steps": 10,
++    "chunk_size": 128,
++    "replan_interval_steps": 120,
++    "trajectory_hz": 30.0,
++    "force_history_len": 30,
++    "inference_mode": "timed_topic",
++    "previous_e1_inference_mode": "service_stream",
++    "pose_conditioning": {
++      "profile": "c_pose_conditioning_20260926_v1",
++      "pose_smooth_window": 35,
++      "handover_s": 0.5,
++      "linear_acceleration_mm_s2": 25.0,
++      "angular_acceleration_rad_s2": 1.7453292519943295,
++      "scope": "C pose only; R/T, source time axes, signed force samples, common contact gate and existing gain/speed/force-rate limits unchanged",
++      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
++      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
++    }
++  },
++  "executor": {
++    "transport": "e2_timed_topic_v1",
++    "control_period_s": 0.008,
++    "gain_hz": 15.0,
++    "linear_speed_mm_s": 10.0,
++    "angular_speed_rad_s": 0.6981317007977318,
++    "force_rate_N_s": 30.0,
++    "fz_hard_limit_N": 0.0,
++    "contact_on_N": 3.0,
++    "contact_off_N": 1.2,
++    "feedback_max_age_s": 0.2,
++    "max_tick_gap_s": 0.1,
++    "max_plan_age_s": 0.5,
++    "mode_timeout_s": 2.0,
++    "provider_timeout_s": 2.0,
++    "stop_window_s": 0.4,
++    "stop_timeout_s": 15.0,
++    "completion_position_tolerance_mm": 5.0,
++    "completion_rotation_tolerance_rad": 0.05,
++    "provenance": {
++      "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
++      "contact_clip": "unchanged pinned C inference_core defaults",
++      "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
++    }
++  },
++  "paper_experiment": "E1",
++  "rtc_pose_conditioning": {
++    "schema": "E1_RTC_shared_pose_v1",
++    "pose_sampling_hz": 30.0,
++    "profile": {
++      "profile": "c_pose_conditioning_20260926_v1",
++      "pose_smooth_window": 35,
++      "handover_s": 0.5,
++      "linear_acceleration_mm_s2": 25.0,
++      "angular_acceleration_rad_s2": 1.7453292519943295,
++      "scope": "C pose only; R/T, source time axes, signed force samples, common contact gate and existing gain/speed/force-rate limits unchanged",
++      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
++      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
++    },
++    "reference_C_runs": [
++      {
++        "run_id": "RTC_C_20260926T184357",
++        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184357/launch_context/config.json",
++        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
++      },
++      {
++        "run_id": "RTC_C_20260926T184521",
++        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184521/launch_context/config.json",
++        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
++      },
++      {
++        "run_id": "RTC_C_20260926T184622",
++        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184622/launch_context/config.json",
++        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
++      },
++      {
++        "run_id": "RTC_C_20260926T184724",
++        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184724/launch_context/config.json",
++        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
++      },
++      {
++        "run_id": "RTC_C_20260926T184820",
++        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184820/launch_context/config.json",
++        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
++      }
++    ],
++    "created_at": "2026-09-27T14:52:47.740129+09:00",
++    "authorization": "2026-09-27 user requested R/T reruns with the same C stabilization patch, preserving yesterday C results.",
++    "scope": "Same archived C conditioner: 35-point XYZ/quaternion mean, 0.5 s handover and 25 mm/s^2 / 100 deg/s^2 acceleration limits. R/T private pose view uses 30 Hz / 128 points / 120-point stride, end-padded only inside the filter; source force/phase/time unchanged.",
++    "comparison_limits": "C replans from live policy observations; R/T consume fixed source paths through matching pose chunks. R post-work return and provider-specific completion remain outside shared processing comparison. Cross-day physical conditions remain operator-controlled.",
++    "hardware_executed_by_assistant": false,
++    "horizon_points": 128,
++    "stride_points": 120
++  }
++}
+--- /dev/null
++++ b/experiments/e1_rt_common_20260927/README.md
+@@ -0,0 +1,77 @@
++# E1 R/T 재실행 — 2026-09-27
++
++어제 E1 C 5회의 설정과 저장된 실행기 코드를 기준으로 R/T에 같은 위치·자세 후처리를 적용했다.
++아래 명령의 **새 config 경로**를 사용한다. 예전 config 경로는 예전 R/T 동작을 유지한다.
++어제 C 결과와 기존 R/T 기록은 보존한다. 새 R/T와 어제 C를 비교 대상으로 묶으며, 예전 R/T는 중복 표본으로 합치지 않는다.
++
++| 항목 | 오늘 R/T에 적용한 값 |
++|---|---|
++| 위치/자세 평활 | C와 같은 35점 XYZ 이동평균·quaternion 평균 |
++| 평활용 시간격자 | 30 Hz, 128점 구간, 120점마다 다음 구간 연결 |
++| 시작/구간 연결 | C와 같은 0.5초 quintic 연결 |
++| 축별 가속도 | 위치 25 mm/s², 회전 100 deg/s² |
++| 공통 명령 발행 | 125 Hz; gain 15/s |
++| 공통 속도·힘 변화율 | 위치 10 mm/s, 회전 40 deg/s, 힘 30 N/s |
++| 공통 접촉 판정 | ON 3 N / OFF 1.2 N |
++| R | 기존 +18 N recipe, 편도 1회; 가공 후 기존 home 복귀 |
++| T | 기존 episode_29의 시간·힘·위상 보존 |
++
++R은 원본 약 125 Hz, T는 원본 약 30 Hz 교시 시각이다. 둘 다 힘과 종료 시각은 원본에서 읽고,
++위치·자세만 C와 같은 30 Hz 구간으로 처리한다. 마지막 평활 창의 끝점 패딩은 실행시간을 늘리지 않는다.
++C 정책·모델·힘 관측·접촉 판정·실행 결과는 수정하지 않았다.
++
++## 실행
++
++기존 로봇/카메라 환경과 시편 준비는 어제와 동일하게 한다. 한 번에 한 방법만 실행한다.
++
++```bash
++conda activate nrs_imitation
++source /opt/ros/humble/setup.bash
++source ~/dev_ws/install/setup.bash
++source ~/nrs_imitation/behavior_ws/install/setup.bash
++
++# R — 한 번 실행
++ros2 launch nrs_imitation rtc_timed.launch.py method:=R mode:=run \
++  config:=/home/eunseop/nrs_imitation/experiments/e1_rt_common_20260927/config.json
++
++# T — 한 번 실행
++ros2 launch nrs_imitation rtc_timed.launch.py method:=T mode:=run episode:=episode_29 \
++  config:=/home/eunseop/nrs_imitation/experiments/e1_rt_common_20260927/config.json
++```
++
++각 명령을 필요한 횟수만큼 별도로 실행한다. 실행 ID는 `RTC_R_20260927T...` 또는
++`RTC_T_20260927T...`로 자동 생성된다. 같은 초에 연달아 실행하는 방식은 사용하지 않는다.
++콘솔의 `Shared E1 R/T/C profile; pose grid=30 Hz; reference=C 2026-09-26` 표시를 확인한다.
++`mode:=check`로 바꾸면 로봇 노드를 시작하지 않는 설정 검사다.
++
++R은 유한 작업 후 기존 접촉 해제/home 복귀 절차, T는 교시 시간 끝에서 자동 정지를 요청한다.
++정지 확인 후 Ctrl+C로 기록을 마감한다. 중단이 필요하면 기존 명령을 쓴다.
++
++```bash
++ros2 service call /e2_executor/abort std_srvs/srv/Trigger '{}'
++```
++
++작업자 정상 종료는 `/e2_executor/finish`, 가공 구간 표시는
++`/e2_executor/processing_start`와 `/e2_executor/processing_end`를 같은 Trigger 형식으로 사용한다.
++processing_end 자체는 정지 명령이 아니다. R/T 자동 종료를 기다리면 평소 finish 호출은 필요 없다.
++
++CSV·이벤트는 `logs/inference_metrics`, 영상은 `logs/polishing_removal`, 실행 설정은
++`logs/rtc_launch_context`에 새 ID로 저장된다. 실제 실행 후 검사·정리할 때 오늘 날짜의 결과로 구분한다.
++
++## 확인된 비교 범위
++
++공통 위치·자세 후처리와 전달 경로를 맞췄다. R의 규칙 경로, T의 고정 교시,
++C의 관측 기반 재계획은 각 방법의 차이로 남는다. R의 가공 후 복귀 시간은 가공 성능 비교에서 분리한다.
++서로 다른 날의 실제 시편 상태·장비 응답까지 자동으로 같다고 증명한 것은 아니다.
++
++T는 원래도 마지막 복귀 구간이 공통 속도 제한보다 빨라, 교시 시간 종료가 마지막 위치 도착을 뜻하지 않는다.
++동일한 입력의 명령 계산에서 종료 위치 오차는 기존 15.09 mm, 패치 후 13.29 mm였다.
++이는 로봇 실측 오차가 아니며, 도착하지 않은 실행을 도착 완료로 기록하도록 바꾸지 않았다.
++힘 게이트 전환이나 실측 접촉 응답은 실행 후 기록으로 확인한다.
++
++검증: 168개 회귀 검사 통과, R/T 실제 ROS launch `mode:=check` 통과.
++어제 C 5회 입력 9,662틱에서 당시 코드와 현재 코드의 요청·후처리·접촉 게이트·발행 9차원 명령이
++모두 바이트 단위로 일치했다. R/T의 원래 힘 값·게이트·힘 발행·시간축도 회귀 검사로 확인했다.
++에이전트가 실제 로봇을 실행하지 않았다.
++
++상세 검증과 변경 내역: [패치 보고서](../../reports/20260927_E1_RT_common_patch/README.md).

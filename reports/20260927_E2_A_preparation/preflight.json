@@ -1,0 +1,35 @@
+{
+  "model_ready": {
+    "A": true,
+    "B": true,
+    "C": true
+  },
+  "execution_contract_ready": true,
+  "hardware_preflight_status": {
+    "A": {
+      "status": "blocked",
+      "reasons": [
+        "A F0 is not calibrated and frozen; real execution blocked"
+      ]
+    },
+    "B": {
+      "status": "offline_pass",
+      "reasons": []
+    },
+    "C": {
+      "status": "offline_pass",
+      "reasons": []
+    }
+  },
+  "force_frame_calibration_ready": false,
+  "reference_and_alignment_ready": false,
+  "force_profile_metrics_ready": false,
+  "stylus_metrology_ready": false,
+  "force_analysis_blockers": [
+    "normal-force frame/sign/zero/filter calibration not verified",
+    "evaluation reference not frozen"
+  ],
+  "hardware_executed": false,
+  "physical_safety_validation": false,
+  "quality_verified": false
+}

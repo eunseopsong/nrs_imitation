@@ -1,0 +1,12 @@
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+@@ -4249,6 +4249,9 @@
+             args_override['force_action'] = bool(ckpt_policy_cfg.get('force_action', True))
+             if args_override['motion_only'] != bool(getattr(self, 'motion_only', False)):
+                 raise RuntimeError('Motion-only checkpoint requires the explicit E2 A adapter')
++            if args_override['motion_only']:
++                # The A checkpoint was trained with pose6 observations, too.
++                args_override['state_dim'] = 6
+             for key in (
+                 "image_backbone",
+                 "dino_model_name",

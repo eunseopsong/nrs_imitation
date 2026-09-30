@@ -1,0 +1,397 @@
+[
+  {
+    "path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/20260910_90deg_rel_single/20260910_1606/policy_best.ckpt",
+    "sha256": "9c86fd8ef37649c9e246ec3e24025b5591a05c2366112a247d9d6c8aa6e6ce2e",
+    "normalizer_path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/20260910_90deg_rel_single/20260910_1606/dataset_stats.pkl",
+    "normalizer_sha256": "ae89250eda4a41d009360fa4f30c1bb591aef21f063d03dc7cb2831a94c03028",
+    "epoch": 19,
+    "training_seed": 0,
+    "policy_class": "FLOW",
+    "policy_config": {
+      "lr": 0.0001,
+      "weight_decay": 1e-05,
+      "beta1": 0.95,
+      "beta2": 0.999,
+      "num_queries": 128,
+      "state_dim": 9,
+      "action_dim": 9,
+      "force_dim": 3,
+      "marker_dim": 14,
+      "camera_names": [
+        "cam0"
+      ],
+      "obs_mode": "single_cam",
+      "use_marker": false,
+      "pretrained_backbone": true,
+      "image_backbone": "dinov3",
+      "dino_model_name": "vit_small_patch16_dinov3.lvd1689m",
+      "dino_checkpoint_path": "",
+      "freeze_image_backbone": true,
+      "dino_roi_pooling": "attention",
+      "use_force_history": true,
+      "force_history_len": 30,
+      "force_history_sec": 1.0,
+      "dataset_hz": 30.0,
+      "chunk_sec": 4.27,
+      "force_encoder_hidden_dim": 64,
+      "force_encoder_num_layers": 1,
+      "force_encoder_dropout": 0.0,
+      "flow_obs_hidden_dim": 256,
+      "flow_image_feature_dim": 512,
+      "flow_marker_feature_dim": 128,
+      "flow_global_cond_dim": 256,
+      "flow_time_embed_dim": 256,
+      "flow_down_dims": "256,512,1024",
+      "flow_kernel_size": 5,
+      "flow_n_groups": 8,
+      "flow_cond_predict_scale": false,
+      "flow_infer_steps": 10,
+      "flow_train_eps": 0.0001,
+      "flow_loss_type": "mse",
+      "norm_mode": "minmax_m11",
+      "use_tcp_roi": true,
+      "tcp_roi_reference_width": 424,
+      "tcp_roi_reference_height": 240,
+      "tcp_roi_center_x": 253,
+      "tcp_roi_center_y": 120,
+      "tcp_roi_area_fraction": 0.25,
+      "use_stain_mask": false,
+      "stain_pooling_type": "masked_mean",
+      "empty_stain_feature_mode": "zero",
+      "stain_mask_threshold": 0.5,
+      "debug_stain_pooling": false
+    },
+    "stats_force_observation": null,
+    "checkpoint_force_observation": null,
+    "normalizer_shapes": {
+      "qpos_min": [
+        9
+      ],
+      "qpos_max": [
+        9
+      ],
+      "action_min": [
+        9
+      ],
+      "action_max": [
+        9
+      ]
+    },
+    "state_input_weight_shape": [
+      256,
+      9
+    ],
+    "action_output_weight_shape": [
+      9,
+      256,
+      1
+    ],
+    "dataset_dir": "datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
+    "relative_transform_version": "stain_relative_v1",
+    "rotation_aligned": false,
+    "normalizer_modes": {
+      "qpos_norm_mode": "minmax_m11",
+      "action_norm_mode": "minmax_m11"
+    },
+    "selected_for_current_E1": false,
+    "validation_scope": "CPU weights_only metadata/tensor inspection; no model forward or hardware launch",
+    "eligibility": "legacy_flag_absent_requires_explicit_choice_and_runtime_audit"
+  },
+  {
+    "path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531/policy_best.ckpt",
+    "sha256": "5d44775bae8cbb4a259c592e5634b2c113a11294437b8e48d42b16b2855336b8",
+    "normalizer_path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531/dataset_stats.pkl",
+    "normalizer_sha256": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
+    "epoch": 39,
+    "training_seed": 0,
+    "policy_class": "FLOW",
+    "policy_config": {
+      "lr": 0.0001,
+      "weight_decay": 1e-05,
+      "beta1": 0.95,
+      "beta2": 0.999,
+      "num_queries": 128,
+      "state_dim": 9,
+      "action_dim": 9,
+      "force_dim": 3,
+      "marker_dim": 14,
+      "camera_names": [
+        "cam0"
+      ],
+      "obs_mode": "single_cam",
+      "use_marker": false,
+      "pretrained_backbone": true,
+      "image_backbone": "dinov3",
+      "dino_model_name": "vit_small_patch16_dinov3.lvd1689m",
+      "dino_checkpoint_path": "",
+      "freeze_image_backbone": true,
+      "dino_roi_pooling": "attention",
+      "use_force_history": true,
+      "force_history_len": 30,
+      "force_history_sec": 1.0,
+      "dataset_hz": 30.0,
+      "chunk_sec": 4.27,
+      "force_encoder_hidden_dim": 64,
+      "force_encoder_num_layers": 1,
+      "force_encoder_dropout": 0.0,
+      "use_force_observation": true,
+      "flow_obs_hidden_dim": 256,
+      "flow_image_feature_dim": 512,
+      "flow_marker_feature_dim": 128,
+      "flow_global_cond_dim": 256,
+      "flow_time_embed_dim": 256,
+      "flow_down_dims": "256,512,1024",
+      "flow_kernel_size": 5,
+      "flow_n_groups": 8,
+      "flow_cond_predict_scale": false,
+      "flow_infer_steps": 10,
+      "flow_train_eps": 0.0001,
+      "flow_loss_type": "mse",
+      "norm_mode": "minmax_m11",
+      "use_tcp_roi": true,
+      "tcp_roi_reference_width": 424,
+      "tcp_roi_reference_height": 240,
+      "tcp_roi_center_x": 253,
+      "tcp_roi_center_y": 120,
+      "tcp_roi_area_fraction": 0.25,
+      "use_stain_mask": false,
+      "stain_pooling_type": "masked_mean",
+      "empty_stain_feature_mode": "zero",
+      "stain_mask_threshold": 0.5,
+      "debug_stain_pooling": false
+    },
+    "stats_force_observation": true,
+    "checkpoint_force_observation": true,
+    "normalizer_shapes": {
+      "qpos_min": [
+        9
+      ],
+      "qpos_max": [
+        9
+      ],
+      "action_min": [
+        9
+      ],
+      "action_max": [
+        9
+      ]
+    },
+    "state_input_weight_shape": [
+      256,
+      9
+    ],
+    "action_output_weight_shape": [
+      9,
+      256,
+      1
+    ],
+    "dataset_dir": "datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
+    "relative_transform_version": "stain_relative_v1",
+    "rotation_aligned": false,
+    "normalizer_modes": {
+      "qpos_norm_mode": "minmax_m11",
+      "action_norm_mode": "minmax_m11"
+    },
+    "selected_for_current_E1": false,
+    "validation_scope": "CPU weights_only metadata/tensor inspection; no model forward or hardware launch",
+    "eligibility": "explicit_ON_candidate"
+  },
+  {
+    "path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1515/policy_best.ckpt",
+    "sha256": "cf46f21f4be97da3077cecc6bc5be4cb241c1c6d4a0dd23c7d81501a3da6232b",
+    "normalizer_path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1515/dataset_stats.pkl",
+    "normalizer_sha256": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
+    "epoch": 1,
+    "training_seed": 0,
+    "policy_class": "FLOW",
+    "policy_config": {
+      "lr": 0.0001,
+      "weight_decay": 1e-05,
+      "beta1": 0.95,
+      "beta2": 0.999,
+      "num_queries": 128,
+      "state_dim": 9,
+      "action_dim": 9,
+      "force_dim": 3,
+      "marker_dim": 14,
+      "camera_names": [
+        "cam0"
+      ],
+      "obs_mode": "single_cam",
+      "use_marker": false,
+      "pretrained_backbone": true,
+      "image_backbone": "dinov3",
+      "dino_model_name": "vit_small_patch16_dinov3.lvd1689m",
+      "dino_checkpoint_path": "",
+      "freeze_image_backbone": true,
+      "dino_roi_pooling": "attention",
+      "use_force_history": true,
+      "force_history_len": 30,
+      "force_history_sec": 1.0,
+      "dataset_hz": 30.0,
+      "chunk_sec": 4.27,
+      "force_encoder_hidden_dim": 64,
+      "force_encoder_num_layers": 1,
+      "force_encoder_dropout": 0.0,
+      "use_force_observation": true,
+      "flow_obs_hidden_dim": 256,
+      "flow_image_feature_dim": 512,
+      "flow_marker_feature_dim": 128,
+      "flow_global_cond_dim": 256,
+      "flow_time_embed_dim": 256,
+      "flow_down_dims": "256,512,1024",
+      "flow_kernel_size": 5,
+      "flow_n_groups": 8,
+      "flow_cond_predict_scale": false,
+      "flow_infer_steps": 10,
+      "flow_train_eps": 0.0001,
+      "flow_loss_type": "mse",
+      "norm_mode": "minmax_m11",
+      "use_tcp_roi": true,
+      "tcp_roi_reference_width": 424,
+      "tcp_roi_reference_height": 240,
+      "tcp_roi_center_x": 253,
+      "tcp_roi_center_y": 120,
+      "tcp_roi_area_fraction": 0.25,
+      "use_stain_mask": false,
+      "stain_pooling_type": "masked_mean",
+      "empty_stain_feature_mode": "zero",
+      "stain_mask_threshold": 0.5,
+      "debug_stain_pooling": false
+    },
+    "stats_force_observation": true,
+    "checkpoint_force_observation": true,
+    "normalizer_shapes": {
+      "qpos_min": [
+        9
+      ],
+      "qpos_max": [
+        9
+      ],
+      "action_min": [
+        9
+      ],
+      "action_max": [
+        9
+      ]
+    },
+    "state_input_weight_shape": [
+      256,
+      9
+    ],
+    "action_output_weight_shape": [
+      9,
+      256,
+      1
+    ],
+    "dataset_dir": "datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
+    "relative_transform_version": "stain_relative_v1",
+    "rotation_aligned": false,
+    "normalizer_modes": {
+      "qpos_norm_mode": "minmax_m11",
+      "action_norm_mode": "minmax_m11"
+    },
+    "selected_for_current_E1": false,
+    "validation_scope": "CPU weights_only metadata/tensor inspection; no model forward or hardware launch",
+    "eligibility": "explicit_ON_candidate"
+  },
+  {
+    "path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531/policy_best.ckpt",
+    "sha256": "8f8627de915f3161f1374d756f85506820b4b1775cd868259543e83493f6d6c4",
+    "normalizer_path": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531/dataset_stats.pkl",
+    "normalizer_sha256": "ae4ac6a3d5013200105dd18d09df467709cbe7fd22b22093123f4b9c60915481",
+    "epoch": 42,
+    "training_seed": 0,
+    "policy_class": "FLOW",
+    "policy_config": {
+      "lr": 0.0001,
+      "weight_decay": 1e-05,
+      "beta1": 0.95,
+      "beta2": 0.999,
+      "num_queries": 128,
+      "state_dim": 9,
+      "action_dim": 9,
+      "force_dim": 3,
+      "marker_dim": 14,
+      "camera_names": [
+        "cam0"
+      ],
+      "obs_mode": "single_cam",
+      "use_marker": false,
+      "pretrained_backbone": true,
+      "image_backbone": "dinov3",
+      "dino_model_name": "vit_small_patch16_dinov3.lvd1689m",
+      "dino_checkpoint_path": "",
+      "freeze_image_backbone": true,
+      "dino_roi_pooling": "attention",
+      "use_force_history": true,
+      "force_history_len": 30,
+      "force_history_sec": 1.0,
+      "dataset_hz": 30.0,
+      "chunk_sec": 4.27,
+      "force_encoder_hidden_dim": 64,
+      "force_encoder_num_layers": 1,
+      "force_encoder_dropout": 0.0,
+      "use_force_observation": false,
+      "flow_obs_hidden_dim": 256,
+      "flow_image_feature_dim": 512,
+      "flow_marker_feature_dim": 128,
+      "flow_global_cond_dim": 256,
+      "flow_time_embed_dim": 256,
+      "flow_down_dims": "256,512,1024",
+      "flow_kernel_size": 5,
+      "flow_n_groups": 8,
+      "flow_cond_predict_scale": false,
+      "flow_infer_steps": 10,
+      "flow_train_eps": 0.0001,
+      "flow_loss_type": "mse",
+      "norm_mode": "minmax_m11",
+      "use_tcp_roi": true,
+      "tcp_roi_reference_width": 424,
+      "tcp_roi_reference_height": 240,
+      "tcp_roi_center_x": 253,
+      "tcp_roi_center_y": 120,
+      "tcp_roi_area_fraction": 0.25,
+      "use_stain_mask": false,
+      "stain_pooling_type": "masked_mean",
+      "empty_stain_feature_mode": "zero",
+      "stain_mask_threshold": 0.5,
+      "debug_stain_pooling": false
+    },
+    "stats_force_observation": false,
+    "checkpoint_force_observation": false,
+    "normalizer_shapes": {
+      "qpos_min": [
+        9
+      ],
+      "qpos_max": [
+        9
+      ],
+      "action_min": [
+        9
+      ],
+      "action_max": [
+        9
+      ]
+    },
+    "state_input_weight_shape": [
+      256,
+      9
+    ],
+    "action_output_weight_shape": [
+      9,
+      256,
+      1
+    ],
+    "dataset_dir": "datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
+    "relative_transform_version": "stain_relative_v1",
+    "rotation_aligned": false,
+    "normalizer_modes": {
+      "qpos_norm_mode": "minmax_m11",
+      "action_norm_mode": "minmax_m11"
+    },
+    "selected_for_current_E1": false,
+    "validation_scope": "CPU weights_only metadata/tensor inspection; no model forward or hardware launch",
+    "eligibility": "reject_C_force_observation_OFF"
+  }
+]

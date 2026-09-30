@@ -1,0 +1,1345 @@
+{
+  "created_at": "2026-09-27T14:37:36.486767+09:00",
+  "status": "proposals_not_frozen",
+  "force_values_used_for_selection": false,
+  "criterion": "Initial minimum squared Z residual in three linear segments; work>=2 s with |dz/dt|<=2 mm/s, approach/retract slopes <-2/>2 mm/s. Fit work-height trend to the interior after removing 1 s from each rough edge; locate first/last pose within 1 mm of that trend, searching 1.5 s around the rough interval. Keep every sample between boundaries. Check 0.5 and 1.5 mm boundary sensitivity. These are offline proposal settings, not safety limits or force thresholds.",
+  "input": "stored absolute teacher pose; images for review; no wrench input",
+  "held_out_episodes": [
+    "episode_35.hdf5",
+    "episode_39.hdf5",
+    "episode_22.hdf5",
+    "episode_37.hdf5"
+  ],
+  "episodes": [
+    {
+      "episode": "episode_0.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0028",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.16892147064209,
+      "end_s": 10.174473524093628,
+      "start_index": 95,
+      "end_index": 305,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 1.5124680971583935,
+      "work_z_slope_mm_s": 0.08149945758724601,
+      "work_height_intercept_mm": 167.43107615670164,
+      "initial_segment_start_s": 3.3023672103881836,
+      "initial_segment_end_s": 10.674397945404053,
+      "work_height_residual_range_mm": [
+        -0.29232975074370415,
+        0.9830111614504915
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.269351005554199,
+          "end_s": 10.040537118911743
+        },
+        "1.0": {
+          "start_s": 3.16892147064209,
+          "end_s": 10.174473524093628
+        },
+        "1.5": {
+          "start_s": 3.1025311946868896,
+          "end_s": 10.240668296813965
+        }
+      }
+    },
+    {
+      "episode": "episode_1.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0004",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.968632936477661,
+      "end_s": 8.572719097137451,
+      "start_index": 89,
+      "end_index": 257,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.381513393131984,
+      "work_z_slope_mm_s": -0.0811729170880052,
+      "work_height_intercept_mm": 167.91799278688993,
+      "initial_segment_start_s": 3.069478988647461,
+      "initial_segment_end_s": 9.106794118881226,
+      "work_height_residual_range_mm": [
+        -0.4957311564536724,
+        0.9274007036242153
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.035936117172241,
+          "end_s": 8.506003856658936
+        },
+        "1.0": {
+          "start_s": 2.968632936477661,
+          "end_s": 8.572719097137451
+        },
+        "1.5": {
+          "start_s": 2.902066946029663,
+          "end_s": 8.606091260910034
+        }
+      }
+    },
+    {
+      "episode": "episode_2.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0019",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.4361002445220947,
+      "end_s": 9.440172910690308,
+      "start_index": 103,
+      "end_index": 283,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.5988277358061875,
+      "work_z_slope_mm_s": 1.0130149416557996,
+      "work_height_intercept_mm": 160.75145905191363,
+      "initial_segment_start_s": 2.602128744125366,
+      "initial_segment_end_s": 9.773674011230469,
+      "work_height_residual_range_mm": [
+        -0.2828761865898457,
+        0.9815252455552752
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.6358864307403564,
+          "end_s": 9.306945323944092
+        },
+        "1.0": {
+          "start_s": 3.4361002445220947,
+          "end_s": 9.440172910690308
+        },
+        "1.5": {
+          "start_s": 3.33601713180542,
+          "end_s": 9.506906270980835
+        }
+      }
+    },
+    {
+      "episode": "episode_3.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0017",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.068793296813965,
+      "end_s": 9.807239294052124,
+      "start_index": 92,
+      "end_index": 294,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 1.923793538697994,
+      "work_z_slope_mm_s": -0.23700172397186128,
+      "work_height_intercept_mm": 169.42352879984256,
+      "initial_segment_start_s": 3.2355804443359375,
+      "initial_segment_end_s": 10.340690612792969,
+      "work_height_residual_range_mm": [
+        -0.3094669725138033,
+        0.9745721279922179
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.168773889541626,
+          "end_s": 9.706830263137817
+        },
+        "1.0": {
+          "start_s": 3.068793296813965,
+          "end_s": 9.807239294052124
+        },
+        "1.5": {
+          "start_s": 3.002079486846924,
+          "end_s": 9.87368106842041
+        }
+      }
+    },
+    {
+      "episode": "episode_4.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0007",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.7687411308288574,
+      "end_s": 9.940250396728516,
+      "start_index": 83,
+      "end_index": 298,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 5.175588281167825,
+      "work_z_slope_mm_s": -0.033478393154381496,
+      "work_height_intercept_mm": 167.4956527675899,
+      "initial_segment_start_s": 2.9689078330993652,
+      "initial_segment_end_s": 10.841196298599243,
+      "work_height_residual_range_mm": [
+        -0.466239463070508,
+        0.9541264181713416
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.8684771060943604,
+          "end_s": 9.806932210922241
+        },
+        "1.0": {
+          "start_s": 2.7687411308288574,
+          "end_s": 9.940250396728516
+        },
+        "1.5": {
+          "start_s": 2.7019591331481934,
+          "end_s": 10.04065489768982
+        }
+      }
+    },
+    {
+      "episode": "episode_5.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0025",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.4356842041015625,
+      "end_s": 8.639383554458618,
+      "start_index": 103,
+      "end_index": 259,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.9907018810387767,
+      "work_z_slope_mm_s": 0.0115745194372902,
+      "work_height_intercept_mm": 168.11809392246542,
+      "initial_segment_start_s": 2.8687875270843506,
+      "initial_segment_end_s": 9.273139715194702,
+      "work_height_residual_range_mm": [
+        -0.3929321728817854,
+        0.9827799427228854
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.5360050201416016,
+          "end_s": 8.57281231880188
+        },
+        "1.0": {
+          "start_s": 3.4356842041015625,
+          "end_s": 8.639383554458618
+        },
+        "1.5": {
+          "start_s": 3.368988513946533,
+          "end_s": 8.70619010925293
+        }
+      }
+    },
+    {
+      "episode": "episode_6.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0008",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.6692967414855957,
+      "end_s": 9.873735189437866,
+      "start_index": 110,
+      "end_index": 291,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.939283095668329,
+      "work_z_slope_mm_s": -0.3309053716053633,
+      "work_height_intercept_mm": 170.11592915861587,
+      "initial_segment_start_s": 2.568476915359497,
+      "initial_segment_end_s": 9.873735189437866,
+      "work_height_residual_range_mm": [
+        -0.2588049517718787,
+        0.9258484686124007
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.76934552192688,
+          "end_s": 9.606925249099731
+        },
+        "1.0": {
+          "start_s": 3.6692967414855957,
+          "end_s": 9.873735189437866
+        },
+        "1.5": {
+          "start_s": 3.5358340740203857,
+          "end_s": 10.040567874908447
+        }
+      }
+    },
+    {
+      "episode": "episode_7.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0010",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.035475730895996,
+      "end_s": 9.140270948410034,
+      "start_index": 91,
+      "end_index": 270,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 1.237942391503768,
+      "work_z_slope_mm_s": -0.3318567898148477,
+      "work_height_intercept_mm": 170.03315793986567,
+      "initial_segment_start_s": 2.9691944122314453,
+      "initial_segment_end_s": 9.574053525924683,
+      "work_height_residual_range_mm": [
+        -0.24531561257222734,
+        0.8591270829631412
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.1022703647613525,
+          "end_s": 9.040016412734985
+        },
+        "1.0": {
+          "start_s": 3.035475730895996,
+          "end_s": 9.140270948410034
+        },
+        "1.5": {
+          "start_s": 2.9691944122314453,
+          "end_s": 9.206620931625366
+        }
+      }
+    },
+    {
+      "episode": "episode_8.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0027",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.435852527618408,
+      "end_s": 8.539809942245483,
+      "start_index": 103,
+      "end_index": 256,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.5335104194546303,
+      "work_z_slope_mm_s": -0.01829379277465618,
+      "work_height_intercept_mm": 167.84924932106253,
+      "initial_segment_start_s": 2.735058546066284,
+      "initial_segment_end_s": 9.106652021408081,
+      "work_height_residual_range_mm": [
+        -0.2206203888511311,
+        0.9822516933163854
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.6023292541503906,
+          "end_s": 8.43921422958374
+        },
+        "1.0": {
+          "start_s": 3.435852527618408,
+          "end_s": 8.539809942245483
+        },
+        "1.5": {
+          "start_s": 3.3359501361846924,
+          "end_s": 8.606091499328613
+        }
+      }
+    },
+    {
+      "episode": "episode_9.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0036",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.3689515590667725,
+      "end_s": 8.439249277114868,
+      "start_index": 101,
+      "end_index": 253,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.0890550053027424,
+      "work_z_slope_mm_s": -0.010778857108578198,
+      "work_height_intercept_mm": 167.49953419691388,
+      "initial_segment_start_s": 3.6691484451293945,
+      "initial_segment_end_s": 9.206911563873291,
+      "work_height_residual_range_mm": [
+        -0.5589696745766446,
+        0.9631555933204652
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.4691033363342285,
+          "end_s": 8.339360475540161
+        },
+        "1.0": {
+          "start_s": 3.3689515590667725,
+          "end_s": 8.439249277114868
+        },
+        "1.5": {
+          "start_s": 3.302241563796997,
+          "end_s": 8.505970478057861
+        }
+      }
+    },
+    {
+      "episode": "episode_10.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0032",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.7684004306793213,
+      "end_s": 7.305229663848877,
+      "start_index": 83,
+      "end_index": 219,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 1.8415400465672433,
+      "work_z_slope_mm_s": -0.21222883926836048,
+      "work_height_intercept_mm": 168.1016910032244,
+      "initial_segment_start_s": 2.935145616531372,
+      "initial_segment_end_s": 7.805528879165649,
+      "work_height_residual_range_mm": [
+        -0.6576797480601897,
+        0.9856450425508854
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.835052013397217,
+          "end_s": 7.238396644592285
+        },
+        "1.0": {
+          "start_s": 2.7684004306793213,
+          "end_s": 7.305229663848877
+        },
+        "1.5": {
+          "start_s": 2.735292434692383,
+          "end_s": 7.371968746185303
+        }
+      }
+    },
+    {
+      "episode": "episode_11.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0016",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.1023056507110596,
+      "end_s": 8.1058988571167,
+      "start_index": 93,
+      "end_index": 243,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.8676797143352837,
+      "work_z_slope_mm_s": -0.28567864230036566,
+      "work_height_intercept_mm": 169.7004677844953,
+      "initial_segment_start_s": 2.6352226734161377,
+      "initial_segment_end_s": 8.739570617675781,
+      "work_height_residual_range_mm": [
+        -0.3524285020319553,
+        0.9858587687146496
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.202359676361084,
+          "end_s": 8.039328575134277
+        },
+        "1.0": {
+          "start_s": 3.1023056507110596,
+          "end_s": 8.1058988571167
+        },
+        "1.5": {
+          "start_s": 3.0358223915100098,
+          "end_s": 8.172942638397217
+        }
+      }
+    },
+    {
+      "episode": "episode_12.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0001",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.0353636741638184,
+      "end_s": 9.439926862716675,
+      "start_index": 89,
+      "end_index": 280,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.5606220521253626,
+      "work_z_slope_mm_s": 0.011078971565831703,
+      "work_height_intercept_mm": 167.12836667444017,
+      "initial_segment_start_s": 2.4684441089630127,
+      "initial_segment_end_s": 10.007088661193848,
+      "work_height_residual_range_mm": [
+        -0.42141875674872153,
+        0.8499675083468219
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.101933240890503,
+          "end_s": 9.37335467338562
+        },
+        "1.0": {
+          "start_s": 3.0353636741638184,
+          "end_s": 9.439926862716675
+        },
+        "1.5": {
+          "start_s": 3.0020334720611572,
+          "end_s": 9.50654125213623
+        }
+      }
+    },
+    {
+      "episode": "episode_13.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0005",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.0356264114379883,
+      "end_s": 8.773151159286499,
+      "start_index": 91,
+      "end_index": 263,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.0826147877906815,
+      "work_z_slope_mm_s": 0.0703905757141796,
+      "work_height_intercept_mm": 167.02530923033143,
+      "initial_segment_start_s": 2.501912832260132,
+      "initial_segment_end_s": 9.340414047241211,
+      "work_height_residual_range_mm": [
+        -0.28221868303432984,
+        0.8602239253986568
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.1358325481414795,
+          "end_s": 8.70667839050293
+        },
+        "1.0": {
+          "start_s": 3.0356264114379883,
+          "end_s": 8.773151159286499
+        },
+        "1.5": {
+          "start_s": 2.9357171058654785,
+          "end_s": 8.839812994003296
+        }
+      }
+    },
+    {
+      "episode": "episode_14.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0021",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.302494525909424,
+      "end_s": 8.172500133514404,
+      "start_index": 99,
+      "end_index": 245,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.385922237737322,
+      "work_z_slope_mm_s": 1.1499320390579404,
+      "work_height_intercept_mm": 161.59941447444322,
+      "initial_segment_start_s": 2.6684231758117676,
+      "initial_segment_end_s": 8.506130695343018,
+      "work_height_residual_range_mm": [
+        -0.2889018098485394,
+        0.9145562516344512
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.43585205078125,
+          "end_s": 8.105820178985596
+        },
+        "1.0": {
+          "start_s": 3.302494525909424,
+          "end_s": 8.172500133514404
+        },
+        "1.5": {
+          "start_s": 3.202455759048462,
+          "end_s": 8.239216804504395
+        }
+      }
+    },
+    {
+      "episode": "episode_15.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0018",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.6355538368225098,
+      "end_s": 9.539758443832397,
+      "start_index": 109,
+      "end_index": 286,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 1.6378073870441037,
+      "work_z_slope_mm_s": 0.9856339752360191,
+      "work_height_intercept_mm": 160.81448678053033,
+      "initial_segment_start_s": 3.6020426750183105,
+      "initial_segment_end_s": 10.006449699401855,
+      "work_height_residual_range_mm": [
+        -0.2967456697793409,
+        0.9568936496445986
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.9691877365112305,
+          "end_s": 9.473144769668579
+        },
+        "1.0": {
+          "start_s": 3.6355538368225098,
+          "end_s": 9.539758443832397
+        },
+        "1.5": {
+          "start_s": 3.4684650897979736,
+          "end_s": 9.606494426727295
+        }
+      }
+    },
+    {
+      "episode": "episode_16.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0011",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.968787670135498,
+      "end_s": 9.307153224945068,
+      "start_index": 89,
+      "end_index": 279,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.3754906713940307,
+      "work_z_slope_mm_s": -0.2773161201543885,
+      "work_height_intercept_mm": 169.64764531980273,
+      "initial_segment_start_s": 2.502173662185669,
+      "initial_segment_end_s": 10.073943853378296,
+      "work_height_residual_range_mm": [
+        -0.12813516268590774,
+        0.8602276674558027
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.0689022541046143,
+          "end_s": 9.206742286682129
+        },
+        "1.0": {
+          "start_s": 2.968787670135498,
+          "end_s": 9.307153224945068
+        },
+        "1.5": {
+          "start_s": 2.868753671646118,
+          "end_s": 9.373768329620361
+        }
+      }
+    },
+    {
+      "episode": "episode_17.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0015",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.0352370738983154,
+      "end_s": 8.372347593307495,
+      "start_index": 87,
+      "end_index": 247,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.512890442602878,
+      "work_z_slope_mm_s": -0.20905607068787133,
+      "work_height_intercept_mm": 169.1452794914149,
+      "initial_segment_start_s": 2.4682228565216064,
+      "initial_segment_end_s": 8.372347593307495,
+      "work_height_residual_range_mm": [
+        -0.23423957804016027,
+        0.8968044221172136
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.135312795639038,
+          "end_s": 8.23903751373291
+        },
+        "1.0": {
+          "start_s": 3.0352370738983154,
+          "end_s": 8.372347593307495
+        },
+        "1.5": {
+          "start_s": 2.9685492515563965,
+          "end_s": 8.472517490386963
+        }
+      }
+    },
+    {
+      "episode": "episode_18.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0040",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.002117395401001,
+      "end_s": 8.739313125610352,
+      "start_index": 90,
+      "end_index": 262,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.953321411956494,
+      "work_z_slope_mm_s": -0.668649465669141,
+      "work_height_intercept_mm": 169.2649265206346,
+      "initial_segment_start_s": 2.6348743438720703,
+      "initial_segment_end_s": 9.339990854263306,
+      "work_height_residual_range_mm": [
+        -0.26495202430555764,
+        0.8142455330044527
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.0688717365264893,
+          "end_s": 8.67260456085205
+        },
+        "1.0": {
+          "start_s": 3.002117395401001,
+          "end_s": 8.739313125610352
+        },
+        "1.5": {
+          "start_s": 2.9354865550994873,
+          "end_s": 8.806092739105225
+        }
+      }
+    },
+    {
+      "episode": "episode_19.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0042",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.8687520027160645,
+      "end_s": 7.9390857219696045,
+      "start_index": 86,
+      "end_index": 238,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 4.515764420495108,
+      "work_z_slope_mm_s": -0.7009534713893981,
+      "work_height_intercept_mm": 168.7237446849162,
+      "initial_segment_start_s": 2.502037525177002,
+      "initial_segment_end_s": 8.239581108093262,
+      "work_height_residual_range_mm": [
+        -0.7962710141395064,
+        0.9169998024429162
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.935570240020752,
+          "end_s": 7.906025648117065
+        },
+        "1.0": {
+          "start_s": 2.8687520027160645,
+          "end_s": 7.9390857219696045
+        },
+        "1.5": {
+          "start_s": 2.8023264408111572,
+          "end_s": 8.005794525146484
+        }
+      }
+    },
+    {
+      "episode": "episode_20.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0029",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.3360071182250977,
+      "end_s": 9.606971502304077,
+      "start_index": 100,
+      "end_index": 288,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 1.7593879959329672,
+      "work_z_slope_mm_s": 0.10018033032691959,
+      "work_height_intercept_mm": 167.0264271418784,
+      "initial_segment_start_s": 3.2694661617279053,
+      "initial_segment_end_s": 10.307461977005005,
+      "work_height_residual_range_mm": [
+        -0.17021083034890694,
+        0.9333006167557869
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.4695231914520264,
+          "end_s": 9.506823301315308
+        },
+        "1.0": {
+          "start_s": 3.3360071182250977,
+          "end_s": 9.606971502304077
+        },
+        "1.5": {
+          "start_s": 3.2359743118286133,
+          "end_s": 9.673702478408813
+        }
+      }
+    },
+    {
+      "episode": "episode_21.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0033",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.235694169998169,
+      "end_s": 9.139633893966675,
+      "start_index": 97,
+      "end_index": 274,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.2204338066553064,
+      "work_z_slope_mm_s": 0.015218218224216833,
+      "work_height_intercept_mm": 166.02717261377654,
+      "initial_segment_start_s": 3.4691004753112793,
+      "initial_segment_end_s": 9.706904411315918,
+      "work_height_residual_range_mm": [
+        -0.24077017239750376,
+        0.9965076391672767
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.4691004753112793,
+          "end_s": 9.072875738143921
+        },
+        "1.0": {
+          "start_s": 3.235694169998169,
+          "end_s": 9.139633893966675
+        },
+        "1.5": {
+          "start_s": 3.1355972290039062,
+          "end_s": 9.173073053359985
+        }
+      }
+    },
+    {
+      "episode": "episode_23.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0035",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.7350211143493652,
+      "end_s": 8.539400100708008,
+      "start_index": 82,
+      "end_index": 256,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.723560638482027,
+      "work_z_slope_mm_s": 0.032757922081154446,
+      "work_height_intercept_mm": 166.60039896748282,
+      "initial_segment_start_s": 3.068575859069824,
+      "initial_segment_end_s": 9.173259496688843,
+      "work_height_residual_range_mm": [
+        -0.4234664380916229,
+        0.8792518087286396
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.802018880844116,
+          "end_s": 8.5065016746521
+        },
+        "1.0": {
+          "start_s": 2.7350211143493652,
+          "end_s": 8.539400100708008
+        },
+        "1.5": {
+          "start_s": 2.6683309078216553,
+          "end_s": 8.606412172317505
+        }
+      }
+    },
+    {
+      "episode": "episode_24.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0037",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.0021486282348633,
+      "end_s": 8.30593752861023,
+      "start_index": 90,
+      "end_index": 249,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.44996613607243,
+      "work_z_slope_mm_s": 0.16810673392389267,
+      "work_height_intercept_mm": 166.28613020840885,
+      "initial_segment_start_s": 2.668644666671753,
+      "initial_segment_end_s": 8.873178243637085,
+      "work_height_residual_range_mm": [
+        -0.588868382556825,
+        0.9345454466085528
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.0690932273864746,
+          "end_s": 8.23940658569336
+        },
+        "1.0": {
+          "start_s": 3.0021486282348633,
+          "end_s": 8.30593752861023
+        },
+        "1.5": {
+          "start_s": 2.9687421321868896,
+          "end_s": 8.372955560684204
+        }
+      }
+    },
+    {
+      "episode": "episode_25.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0023",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.1692914962768555,
+      "end_s": 9.106923580169678,
+      "start_index": 95,
+      "end_index": 273,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.5083313268646297,
+      "work_z_slope_mm_s": 0.03036020316304957,
+      "work_height_intercept_mm": 167.59903489115493,
+      "initial_segment_start_s": 2.7020950317382812,
+      "initial_segment_end_s": 9.673619985580444,
+      "work_height_residual_range_mm": [
+        -0.2895928475299172,
+        0.928829247791441
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.2695930004119873,
+          "end_s": 9.039859771728516
+        },
+        "1.0": {
+          "start_s": 3.1692914962768555,
+          "end_s": 9.106923580169678
+        },
+        "1.5": {
+          "start_s": 3.102616310119629,
+          "end_s": 9.173295021057129
+        }
+      }
+    },
+    {
+      "episode": "episode_26.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0009",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.669231653213501,
+      "end_s": 10.674329280853271,
+      "start_index": 110,
+      "end_index": 320,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.728539777430633,
+      "work_z_slope_mm_s": -0.31998305330120336,
+      "work_height_intercept_mm": 170.32969565590014,
+      "initial_segment_start_s": 3.5358612537384033,
+      "initial_segment_end_s": 10.87483286857605,
+      "work_height_residual_range_mm": [
+        -0.3690595159280292,
+        0.9084338437437793
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.7361643314361572,
+          "end_s": 10.507568359375
+        },
+        "1.0": {
+          "start_s": 3.669231653213501,
+          "end_s": 10.674329280853271
+        },
+        "1.5": {
+          "start_s": 3.5695619583129883,
+          "end_s": 10.807803869247437
+        }
+      }
+    },
+    {
+      "episode": "episode_27.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0034",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.968998908996582,
+      "end_s": 8.539460182189941,
+      "start_index": 89,
+      "end_index": 253,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.662017762297211,
+      "work_z_slope_mm_s": 0.0791267803141608,
+      "work_height_intercept_mm": 166.5197833959187,
+      "initial_segment_start_s": 2.434964179992676,
+      "initial_segment_end_s": 8.972987651824951,
+      "work_height_residual_range_mm": [
+        -0.2381440944944586,
+        0.9234814183280378
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.035578727722168,
+          "end_s": 8.472765684127808
+        },
+        "1.0": {
+          "start_s": 2.968998908996582,
+          "end_s": 8.539460182189941
+        },
+        "1.5": {
+          "start_s": 2.9353227615356445,
+          "end_s": 8.606132984161377
+        }
+      }
+    },
+    {
+      "episode": "episode_28.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0012",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.0354654788970947,
+      "end_s": 7.905478477478027,
+      "start_index": 91,
+      "end_index": 237,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.211939839751841,
+      "work_z_slope_mm_s": -0.39327702657092434,
+      "work_height_intercept_mm": 170.26102632529114,
+      "initial_segment_start_s": 2.3017561435699463,
+      "initial_segment_end_s": 8.472838878631592,
+      "work_height_residual_range_mm": [
+        -0.5515376835185748,
+        0.9393748269613127
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.135383129119873,
+          "end_s": 7.8721702098846436
+        },
+        "1.0": {
+          "start_s": 3.0354654788970947,
+          "end_s": 7.905478477478027
+        },
+        "1.5": {
+          "start_s": 2.969104766845703,
+          "end_s": 7.9727089405059814
+        }
+      }
+    },
+    {
+      "episode": "episode_29.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0003",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.6013691425323486,
+      "end_s": 9.673407793045044,
+      "start_index": 78,
+      "end_index": 290,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.007775715691493,
+      "work_z_slope_mm_s": 0.013322401046375245,
+      "work_height_intercept_mm": 166.99779703748342,
+      "initial_segment_start_s": 2.7684683799743652,
+      "initial_segment_end_s": 10.373949527740479,
+      "work_height_residual_range_mm": [
+        -0.4156722987917476,
+        0.9676227734753979
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.701709747314453,
+          "end_s": 9.6063973903656
+        },
+        "1.0": {
+          "start_s": 2.6013691425323486,
+          "end_s": 9.673407793045044
+        },
+        "1.5": {
+          "start_s": 2.5681302547454834,
+          "end_s": 9.73998737335205
+        }
+      }
+    },
+    {
+      "episode": "episode_30.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0020",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.5690057277679443,
+      "end_s": 10.474053382873535,
+      "start_index": 107,
+      "end_index": 314,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.6069116113711726,
+      "work_z_slope_mm_s": 0.9539137150640689,
+      "work_height_intercept_mm": 160.99719657683312,
+      "initial_segment_start_s": 2.7685797214508057,
+      "initial_segment_end_s": 10.707523107528687,
+      "work_height_residual_range_mm": [
+        -0.4426631913335086,
+        0.9904155304240021
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.8026275634765625,
+          "end_s": 10.407238960266113
+        },
+        "1.0": {
+          "start_s": 3.5690057277679443,
+          "end_s": 10.474053382873535
+        },
+        "1.5": {
+          "start_s": 3.468956708908081,
+          "end_s": 10.507355690002441
+        }
+      }
+    },
+    {
+      "episode": "episode_31.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0013",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.235442876815796,
+      "end_s": 9.773235082626343,
+      "start_index": 97,
+      "end_index": 293,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.143446816278186,
+      "work_z_slope_mm_s": -0.20532029746689265,
+      "work_height_intercept_mm": 169.54133005597137,
+      "initial_segment_start_s": 2.568305730819702,
+      "initial_segment_end_s": 9.806529998779297,
+      "work_height_residual_range_mm": [
+        -0.374347350812144,
+        0.9562039813370404
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.3352508544921875,
+          "end_s": 9.673259019851685
+        },
+        "1.0": {
+          "start_s": 3.235442876815796,
+          "end_s": 9.773235082626343
+        },
+        "1.5": {
+          "start_s": 3.168743133544922,
+          "end_s": 9.839925765991211
+        }
+      }
+    },
+    {
+      "episode": "episode_32.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0041",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.868607521057129,
+      "end_s": 8.139474391937256,
+      "start_index": 86,
+      "end_index": 244,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.7208940116002656,
+      "work_z_slope_mm_s": -0.5818431752870719,
+      "work_height_intercept_mm": 167.82072355950947,
+      "initial_segment_start_s": 2.4020137786865234,
+      "initial_segment_end_s": 8.739391088485718,
+      "work_height_residual_range_mm": [
+        -0.30559497833587557,
+        0.9563120818119728
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.968687057495117,
+          "end_s": 8.072860717773438
+        },
+        "1.0": {
+          "start_s": 2.868607521057129,
+          "end_s": 8.139474391937256
+        },
+        "1.5": {
+          "start_s": 2.8018012046813965,
+          "end_s": 8.205828666687012
+        }
+      }
+    },
+    {
+      "episode": "episode_33.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0014",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.9687459468841553,
+      "end_s": 9.340157270431519,
+      "start_index": 89,
+      "end_index": 280,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.9177700431163167,
+      "work_z_slope_mm_s": -0.18560215234579774,
+      "work_height_intercept_mm": 169.09360525132655,
+      "initial_segment_start_s": 2.368098020553589,
+      "initial_segment_end_s": 10.073947668075562,
+      "work_height_residual_range_mm": [
+        -0.12219150714889793,
+        0.9503575872122383
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.068971872329712,
+          "end_s": 9.206414699554443
+        },
+        "1.0": {
+          "start_s": 2.9687459468841553,
+          "end_s": 9.340157270431519
+        },
+        "1.5": {
+          "start_s": 2.902237892150879,
+          "end_s": 9.406620264053345
+        }
+      }
+    },
+    {
+      "episode": "episode_34.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0043",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.0355865955352783,
+      "end_s": 8.939755201339722,
+      "start_index": 91,
+      "end_index": 268,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 3.253742286146782,
+      "work_z_slope_mm_s": -0.9556792907306941,
+      "work_height_intercept_mm": 170.67015301631758,
+      "initial_segment_start_s": 3.3023903369903564,
+      "initial_segment_end_s": 9.54008960723877,
+      "work_height_residual_range_mm": [
+        -0.9517113141934317,
+        0.833850371343857
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.102053165435791,
+          "end_s": 8.872923851013184
+        },
+        "1.0": {
+          "start_s": 3.0355865955352783,
+          "end_s": 8.939755201339722
+        },
+        "1.5": {
+          "start_s": 2.968750238418579,
+          "end_s": 8.973010778427124
+        }
+      }
+    },
+    {
+      "episode": "episode_36.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0006",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.934778928756714,
+      "end_s": 8.538672924041748,
+      "start_index": 88,
+      "end_index": 256,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.4611539523996244,
+      "work_z_slope_mm_s": -0.0032550874183165887,
+      "work_height_intercept_mm": 167.25950106856212,
+      "initial_segment_start_s": 2.934778928756714,
+      "initial_segment_end_s": 9.105715036392212,
+      "work_height_residual_range_mm": [
+        -0.21318885774249452,
+        0.886282362154418
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.0349836349487305,
+          "end_s": 8.471946716308594
+        },
+        "1.0": {
+          "start_s": 2.934778928756714,
+          "end_s": 8.538672924041748
+        },
+        "1.5": {
+          "start_s": 2.8348441123962402,
+          "end_s": 8.605347871780396
+        }
+      }
+    },
+    {
+      "episode": "episode_38.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0026",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.8687336444854736,
+      "end_s": 8.439096212387085,
+      "start_index": 86,
+      "end_index": 251,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.4919613481267575,
+      "work_z_slope_mm_s": 0.04007773416887281,
+      "work_height_intercept_mm": 167.4374228519917,
+      "initial_segment_start_s": 2.5018632411956787,
+      "initial_segment_end_s": 9.10636568069458,
+      "work_height_residual_range_mm": [
+        -0.27371150791205423,
+        0.9378239198142353
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.9688737392425537,
+          "end_s": 8.339033126831055
+        },
+        "1.0": {
+          "start_s": 2.8687336444854736,
+          "end_s": 8.439096212387085
+        },
+        "1.5": {
+          "start_s": 2.8020575046539307,
+          "end_s": 8.505816459655762
+        }
+      }
+    },
+    {
+      "episode": "episode_40.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0031",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 3.0024871826171875,
+      "end_s": 7.839364767074585,
+      "start_index": 90,
+      "end_index": 235,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.370493100531333,
+      "work_z_slope_mm_s": 0.043922956836825004,
+      "work_height_intercept_mm": 167.46844517413098,
+      "initial_segment_start_s": 3.1359446048736572,
+      "initial_segment_end_s": 8.372771263122559,
+      "work_height_residual_range_mm": [
+        -0.4108321708760059,
+        0.930529982428169
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 3.1025524139404297,
+          "end_s": 7.772333860397339
+        },
+        "1.0": {
+          "start_s": 3.0024871826171875,
+          "end_s": 7.839364767074585
+        },
+        "1.5": {
+          "start_s": 2.935791492462158,
+          "end_s": 7.872480630874634
+        }
+      }
+    },
+    {
+      "episode": "episode_41.hdf5",
+      "source_h5": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260819_1618/merged_hdf5/hdf5_recorder_single_cam_20260819_1618.hdf5",
+      "source_group": "ep_0047",
+      "success_confirmed": true,
+      "success_evidence": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+      "start_s": 2.701643943786621,
+      "end_s": 7.171581268310547,
+      "start_index": 81,
+      "end_index": 215,
+      "boundary_status": "pose_only_proposal_pending_visual_review",
+      "z_fit_rmse_mm": 2.2568233649250526,
+      "work_z_slope_mm_s": -0.23544244287025587,
+      "work_height_intercept_mm": 163.4708280357866,
+      "initial_segment_start_s": 2.8355841636657715,
+      "initial_segment_end_s": 7.672534704208374,
+      "work_height_residual_range_mm": [
+        -0.5748064171675935,
+        0.9655303467982321
+      ],
+      "geometric_boundary_sensitivity": {
+        "0.5": {
+          "start_s": 2.768385410308838,
+          "end_s": 7.104816913604736
+        },
+        "1.0": {
+          "start_s": 2.701643943786621,
+          "end_s": 7.171581268310547
+        },
+        "1.5": {
+          "start_s": 2.6350491046905518,
+          "end_s": 7.204893589019775
+        }
+      }
+    }
+  ]
+}

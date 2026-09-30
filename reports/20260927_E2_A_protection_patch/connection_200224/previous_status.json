@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-09-27T17:34:12.554414+09:00",
+  "status": "software_patched_hardware_not_ready",
+  "real_hardware_ready": false,
+  "robot_or_spindle_executed": false,
+  "driver_deployed": false,
+  "candidate_command_fz_N": 23.0,
+  "F0_frozen": false,
+  "quality_validation": "pending",
+  "pilot_config": "/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json",
+  "execution_contract_hash": "160ccc3f302e7c99f7878a14d5c024b084dd860cf3bf5890fa3aeda6d053519b",
+  "cohort_id": "E2_27922f47a3de57f2",
+  "hardware_blockers": [
+    "commissioning status/approved_by/approved_at: actual approval required",
+    "processing_command_fz_range_N: approved signed range must contain candidate F0",
+    "measured_force_abs_limits_N: three approved positive per-axis limits required",
+    "measured_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "sensor_raw_force_abs_limits_N: three approved positive per-axis limits required",
+    "sensor_raw_torque_abs_limits_Nm: three approved positive per-axis limits required",
+    "measured_wrench_frame: explicit protection frame required",
+    "acquisition_max_age_s: approved source-acquisition timeout required",
+    "limits_evidence: pinned evidence path + sha256 required",
+    "sensor_overload_evidence: pinned evidence path + sha256 required",
+    "workspace_evidence: pinned evidence path + sha256 required",
+    "automatic_stop_evidence: pinned evidence path + sha256 required",
+    "approach_exit_evidence: pinned evidence path + sha256 required",
+    "sensor_driver_deployment_evidence: pinned evidence path + sha256 required"
+  ],
+  "completed_at": "2026-09-27T17:37:44.562058+09:00",
+  "regression": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "287",
+      "time": "45.452",
+      "timestamp": "2026-09-27T17:24:24.994831+09:00",
+      "hostname": "nrs3"
+    }
+  ],
+  "final_targeted": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "114",
+      "time": "19.153",
+      "timestamp": "2026-09-27T17:34:12.934346+09:00",
+      "hostname": "nrs3"
+    }
+  ],
+  "cpp_packet_fixture": "passed",
+  "driver_build": "two packages passed; isolated local outputs, never executed",
+  "driver_patch_apply_check": "passed",
+  "installed_launch_check": "check mode only; no nodes started",
+  "A_checkpoint_offline_result": "/home/eunseop/nrs_imitation/results/20260927/E2/A_offline/173440_4bbb8f2f",
+  "preservation": {
+    "protected_files_checked": 2526,
+    "changed": [],
+    "active_local_driver_changed": []
+  }
+}

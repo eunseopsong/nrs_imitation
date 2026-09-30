@@ -1,0 +1,13 @@
+﻿묶음,필드명,단위·좌표계,필요한 값 또는 확인 사항,확인할 장비·화면,담당자 기입/기록 ID
+실제 하중 보호,measured_force_abs_limits_N,N / 선택한 감시축,"실측 [Fx,Fy,Fz] 절대 중단 한계: [____, ____, ____]",로봇 PC 하중감시 설정 / UR 화면 A,
+실제 하중 보호,measured_torque_abs_limits_Nm,N·m / 감시축·기준점,"실측 [Tx,Ty,Tz] 한계: [____, ____, ____]; 기준점: ____",로봇 PC 6축 감시 / 센서 장착도 / UR 화면 D,
+실제 하중 보호,sensor_raw_force_abs_limits_N,N / 센서 원시축,"영점·필터·중력보정 전 축별 한계: [____, ____, ____]",센서 제어기·드라이버 원시 패킷 / 하중감시 설정,
+실제 하중 보호,sensor_raw_torque_abs_limits_Nm,N·m / 센서축·원점,"원시 토크 축별 한계: [____, ____, ____]",센서 제어기·드라이버 원시 패킷 / 센서 장착도,
+실제 하중 보호,measured_wrench_frame,좌표계 / 토크 기준점,sensor / robot_base / controller_tcp 중 실제 감시축과 토크 원점 확인: ____,센서 장착도 / 드라이버 축변환 / UR 화면 D,
+실제 하중 보호,limits_evidence,설정·기록 ID,기존 보호를 재사용할 경우 적용 하중·축·정지 경로의 동등성 근거: ____,UR 화면 A·C / 기존 하중감시 설정·확인 기록,
+실제 하중 보호,sensor_overload_evidence,포화·복합하중·고장 검출,포화/과부하 검출과 정지 연결의 근거: ____; raw 명칭 토픽만으로 확정하지 않음,센서 제어기·드라이버 / 제조사 문서 / 현장 확인 기록,
+실제 센서 감시,acquisition_max_age_s,s / 원본 수신 시각,실제 UDP 수신 나이 상한: ____ s; 선정·시계/지연 근거: ____,로봇 PC 수신루프·watchdog / 양쪽 PC 시각 상태,
+실제 센서 감시,sensor_driver_deployment_evidence,실행 버전·활성 상태,현재 버전은 기록 완료. 미관측 감시 토픽 2종의 활성화 또는 동등 감시 근거: ____,nrsgene 실행 PID·바이너리 SHA / ROS 발행자·수신 기록,
+현장 동작 확인,workspace_evidence,mm·rad / 기준 프레임,현재 공구·지그의 경계 적용과 TCP 보정 일치 확인. 시작 로그의 보정 불일치 경고 처리 근거: ____,UR 화면 B·D / 현재 공구·지그 / 드라이버 교정 로그,
+현장 동작 확인,automatic_stop_evidence,정지 조건·시각·관측 기록,고장별 명령 억제 → 큐 취소 → 실제 정지의 확인 기록: ____,UR 화면 C / 실제 정지 로그 / singleArm 명령 서비스,
+현장 동작 확인,approach_exit_evidence,mm·rad / 작업 순서,시작 자세·가공 marker·접촉 해제·이탈·스핀들 절차의 적용 기록: ____,현재 공구·지그 / 로봇 프로그램 / 기존 운전 절차,

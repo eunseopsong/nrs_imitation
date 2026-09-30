@@ -1,0 +1,21 @@
+{
+  "created_at": "2026-09-27T15:21:34.547037+09:00",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "d44eec9fff0144adc582e1cfa63eb4696ec180de071878b8c334446457b758e1"
+    },
+    {
+      "path": "operator_limit_confirmation.json",
+      "sha256": "2bb801625c1d278532e482ad4f870d31184535216e75d7bbb3d962a74f620acf"
+    },
+    {
+      "path": "remote_configuration_readback.json",
+      "sha256": "0b7a2795e850cd562a45b1850050210d88d2a7e9c3bbef0390fc11a446886d73"
+    },
+    {
+      "path": "review.json",
+      "sha256": "dc10f4e4908822e2cc20b0fa7253efa062fc1f6241042242a6da462e1b431f71"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "created_at": "2026-09-27T15:15:33.538038+09:00",
+  "scope": "Passive unloaded baseline observation, no robot motion/force command",
+  "tests_passed": 5,
+  "package_build": "passed",
+  "launch_check": "passed",
+  "E2_execution_contract_unchanged": true,
+  "A_F0_unresolved": true,
+  "hardware_run_by_assistant": false,
+  "files": [
+    {
+      "path": "behavior_ws/src/nrs_imitation/launch/e2_f0_observe.launch.py",
+      "sha256": "c43fee6d588ff2817897fca29ea1d94147b6038d07b3a29c7a0670142ddc7f36"
+    },
+    {
+      "path": "behavior_ws/src/nrs_imitation/nrs_imitation/e2_f0_observation.py",
+      "sha256": "bb3170f31a0c9f7adc569545fec80b87661d56e767f243b482b5d7dec02c41ce"
+    },
+    {
+      "path": "behavior_ws/src/nrs_imitation/test/test_e2_f0_observation.py",
+      "sha256": "453f9fe5c8ca879471fe84a090b30a8585611573cb457bd4c62135d0c94d6ccb"
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "schema": "E2_teacher_channel_F0_draft_v1",
+  "status": "preliminary_not_calibrated_not_frozen",
+  "calculated_at": "2026-09-27T14:40:54.003012+09:00",
+  "signal": "stored action/force[:,2] = filtered teacher ft[:,2]",
+  "quantity": "recorded teacher Fz; candidate for the existing learned-force command channel, not certified surface-normal force",
+  "teacher_Fz_constant_candidate_N": 23.01822610909061,
+  "rounded_teacher_channel_candidate_N": 23.0,
+  "proposed_rounding": "nearest 1 N for a future reviewed recipe; no runtime parameter set",
+  "normal_force_N": null,
+  "command_fz_N": null,
+  "validated_operating_range_N": null,
+  "sample_count": 38,
+  "processing_samples": 6591,
+  "proposed_processing_duration_s": 220.35925316810608,
+  "weighting": "Actual-time ZOH mean within each proposed processing interval; equal weight across all 38 training episodes.",
+  "per_episode_mean_min_N": 19.187020250758547,
+  "per_episode_mean_max_N": 27.933761425933792,
+  "per_episode_mean_std_N": 2.326151054667778,
+  "boundary_sensitivity_N": {
+    "base": 23.01822610909061,
+    "expand_0.25s": 21.896458883650507,
+    "shrink_0.25s": 23.75215703861855,
+    "expand_0.50s": 20.458223932564284,
+    "shrink_0.50s": 24.224375019146432,
+    "height_0.5mm": 23.365791639662,
+    "height_1.5mm": 22.724331248643306,
+    "trapezoidal": 23.076476278180866
+  },
+  "low_force_samples_removed": false,
+  "absolute_value_applied": false,
+  "new_zero_or_gravity_correction_applied": false,
+  "excluded_successful_train_episodes": [],
+  "evaluation_episodes_used": false,
+  "E1_R_18N_reused": false,
+  "E2_BC_outcomes_used": false,
+  "operator_confirmation": "/home/eunseop/nrs_imitation/experiments/e2_force_ablation_20260926/F0_operator_confirmation_20260927.json",
+  "phase_proposals_sha256": "b4560d8989e35f05399495d0495a47733caf06d620b2ba594aff097da7547b48",
+  "visual_review_sha256": "e1f19258552fc77bc162ce4584dfa8c370b4718b395c39904810de09eeb94fd3",
+  "runtime_config_sha256": "188a3845852c78aa2b7cec19c77b4bb95f6e99d4ec2e7d8b833cd47ba6158a4e",
+  "calibration": {
+    "execution_convention_verified": true,
+    "normal_force_verified": false,
+    "frame_note": "Execution reuses the operator-confirmed unchanged E1 signed controller TCP force convention and filtered base-vector feedback. Surface normal, compression calibration and teacher/live equivalence remain unverified.",
+    "surface_normal_base": null,
+    "compression_sign": null,
+    "pose_source": "actual_feedback",
+    "controller_target_frame": "controller_tcp",
+    "rotation_basis": "actual_feedback_tcp",
+    "gravity_zero_filter_evidence": null,
+    "calibration_id": null,
+    "F_cmd_applied": null,
+    "raw_sensor_available": false,
+    "execution_convention_evidence": {
+      "confirmed_at": "2026-09-26T20:48:05.711452+09:00",
+      "operator_statement": "변경 없음 / 잉크 제거 / 한 방향 작업 E1 C 설정 사용",
+      "reference_run_id": "RTC_C_20260926T184820",
+      "reference_config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184820/launch_context/config.json",
+      "reference_config_sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb",
+      "scope": [
+        "unchanged tool/TCP, force controller and fixture",
+        "ink removal",
+        "unidirectional work",
+        "E1 C operator finish and 50 s execution ceiling"
+      ],
+      "basis": "operator confirmation plus unchanged archived execution settings and matching local controller-source hashes",
+      "controller_source_checks": {
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": {
+          "expected_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+          "actual_sha256": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": {
+          "expected_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+          "actual_sha256": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": {
+          "expected_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+          "actual_sha256": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211"
+        },
+        "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": {
+          "expected_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+          "actual_sha256": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+        }
+      },
+      "remote_binary_readback_performed": false,
+      "new_force_normal_or_teacher_calibration_performed": false,
+      "robot_executed_by_assistant": false
+    },
+    "execution_convention_basis": "reuse_operator_confirmed_E1_C"
+  },
+  "remaining": [
+    "Approximate processing boundaries need acceptance for final recipe selection.",
+    "Teacher force-axis/zero/calibration relation to current TCP target is not independently verified.",
+    "No validated constant-force operating range was supplied; observed teacher statistics are not operating limits.",
+    "Final numerical recipe/operator freeze confirmation has not been given."
+  ],
+  "hardware_config_modified": false,
+  "hardware_executed": false
+}

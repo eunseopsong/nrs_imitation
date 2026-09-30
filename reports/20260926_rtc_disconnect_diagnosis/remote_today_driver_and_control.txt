@@ -1,0 +1,209 @@
+[WARN] [1790405741.451130533] [controller_manager]: [Deprecated] Passing the robot description parameter directly to the control_manager node is deprecated. Use '~/robot_description' topic from 'robot_state_publisher' instead.
+[INFO] [1790405741.452147223] [resource_manager]: Loading hardware 'ur10' 
+[INFO] [1790405741.471616863] [resource_manager]: Initialize hardware 'ur10' 
+[INFO] [1790405741.473135496] [resource_manager]: Successful initialization of hardware 'ur10'
+[INFO] [1790405741.473713051] [resource_manager]: 'configure' hardware 'ur10' 
+[INFO] [1790405741.473742632] [URPositionHardwareInterface]: Starting ...please wait...
+[INFO] [1790405741.473837399] [URPositionHardwareInterface]: Initializing driver...
+[INFO] [1790405741.574316376] [UR_Client_Library:]: Negotiated RTDE protocol version to 2.
+[INFO] [1790405741.575858753] [UR_Client_Library:]: Received URControl version 3.15.7.0
+[INFO] [1790405741.575939222] [UR_Client_Library:]: Setting up RTDE communication with frequency 125.000000
+[INFO] [1790405741.578897503] [UR_Client_Library:]: Starting primary client pipeline
+[WARN] [1790405742.597658281] [UR_Client_Library:]: Stream is connected but failed to read from it. Re-attempting to read!
+[INFO] [1790405743.275472142] [URPositionHardwareInterface]: Calibration checksum: 'calib_17227329492635474227'.
+[ERROR] [1790405743.275545099] [URPositionHardwareInterface]: The calibration parameters of the connected robot don't match the ones from the given kinematics config file. Please be aware that this can lead to critical inaccuracies of tcp positions. Use the ur_calibration tool to extract the correct calibration from the robot and pass that into the description. See [https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver/blob/main/ur_calibration/README.md] for details.
+[INFO] [1790405743.275657973] [URPositionHardwareInterface]: System successfully started!
+[INFO] [1790405743.275689165] [resource_manager]: Successful 'configure' of hardware 'ur10'
+[INFO] [1790405743.275783561] [resource_manager]: 'activate' hardware 'ur10' 
+[INFO] [1790405743.275794778] [URPositionHardwareInterface]: Activating HW interface
+[INFO] [1790405743.275805307] [resource_manager]: Successful 'activate' of hardware 'ur10'
+[WARN] [1790405743.283585502] [controller_manager]: Could not enable FIFO RT scheduling policy
+[WARN] [1790405743.284587318] [UR_Client_Library:]: Your system/user seems not to be setup for FIFO scheduling. We recommend using a lowlatency kernel with FIFO scheduling. See https://docs.universal-robots.com/Universal_Robots_ROS_Documentation/doc/ur_client_library/doc/real_time.html for details.
+[INFO] [1790405743.501239245] [controller_manager]: Loading controller 'scaled_joint_trajectory_controller'
+[INFO] [1790405743.553436165] [scaled_joint_trajectory_controller]: Using scaling state from the hardware from interface speed_scaling/speed_scaling_factor.
+[WARN] [1790405743.560690526] [scaled_joint_trajectory_controller]: [Deprecated]: "allow_nonzero_velocity_at_trajectory_end" is set to true. The default behavior will change to false.
+[INFO] [1790405743.564087757] [controller_manager]: Loading controller 'joint_state_broadcaster'
+[INFO] [1790405743.580181078] [controller_manager]: Configuring controller 'scaled_joint_trajectory_controller'
+[INFO] [1790405743.580519536] [scaled_joint_trajectory_controller]: No specific joint names are used for command interfaces. Using 'joints' parameter.
+[INFO] [1790405743.580592190] [scaled_joint_trajectory_controller]: Command interfaces are [position] and state interfaces are [position velocity].
+[INFO] [1790405743.580636325] [scaled_joint_trajectory_controller]: Using 'splines' interpolation method.
+[INFO] [1790405743.582263480] [scaled_joint_trajectory_controller]: Controller state will be published at 100.00 Hz.
+[INFO] [1790405743.588160713] [scaled_joint_trajectory_controller]: Action status changes will be monitored at 20.00 Hz.
+[INFO] [1790405743.596485667] [controller_manager]: Configuring controller 'joint_state_broadcaster'
+[INFO] [1790405743.596585755] [joint_state_broadcaster]: 'joints' or 'interfaces' parameter is empty. All available state interfaces will be published
+[INFO] [1790405743.605679942] [controller_manager]: Loading controller 'joint_trajectory_controller'
+[WARN] [1790405743.621383053] [joint_trajectory_controller]: [Deprecated]: "allow_nonzero_velocity_at_trajectory_end" is set to true. The default behavior will change to false.
+[INFO] [1790405743.644189481] [controller_manager]: Configuring controller 'joint_trajectory_controller'
+[INFO] [1790405743.644557939] [joint_trajectory_controller]: No specific joint names are used for command interfaces. Using 'joints' parameter.
+[INFO] [1790405743.644595620] [joint_trajectory_controller]: Command interfaces are [position] and state interfaces are [position velocity].
+[INFO] [1790405743.644633897] [joint_trajectory_controller]: Using 'splines' interpolation method.
+[INFO] [1790405743.645015543] [joint_trajectory_controller]: Controller state will be published at 100.00 Hz.
+[INFO] [1790405743.648471669] [joint_trajectory_controller]: Action status changes will be monitored at 20.00 Hz.
+[INFO] [1790405743.662253337] [controller_manager]: Loading controller 'io_and_status_controller'
+[INFO] [1790405743.676178510] [controller_manager]: Loading controller 'forward_velocity_controller'
+[INFO] [1790405743.742625232] [controller_manager]: Configuring controller 'io_and_status_controller'
+[INFO] [1790405743.821670316] [controller_manager]: Configuring controller 'forward_velocity_controller'
+[INFO] [1790405743.823868451] [forward_velocity_controller]: configure successful
+[INFO] [1790405743.855784367] [controller_manager]: Loading controller 'forward_effort_controller'
+[INFO] [1790405743.894311441] [controller_manager]: Loading controller 'speed_scaling_state_broadcaster'
+[INFO] [1790405743.943102651] [speed_scaling_state_broadcaster]: Loading UR SpeedScalingStateBroadcaster with tf_prefix: 
+[INFO] [1790405743.953504356] [controller_manager]: Configuring controller 'forward_effort_controller'
+[INFO] [1790405743.955728012] [forward_effort_controller]: configure successful
+[INFO] [1790405743.969141069] [controller_manager]: Configuring controller 'speed_scaling_state_broadcaster'
+[INFO] [1790405743.969382922] [speed_scaling_state_broadcaster]: Publisher rate set to : 100.0 Hz
+[INFO] [1790405743.978150209] [controller_manager]: Loading controller 'force_mode_controller'
+[INFO] [1790405744.060947072] [controller_manager]: Configuring controller 'force_mode_controller'
+[INFO] [1790405744.152153609] [controller_manager]: Loading controller 'force_torque_sensor_broadcaster'
+[INFO] [1790405744.262616736] [controller_manager]: Loading controller 'passthrough_trajectory_controller'
+[INFO] [1790405744.351292190] [controller_manager]: Configuring controller 'force_torque_sensor_broadcaster'
+[INFO] [1790405744.358745850] [controller_manager]: Configuring controller 'passthrough_trajectory_controller'
+[INFO] [1790405744.405874896] [controller_manager]: Loading controller 'freedrive_mode_controller'
+[INFO] [1790405744.503294408] [controller_manager]: Configuring controller 'freedrive_mode_controller'
+[INFO] [1790405744.511127123] [controller_manager]: Loading controller 'tcp_pose_broadcaster'
+[INFO] [1790405744.617395377] [controller_manager]: Configuring controller 'tcp_pose_broadcaster'
+[INFO] [1790405744.631042665] [controller_manager]: Loading controller 'tool_contact_controller'
+[INFO] [1790405744.784295807] [controller_manager]: Configuring controller 'tool_contact_controller'
+[INFO] [1790405744.833143972] [controller_manager]: Loading controller 'ur_configuration_controller'
+[INFO] [1790405744.995137418] [controller_manager]: Configuring controller 'ur_configuration_controller'
+[INFO] [1790405745.045434068] [controller_manager]: Loading controller 'friction_model_controller'
+[INFO] [1790405745.137441123] [controller_manager]: Configuring controller 'friction_model_controller'
+[INFO] [1790405745.161656365] [controller_manager]: Loading controller 'forward_position_controller'
+[INFO] [1790405745.287054498] [controller_manager]: Configuring controller 'forward_position_controller'
+[INFO] [1790405745.290315981] [forward_position_controller]: configure successful
+[INFO] [1790405745.316660394] [forward_position_controller]: activate successful
+[INFO] [1790405745.388253533] [controller_manager]: Switch controller timeout is set to 0, using default 1s!
+[INFO] [1790405749.329621463] [UR_Client_Library:]: Robot requested program
+[INFO] [1790405749.330126424] [UR_Client_Library:]: Sent program to robot
+[INFO] [1790405750.722363332] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790405751.466308979] [UR_Client_Library:]: Connection to reverse interface dropped.
+[INFO] [1790405752.030361003] [UR_Client_Library:]: Robot requested program
+[INFO] [1790405752.030980050] [UR_Client_Library:]: Sent program to robot
+[INFO] [1790405752.570277887] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790405752.580554857] [forward_position_controller]: activate successful
+[INFO] [1790406763.728193582] [UR_Client_Library:]: Connection to reverse interface dropped.
+[INFO] [1790406778.835826348] [UR_Client_Library:]: Robot requested program
+[INFO] [1790406778.836053888] [UR_Client_Library:]: Sent program to robot
+[INFO] [1790406780.079389824] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790406780.092074849] [forward_position_controller]: activate successful
+[INFO] [1790406780.791606682] [UR_Client_Library:]: Connection to reverse interface dropped.
+[INFO] [1790406781.273185560] [UR_Client_Library:]: Robot requested program
+[INFO] [1790406781.273257561] [UR_Client_Library:]: Sent program to robot
+[INFO] [1790406781.767413802] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790406781.780589415] [forward_position_controller]: activate successful
+[INFO] [1790406796.606875414] [UR_Client_Library:]: Connection to reverse interface dropped.
+[INFO] [1790406814.733728426] [UR_Client_Library:]: Robot requested program
+[INFO] [1790406814.733961334] [UR_Client_Library:]: Sent program to robot
+[INFO] [1790406815.205976077] [UR_Client_Library:]: Robot connected to reverse interface. Ready to receive control commands.
+[INFO] [1790406815.220028330] [forward_position_controller]: activate successful
+[INFO] [1790406829.597554108] [UR_Client_Library:]: Connection to reverse interface dropped.
+[INFO] [1790406950.702270590] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [1790406950.702340873] [controller_manager]: Shutdown request received....
+[INFO] [1790406950.702439113] [controller_manager]: Shutting down all controllers in the controller manager.
+[INFO] [1790406950.702527464] [controller_manager]: Shutting down controller 'scaled_joint_trajectory_controller'
+[INFO] [1790406950.702631082] [controller_manager]: Deactivating controller 'joint_state_broadcaster'
+[INFO] [1790406950.702683415] [controller_manager]: Shutting down controller 'joint_state_broadcaster'
+[INFO] [1790406950.702736074] [controller_manager]: Shutting down controller 'joint_trajectory_controller'
+[INFO] [1790406950.702799805] [controller_manager]: Deactivating controller 'io_and_status_controller'
+[INFO] [1790406950.702864381] [controller_manager]: Shutting down controller 'io_and_status_controller'
+[INFO] [1790406950.702927622] [controller_manager]: Shutting down controller 'forward_velocity_controller'
+[INFO] [1790406950.702976686] [controller_manager]: Shutting down controller 'forward_effort_controller'
+[INFO] [1790406950.703021658] [controller_manager]: Deactivating controller 'speed_scaling_state_broadcaster'
+[INFO] [1790406950.703066033] [controller_manager]: Shutting down controller 'speed_scaling_state_broadcaster'
+[INFO] [1790406950.703105027] [controller_manager]: Shutting down controller 'force_mode_controller'
+[INFO] [1790406950.703141589] [controller_manager]: Deactivating controller 'force_torque_sensor_broadcaster'
+[INFO] [1790406950.703192462] [controller_manager]: Shutting down controller 'force_torque_sensor_broadcaster'
+[INFO] [1790406950.703248114] [controller_manager]: Shutting down controller 'passthrough_trajectory_controller'
+[INFO] [1790406950.703294074] [controller_manager]: Shutting down controller 'freedrive_mode_controller'
+[INFO] [1790406950.703352580] [controller_manager]: Deactivating controller 'tcp_pose_broadcaster'
+[INFO] [1790406950.703396589] [controller_manager]: Shutting down controller 'tcp_pose_broadcaster'
+[INFO] [1790406950.703440373] [controller_manager]: Shutting down controller 'tool_contact_controller'
+[INFO] [1790406950.703500405] [controller_manager]: Deactivating controller 'ur_configuration_controller'
+[INFO] [1790406950.703542568] [controller_manager]: Shutting down controller 'ur_configuration_controller'
+[INFO] [1790406950.703593636] [controller_manager]: Shutting down controller 'friction_model_controller'
+[INFO] [1790406950.703647396] [controller_manager]: Shutting down controller 'forward_position_controller'
+[INFO] [1790406950.703710570] [resource_manager]: 'deactivate' hardware 'ur10' 
+[INFO] [1790406950.703732241] [resource_manager]: Successful 'deactivate' of hardware 'ur10'
+[INFO] [1790406950.703741573] [resource_manager]: 'shutdown' hardware 'ur10' 
+[INFO] [1790406950.703764658] [URPositionHardwareInterface]: Stopping ...please wait...
+[INFO] [1790406950.709603745] [UR_Client_Library:]: Stopping primary client pipeline
+[INFO] [1790406950.784918004] [UR_Client_Library:]: RTDE background read thread stopped
+[INFO] [1790406950.785032505] [URPositionHardwareInterface]: System successfully stopped!
+[INFO] [1790406950.785056133] [resource_manager]: Successful 'shutdown' of hardware 'ur10'
+[INFO] [1790406950.785069335] [controller_manager]: Shutting down the controller manager.
+[INFO] [1790405759.487092472] [singleArm_cmd]: Loaded setup YAML: /home/nrs_forcecon/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml (robot=ur10skku, kinematics=ur10, period=0.008000s, PTP velocity=160.000 mm/s)
+[INFO] [1790405759.491691142] [singleArm_cmd]: UrCmd node initialized for robot: ur10skku
+[INFO] [1790405759.491748664] [singleArm_cmd]: State topic  : ur10skku/cmdState  (String)
+[INFO] [1790405759.495854045] [singleArm_cmd]: singleArm_cmd service server is ready: /singleArm_cmd/single_arm_command
+[INFO] [1790405759.495940731] [singleArm_cmd]: Polishing removal trigger clients are ready: /polishing_removal_node/start, /polishing_removal_node/end
+[INFO] [1790405759.496529881] [singleArm_cmd]: CurrentP received! Robot initialized.
+[INFO] [1790405760.496070414] [singleArm_cmd]: Robot current position received. Command service is now available.
+[INFO] [1790405761.941810617] [singleArm_cmd]: Service command received: PTP
+[INFO] [1790405766.256882017] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.
+[INFO] [1790405774.317522451] [singleArm_cmd]: Service command received: Joystick
+[INFO] [1790405774.317667975] [singleArm_cmd]: Joystick mode activated
+[INFO] [1790405774.317939406] [singleArm_cmd]: Command executed: Joystick. Joystick command requested.
+[INFO] [1790405786.622247946] [singleArm_cmd]: Service command received: Joystick
+[INFO] [1790405786.622409715] [singleArm_cmd]: Joystick mode activated
+[INFO] [1790405786.622680156] [singleArm_cmd]: Command executed: Joystick. Joystick command requested.
+[INFO] [1790405831.416168823] [singleArm_cmd]: Service command received: PTP
+[INFO] [1790405838.827583204] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.
+[INFO] [1790406103.847027005] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406118.619836846] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406764.307652160] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406766.407949517] [singleArm_cmd]: Service command received: PTP
+[INFO] [1790406770.996205699] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.
+[INFO] [1790406773.266720286] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406775.319727650] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [1790406785.036720074] [singleArm_cmd]: Loaded setup YAML: /home/nrs_forcecon/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml (robot=ur10skku, kinematics=ur10, period=0.008000s, PTP velocity=160.000 mm/s)
+[INFO] [1790406785.040677775] [singleArm_cmd]: UrCmd node initialized for robot: ur10skku
+[INFO] [1790406785.040735475] [singleArm_cmd]: State topic  : ur10skku/cmdState  (String)
+[INFO] [1790406785.046675443] [singleArm_cmd]: singleArm_cmd service server is ready: /singleArm_cmd/single_arm_command
+[INFO] [1790406785.046730332] [singleArm_cmd]: Polishing removal trigger clients are ready: /polishing_removal_node/start, /polishing_removal_node/end
+[INFO] [1790406785.053017404] [singleArm_cmd]: CurrentP received! Robot initialized.
+[INFO] [1790406785.968751233] [singleArm_cmd]: Service command received: PTP
+[INFO] [1790406788.984900512] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.
+[INFO] [1790406788.985262515] [singleArm_cmd]: Robot current position received. Command service is now available.
+[INFO] [1790406797.135113217] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406799.151384947] [singleArm_cmd]: Service command received: PTP
+[INFO] [1790406803.731934736] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.
+[INFO] [1790406809.108070543] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406810.638232596] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [1790406818.814338492] [singleArm_cmd]: Loaded setup YAML: /home/nrs_forcecon/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml (robot=ur10skku, kinematics=ur10, period=0.008000s, PTP velocity=160.000 mm/s)
+[INFO] [1790406818.817717784] [singleArm_cmd]: UrCmd node initialized for robot: ur10skku
+[INFO] [1790406818.817771194] [singleArm_cmd]: State topic  : ur10skku/cmdState  (String)
+[INFO] [1790406818.823563468] [singleArm_cmd]: singleArm_cmd service server is ready: /singleArm_cmd/single_arm_command
+[INFO] [1790406818.823619994] [singleArm_cmd]: Polishing removal trigger clients are ready: /polishing_removal_node/start, /polishing_removal_node/end
+[INFO] [1790406818.827134401] [singleArm_cmd]: CurrentP received! Robot initialized.
+[INFO] [1790406819.823590717] [singleArm_cmd]: Robot current position received. Command service is now available.
+[INFO] [1790406820.240518650] [singleArm_cmd]: Service command received: PTP
+[INFO] [1790406823.266236341] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.
+[INFO] [1790406830.171062289] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406832.298656352] [singleArm_cmd]: Service command received: PTP
+[INFO] [1790406836.844369830] [singleArm_cmd]: Command executed: PTP. PTP motion generated from service request.
+[INFO] [1790406837.028862512] [singleArm_cmd]: Command executed: PTP9D_STREAM_STOP. PTP9D stream stopped.
+[INFO] [1790406948.726188932] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[INFO] [1790406817.126999989] [SingleArm]: Loaded setup YAML: /home/nrs_forcecon/dev_ws/install/Y2RobMotion/share/Y2RobMotion/config/setup_parameters.yaml (robot=ur10skku, kinematics=ur10, period=0.008000s, PTP velocity=160.000 mm/s)
+[INFO] [1790406817.131598117] [SingleArm]: Publisher was generated
+[INFO] [1790406817.135094083] [SingleArm]: Subscription was generated
+[INFO] [1790406817.135307151] [SingleArm]: [CONTEXT-NAF-MDGRADI] model path: /home/nrs_forcecon/dev_ws/install/Y2ForceCon/share/Y2ForceCon/checkpoints/ContextNAF_MDGradi/contextNAF_mdGradi_policy_script.pt
+[INFO] [1790406817.135367122] [SingleArm]: [CONTEXT-NAF-MDGRADI] model file exists (size=378469 bytes)
+[INFO] [1790406817.178245671] [SingleArm]: [CONTEXT-NAF-MDGRADI] TorchScript load OK
+[INFO] [1790406817.178634858] [SingleArm]: [NAF-MASSVARI] model path: /home/nrs_forcecon/dev_ws/install/Y2ForceCon/share/Y2ForceCon/checkpoints/NAF_MassVari/NAF_massVari_policy_script.pt
+[INFO] [1790406817.178782248] [SingleArm]: [NAF-MASSVARI] model file exists (size=286579 bytes)
+[INFO] [1790406817.186453012] [SingleArm]: [NAF-MASSVARI] TorchScript load OK
+[INFO] [1790406817.186671224] [SingleArm]: [NAF-MDGRADI] model path: /home/nrs_forcecon/dev_ws/install/Y2ForceCon/share/Y2ForceCon/checkpoints/NAF_MDGradi/NAF_mdGradi_policy_script.pt
+[INFO] [1790406817.186767643] [SingleArm]: [NAF-MDGRADI] model file exists (size=292069 bytes)
+[INFO] [1790406817.195264626] [SingleArm]: [NAF-MDGRADI] TorchScript load OK
+[INFO] [1790406817.305230088] [SingleArm]: Waiting for joint states...
+[INFO] [1790406817.305611457] [SingleArm]: Joint shoulder_pan_joint mapped: expected_index=0 -> msg_index=0
+[INFO] [1790406817.305652005] [SingleArm]: Joint shoulder_lift_joint mapped: expected_index=1 -> msg_index=5
+[INFO] [1790406817.305706385] [SingleArm]: Joint elbow_joint mapped: expected_index=2 -> msg_index=4
+[INFO] [1790406817.305745618] [SingleArm]: Joint wrist_1_joint mapped: expected_index=3 -> msg_index=3
+[INFO] [1790406817.305775508] [SingleArm]: Joint wrist_2_joint mapped: expected_index=4 -> msg_index=1
+[INFO] [1790406817.305791528] [SingleArm]: Joint wrist_3_joint mapped: expected_index=5 -> msg_index=2
+[INFO] [1790406817.405959787] [SingleArm]: Joint states received!
+[INFO] [1790406949.638665913] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+Sep 26 15:42:45 nrsgene kernel: NMI watchdog: Enabled. Permanently consumes one hw-PMU counter.
+               total        used        free      shared  buff/cache   available
+Mem:           7.7Gi       1.2Gi       3.0Gi       171Mi       3.5Gi       6.1Gi
+Swap:          2.0Gi          0B       2.0Gi

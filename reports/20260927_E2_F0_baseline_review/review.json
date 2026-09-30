@@ -1,0 +1,59 @@
+{
+  "reviewed_at": "2026-09-27T15:18:45.592882+09:00",
+  "source": "/home/eunseop/nrs_imitation/results/20260927/E2/F0_validation/unloaded_151625_rn9ptmg4",
+  "manifest_files_verified": 5,
+  "capture_integrity": "pass",
+  "valid_pose_messages": 2473,
+  "valid_force_messages": 2473,
+  "fresh_pairs": 2472,
+  "force_span_s": 19.775517593,
+  "received_force_hz": 125.00304926911352,
+  "gap_ms_p50_p95_p99_max": [
+    7.996559,
+    9.1845474,
+    9.70184237,
+    11.911015
+  ],
+  "max_pose_age_ms": 9.259701,
+  "excluded_from_TCP_conversion_indices": [
+    0
+  ],
+  "exclusion_reason": "First force arrived before first pose; preserved in original bag/base-force statistics.",
+  "controller_modes": [
+    "Position"
+  ],
+  "force_tcp_N": {
+    "count": 2472,
+    "mean": [
+      0.013027530961854883,
+      -0.039508813746040594,
+      -0.15058125983106044
+    ],
+    "std": [
+      0.20287827455414353,
+      0.17299435782812844,
+      0.18418753390616044
+    ],
+    "min": [
+      -0.6063454151813784,
+      -0.67615230242302,
+      -0.8491752084304524
+    ],
+    "max": [
+      0.7543733208238279,
+      0.5077232471907834,
+      0.4748906530904965
+    ]
+  },
+  "actual_pose_excursion": {
+    "max_translation_from_first_mm": 0.08337556403181749,
+    "max_rotation_from_first_rad": 0.00014673198608781596
+  },
+  "data_within_existing_feedback_freshness_limit": true,
+  "unloaded_samples_reaching_existing_base_Fz_contact_on_threshold": 0,
+  "baseline_only": true,
+  "zero_correction_applied": false,
+  "normal_force_calibration_verified": false,
+  "F0_frozen": false,
+  "next_step": "Confirm allowed load/stop criterion before configuring separate force-application validation. Baseline does not certify 23 N operating safety or teacher/live force equivalence."
+}

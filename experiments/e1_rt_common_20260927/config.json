@@ -1,0 +1,369 @@
+{
+  "schema": "E2_timed_execution_v2",
+  "task": {
+    "task_type": "line",
+    "direction_label_deg": 90,
+    "endpoints_relative_mm": [
+      [
+        -15.225713729858398,
+        30.618316650390625,
+        167.10179138183594
+      ],
+      [
+        43.69847869873047,
+        -39.007537841796875,
+        167.10179138183594
+      ]
+    ],
+    "orientation_rotvec_rad": [
+      -0.04183447694024232,
+      0.06973036142223078,
+      2.3905397824305816
+    ],
+    "line_width_mm": null,
+    "effective_contact_width_mm": null
+  },
+  "common": {
+    "specimen_id": "default",
+    "region_id": null,
+    "block_id": null,
+    "repeat_id": null,
+    "use_stain_mask": false,
+    "stain_canon_enable": false,
+    "frame": "stain_relative_v1",
+    "reference_detection": "existing stain_origin_online frozen translation only",
+    "rpm_setpoint": null,
+    "rpm_measured": null,
+    "spindle_control_procedure": {
+      "mode": "operator controlled; no spindle command sent by inference",
+      "procedure": "Keep the same physical spindle setting for R/T/C; operator handles spindle ON/OFF.",
+      "rpm_measured": false,
+      "same_setting_verified": false,
+      "note": "Prescribed experiment procedure, not a claim that equal actual RPM was measured."
+    },
+    "surface_normal_base": null,
+    "tcp_calibration_id": "expected local setup_parameters.yaml sha256:18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0",
+    "force_frame_sign_verification": {
+      "basis": "Same E1 controller/sensor/tool setup explicitly confirmed by operator; reuse existing signed Fz command convention without transformation",
+      "reference_run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+      "target_axis": "controller cmdMotion/SET_FORCE Fz, N",
+      "command_sign": "positive, unchanged from acknowledged E1 +17.694 N median target",
+      "sensor_topic": "/ur10skku/currentF",
+      "measured_Fz_median_N_in_reference_interval": 20.575218166583955,
+      "surface_normal_calibrated": false,
+      "teacher_axis_equivalence_newly_verified": false,
+      "remote_controller_configuration_readback": false,
+      "evidence_commands_sha256": "164f1d35032cd9332acbf1ad8ad2fd388b6ac69fca8428e08e002290dfe950ef"
+    },
+    "frozen_roi": {
+      "detect_params_file": "/home/eunseop/nrs_imitation/checkpoints/stain_relative_frame/stain_origin_90deg_single.json",
+      "sha256": "2ed8012ca6dc34d7e77b0edf57b866ad0a51a5b4107643fb762a1b96da962162",
+      "method": "dark",
+      "dark_thresh": 65,
+      "plate_roi": [
+        130,
+        58,
+        346,
+        122
+      ],
+      "tool_box": [
+        258,
+        115,
+        292,
+        122
+      ]
+    },
+    "workspace_limits": {
+      "max_xy_from_start_mm": 140.0,
+      "max_z_down_from_start_mm": 85.0,
+      "max_z_up_from_start_mm": 95.0,
+      "max_xyz_from_current_mm": 200.0
+    },
+    "task_time_budget_s": 50.0,
+    "approach_retract_protocol": {
+      "approach": "Common existing demo-start alignment; R explicit source-backed waypoint approach, T original teacher approach, C policy approach; common executor/gates/rate limits",
+      "finish": "Idling, queue cancellation, Position hold, fresh stationary TCP verification",
+      "retract": "R normal finite completion: cancel queue and verify Position hold, lift at actual XY to demo-start Z, verify low absolute measured Fz and stationary clearance, then return to absolute demo-start using frozen stain origin. Abort/fault holds only. T/C unchanged.",
+      "completion_scope": "R: verified home arrival, Position hold and measured contact release; T/C: controlled stationary hold only; spindle operator-controlled"
+    },
+    "controller_deployment_id": "operator-confirmed unchanged since C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+    "demo_start_pose6": [
+      18.008996963500977,
+      -2.49249267578125,
+      214.15731811523438,
+      -0.16068577766418457,
+      0.014244713820517063,
+      2.3556406497955322
+    ],
+    "metrics_sample_hz": 20,
+    "metrics_extra_telemetry_enable": false,
+    "video_auto_record": true,
+    "viewers": false,
+    "workspace_limits_provenance": "existing inference_core defaults, applied identically to R/T/C",
+    "expected_controller_sources": {
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_command.cpp": "8744ef983025b6cce75af8fee92db53e428768eef980c8fcdd6107dd4fe5523e",
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/robot_motion.cpp": "7852293826bcf679004e0d9c05178c7f067f32ed7f51777b0e5e27ac253be69e",
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/src/singleArm_cmd.cpp": "540476f9f582a41aa826a0d413f063e23ce3c54561a8896d043d9c3b0fccc211",
+      "/home/eunseop/dev_ws/src/y2_ur10skku_control/Y2RobMotion/config/setup_parameters.yaml": "18eeb2069eb3f9ae24c3d35299223dd8166e4fcb910192f3a6b83a7fc95ef4a0"
+    },
+    "tcp_calibration_note": "Expected source identity only. controller_deployment_id must identify the matching active controller/calibration; not auto-verified.",
+    "rpm_status": "unknown",
+    "rpm_unknown_reason": "Operator stated RPM is unknown on 2026-09-20; not inferred from E1 logs or spindle control.",
+    "setup_confirmation": {
+      "date": "2026-09-20",
+      "operator_statement": "바꾼 거 없어",
+      "scope": [
+        "specimen fixture position and height",
+        "tool/TCP",
+        "force controller settings"
+      ],
+      "reference_run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+      "remote_binary_hash_verified": false,
+      "new_calibration_performed": false
+    }
+  },
+  "recipe": {
+    "simulation_only": false,
+    "force_reference_N": 18.0,
+    "feed_speed_mm_s": 10.0,
+    "pass_count": 1,
+    "offset_spacing_mm": 0.0,
+    "force_ramp_s": 1.125,
+    "task_time_budget_s": 50.0,
+    "force_reference_source": {
+      "report": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/force_reference_from_e1.json",
+      "report_sha256": "48b1d953361e86c3700a0e75794baaf7d6879723714de9ddbadad0c257375f4d",
+      "run_id": "C_force_obs_ON_E1_20260916_20260920T171726_1789892246083511592_ua8reqys",
+      "selection": "longest continuous acknowledged nonzero contact-gate-ON interval; time-weighted empirical median",
+      "unrounded_N": 17.694250106811523,
+      "status": "E1-derived initial baseline; R hardware validation not performed"
+    },
+    "approach": {
+      "waypoints_pose6": [
+        [
+          18.008996963500977,
+          -2.49249267578125,
+          214.15731811523438,
+          -0.16068577766418457,
+          0.014244713820517063,
+          2.3556406497955322
+        ],
+        [
+          9.436792373657227,
+          1.031402587890625,
+          209.8856964111328,
+          -0.14013801515102386,
+          0.03177563473582268,
+          2.358074426651001
+        ],
+        [
+          -3.4910035133361816,
+          14.313385009765625,
+          197.02816772460938,
+          -0.15247561037540436,
+          0.04999037832021713,
+          2.4145352840423584
+        ],
+        [
+          -14.678319931030273,
+          30.8529052734375,
+          174.97311401367188,
+          -0.0809587687253952,
+          0.045532286167144775,
+          2.42907452583313
+        ],
+        [
+          -15.225713729858398,
+          30.618316650390625,
+          166.96295166015625,
+          -0.05493294820189476,
+          0.06041689217090607,
+          2.4225730895996094
+        ],
+        [
+          -15.225713729858398,
+          30.618316650390625,
+          167.10179138183594,
+          -0.04183447694024232,
+          0.06973036142223078,
+          2.3905397824305816
+        ]
+      ],
+      "peak_speed_mm_s": 10.0,
+      "peak_angular_speed_rad_s": 0.6981317007977318,
+      "force_N": 0.0,
+      "interpolation": "quintic rest-to-rest XYZ; SO3 shortest-arc orientation",
+      "source_indices": [
+        0,
+        22,
+        43,
+        64,
+        85
+      ],
+      "source_template": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/templates/episode_29_candidate.npz",
+      "source_template_sha256": "ba8ad17b725b756c2ab7941b73d90d840808ea849966175978883d7b99290cd1"
+    },
+    "validation_status": "operator_authorized_initial_hardware_validation",
+    "main_experiment_ready": false,
+    "geometry_recipe_source": {
+      "source_template": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/templates/episode_29_candidate.npz",
+      "source_template_sha256": "ba8ad17b725b756c2ab7941b73d90d840808ea849966175978883d7b99290cd1",
+      "source_episode": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form/episode_29.hdf5",
+      "source_episode_sha256": "beb566a7225e16848575d5139ca90a0df1075bb7e925edf6dcb8a6b1a98f94dc",
+      "source_success_confirmed": false,
+      "source_selection": "episode_29 already previewed; proposed R geometry only, not selected as successful T",
+      "geometry_selection": "longest contiguous source Fz > existing 3 N gate threshold; proxy only",
+      "source_work_indices": [
+        85,
+        296
+      ],
+      "source_work_time_s": [
+        2.8348169326782227,
+        9.873551845550537
+      ],
+      "endpoints": "source segment boundary XY; constant median source Z, no pixel-to-mm conversion",
+      "orientation": "SO3 mean over the same source segment",
+      "approach": "five actual source poses at equal source-time intervals plus first working pose",
+      "feed": "existing common executor 10 mm/s limit, interpreted as norm peak for R",
+      "passes": "one endpoint-to-endpoint stroke, explicitly requested to match one-way teaching",
+      "force_ramp": "quintic ramp peak derivative equals existing 30 N/s limit",
+      "budget": "proposed common ceiling: round total R duration up to next 10 s",
+      "force": "E1-derived +18 N signed controller Fz target; not calibrated surface-normal force",
+      "status": "OFFLINE CANDIDATE; path and recipe not validated on hardware"
+    },
+    "validation_run_tag": "E2_line_R_validation_02",
+    "operator_authorization": {
+      "recorded_at": "2026-09-20T19:34:56.364885+09:00",
+      "statement": "어 적용해줘",
+      "scope": "Apply reviewed R candidate for an operator-run validation trial; not a completed hardware validation or main experiment",
+      "reviewed_candidate": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/rule_validation_candidate/config.R_validation_candidate.json",
+      "reviewed_candidate_sha256": "823689c79e6c810ba54d32574c324be86ce72e1dd25b7b0fc640365e48607212",
+      "hardware_execution_by_assistant": false
+    },
+    "return_home": {
+      "enabled": true,
+      "home_source": "common.demo_start_pose6",
+      "timeout_s": 50.0,
+      "verification_timeout_s": 2.0,
+      "release_abs_fz_N": 1.2,
+      "provenance": "Operator requested single pass then contact release and return, explicitly selected demo-start. Lift at measured XY to demo-start Z; reuse common speeds, stationary window and contact-OFF threshold. Return deadline is separate from the 50 s task budget."
+    },
+    "revision_authorization": {
+      "date": "2026-09-20",
+      "request": "편도 끝나면 접촉을 해제하고 home pose 로 돌아오게 해줘",
+      "home_confirmation": "교시 시작 자세로 복귀",
+      "hardware_validation_completed": false
+    }
+  },
+  "replay": {
+    "template": "/home/eunseop/nrs_imitation/experiments/e2_rule_replay_20260920/templates/episode_29_selected.npz",
+    "source_dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form",
+    "episode_id": "episode_29",
+    "success_evidence": "Operator explicitly selected episode_29 as the successful T reference on 2026-09-20: 응 29로 보내줘. Selection is user-confirmed; no independent success label was inferred.",
+    "time_axis": "source sample_time_unix",
+    "resample_hz": 125.0,
+    "smoothing": "none",
+    "scaling": 1.0,
+    "template_sha256": "4a14dd346a8551200cadb32faccbbee79e5f765ca36c98c9d70de9bdd957ac30",
+    "selection_recorded_at": "2026-09-20T20:05:10.349655+09:00"
+  },
+  "il": {
+    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531/policy_best.ckpt",
+    "checkpoint_sha256": "5d44775bae8cbb4a259c592e5634b2c113a11294437b8e48d42b16b2855336b8",
+    "normalizer_sha256": "33e4677c370231c958c625872eef41d3e23498c6cda6f31e2e21e69ba65fc6c2",
+    "use_force_observation": true,
+    "force_action": true,
+    "seed": 0,
+    "flow_infer_steps": 10,
+    "chunk_size": 128,
+    "replan_interval_steps": 120,
+    "trajectory_hz": 30.0,
+    "force_history_len": 30,
+    "inference_mode": "timed_topic",
+    "previous_e1_inference_mode": "service_stream",
+    "pose_conditioning": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "C pose only; R/T, source time axes, signed force samples, common contact gate and existing gain/speed/force-rate limits unchanged",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    }
+  },
+  "executor": {
+    "transport": "e2_timed_topic_v1",
+    "control_period_s": 0.008,
+    "gain_hz": 15.0,
+    "linear_speed_mm_s": 10.0,
+    "angular_speed_rad_s": 0.6981317007977318,
+    "force_rate_N_s": 30.0,
+    "fz_hard_limit_N": 0.0,
+    "contact_on_N": 3.0,
+    "contact_off_N": 1.2,
+    "feedback_max_age_s": 0.2,
+    "max_tick_gap_s": 0.1,
+    "max_plan_age_s": 0.5,
+    "mode_timeout_s": 2.0,
+    "provider_timeout_s": 2.0,
+    "stop_window_s": 0.4,
+    "stop_timeout_s": 15.0,
+    "completion_position_tolerance_mm": 5.0,
+    "completion_rotation_tolerance_rad": 0.05,
+    "provenance": {
+      "gain_rates": "inspected local dev_ws robot_command.cpp and singleArm_cmd.cpp; deployment confirmation required",
+      "contact_clip": "unchanged pinned C inference_core defaults",
+      "watchdogs": "explicit E2 software bounds; not a measured hardware timing guarantee"
+    }
+  },
+  "paper_experiment": "E1",
+  "rtc_pose_conditioning": {
+    "schema": "E1_RTC_shared_pose_v1",
+    "pose_sampling_hz": 30.0,
+    "profile": {
+      "profile": "c_pose_conditioning_20260926_v1",
+      "pose_smooth_window": 35,
+      "handover_s": 0.5,
+      "linear_acceleration_mm_s2": 25.0,
+      "angular_acceleration_rad_s2": 1.7453292519943295,
+      "scope": "C pose only; R/T, source time axes, signed force samples, common contact gate and existing gain/speed/force-rate limits unchanged",
+      "provenance": "35-point pose average restored from legacy C; SO3 quaternion mean; 0.5 s quintic handover; 0.4 s to reach the common per-axis speed limits from rest. Offline validation of recorded C input required; physical vibration clearance not yet verified.",
+      "authorization": "2026-09-26: user requested C execution patch while retaining today's R/T trials without rerunning them"
+    },
+    "reference_C_runs": [
+      {
+        "run_id": "RTC_C_20260926T184357",
+        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184357/launch_context/config.json",
+        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
+      },
+      {
+        "run_id": "RTC_C_20260926T184521",
+        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184521/launch_context/config.json",
+        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
+      },
+      {
+        "run_id": "RTC_C_20260926T184622",
+        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184622/launch_context/config.json",
+        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
+      },
+      {
+        "run_id": "RTC_C_20260926T184724",
+        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184724/launch_context/config.json",
+        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
+      },
+      {
+        "run_id": "RTC_C_20260926T184820",
+        "config": "/home/eunseop/nrs_imitation/results/20260926/E1/C/RTC_C_20260926T184820/launch_context/config.json",
+        "sha256": "1c608378212193ebcea67e485bf5167d3bbf0bc5be72ed3c503f3ce51bd5d4bb"
+      }
+    ],
+    "created_at": "2026-09-27T14:52:47.740129+09:00",
+    "authorization": "2026-09-27 user requested R/T reruns with the same C stabilization patch, preserving yesterday C results.",
+    "scope": "Same archived C conditioner: 35-point XYZ/quaternion mean, 0.5 s handover and 25 mm/s^2 / 100 deg/s^2 acceleration limits. R/T private pose view uses 30 Hz / 128 points / 120-point stride, end-padded only inside the filter; source force/phase/time unchanged.",
+    "comparison_limits": "C replans from live policy observations; R/T consume fixed source paths through matching pose chunks. R post-work return and provider-specific completion remain outside shared processing comparison. Cross-day physical conditions remain operator-controlled.",
+    "hardware_executed_by_assistant": false,
+    "horizon_points": 128,
+    "stride_points": 120
+  }
+}
