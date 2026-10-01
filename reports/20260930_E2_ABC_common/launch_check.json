@@ -1,0 +1,35 @@
+{
+  "A": {
+    "status": "ready",
+    "hardware_io": false,
+    "condition": "A",
+    "repeat": 5,
+    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e2_force_ablation_20260926/A/20260926_2129/policy_best.ckpt",
+    "force_source": "external_F0",
+    "constant_force_N": 23.0,
+    "force_ramp_sec": 0.0,
+    "common_settings_sha256": "13d99e1513bb25183a0144c27f0c5c017b2a26685c4d3b223febdfd060ebde26"
+  },
+  "B": {
+    "status": "ready",
+    "hardware_io": false,
+    "condition": "B",
+    "repeat": 5,
+    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531/policy_best.ckpt",
+    "force_source": "policy",
+    "constant_force_N": null,
+    "force_ramp_sec": 0.0,
+    "common_settings_sha256": "13d99e1513bb25183a0144c27f0c5c017b2a26685c4d3b223febdfd060ebde26"
+  },
+  "C": {
+    "status": "ready",
+    "hardware_io": false,
+    "condition": "C",
+    "repeat": 5,
+    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531/policy_best.ckpt",
+    "force_source": "policy",
+    "constant_force_N": null,
+    "force_ramp_sec": 0.0,
+    "common_settings_sha256": "13d99e1513bb25183a0144c27f0c5c017b2a26685c4d3b223febdfd060ebde26"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "config_free_A_and_protection_tests": {
+    "passed": 90,
+    "deselected_legacy_config_fixtures": 29
+  },
+  "timed_execution_regression": {
+    "passed": 20,
+    "deselected": 4,
+    "fixture": "reports/20260926_C_execution_patch/before/experiments/e2_rule_replay_20260920/config.json",
+    "note": "Original active fixture is absent; archived config used read-only."
+  },
+  "build": "colcon build --packages-select nrs_imitation --symlink-install: passed",
+  "launch_check": "mode=check, force_ramp_sec=3.0: ready",
+  "physical_robot_test": false,
+  "ramp": {
+    "start": "first_contact",
+    "duration_s": 3.0,
+    "target_N": 23.0,
+    "replan_resets_clock": false
+  },
+  "limit_and_watchdog_checks_retained": true
+}

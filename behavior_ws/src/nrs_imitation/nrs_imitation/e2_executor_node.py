@@ -25,7 +25,8 @@ from .e2_timed_execution import (TRANSPORT_VERSION, TimedPlan, TimedExecution,
 from .execution_metrics import ExecutionRecorder, stamp, pose_fields
 from .e2_return_home import ReturnHome
 from .e2_ablation import is_ablation, prepare_A_force
-from .e2_protection import (ProtectionMonitor, ProtectionFault, record_from_config,
+from .e2_direct_abc import PARAMETERS as DIRECT_PARAMETERS, from_node, object_hash
+from .e2_protection import (ProtectionMonitor, FeedbackProtectionMonitor, ProtectionFault, record_from_config,
                             ACQUISITION_TOPIC, PROVENANCE_TOPIC, VERSION as PROTECTION_VERSION)
 
 
@@ -35,25 +36,33 @@ class E2Executor(Node):
         for name, default in [('e2_config',''),('execution_method','il'),('e2_enable_hardware',False),
                               ('e2_session_id',''),('metrics_run_tag','E2'),('act_root','/home/eunseop/nrs_imitation')]:
             self.declare_parameter(name,default)
+        for name, default in DIRECT_PARAMETERS.items():
+            self.declare_parameter(name, default)
         self.config_path = self.get_parameter('e2_config').value
         self.method = self.get_parameter('execution_method').value
-        self.config = load_config(self.config_path)
+        self.direct_a = bool(self.get_parameter('e2_direct_a').value)
+        self.direct_abc = bool(self.get_parameter('e2_direct_abc').value)
+        if self.is_direct_run() and (self.config_path or self.method != 'il'):
+            raise ValueError('Direct E2 requires IL and an empty e2_config')
+        self.config = from_node(self) if self.is_direct_run() else load_config(self.config_path)
         self.ablation = is_ablation(self.config)
         self.e1_operator_automation = (not self.ablation and
             self.config.get('paper_experiment') == 'E1' and
             self.config.get('e1_operator_automation') is True)
-        blockers = hardware_blockers(self.config,self.method,self.get_parameter('e2_enable_hardware').value)
+        blockers = ([] if self.is_direct_run() else
+            hardware_blockers(self.config,self.method,self.get_parameter('e2_enable_hardware').value))
         if blockers: raise RuntimeError('E2 executor preflight: '+ '; '.join(blockers))
-        self.a_processing_force = (prepare_A_force(self.config)
-            if self.ablation and self.config['condition'] == 'A' else None)
+        self.a_processing_force = (self.config['external_force_N'] if self.is_direct_run() else
+            prepare_A_force(self.config) if self.ablation and self.config['condition'] == 'A' else None)
         self.session = self.get_parameter('e2_session_id').value
         if not self.session: raise ValueError('A unique e2_session_id is required')
         self.lock_file = open('/tmp/nrs_e2_executor_ur10skku.lock','a')
         fcntl.flock(self.lock_file,fcntl.LOCK_EX | fcntl.LOCK_NB)
-        self.identity = file_hash(self.config_path)
+        self.identity = object_hash(self.config) if self.is_direct_run() else file_hash(self.config_path)
         self.clock_identity = clock_id()
         self.settings = executor_settings(self.config, self.method)
-        self.protection = (ProtectionMonitor(record_from_config(self.config), self.settings)
+        self.protection = (FeedbackProtectionMonitor(self.config['protection'], self.settings) if self.is_direct_run() else
+            ProtectionMonitor(record_from_config(self.config), self.settings)
             if self.ablation and self.config['condition'] == 'A' else None)
         self.protection_wait_reason = None
         self.engine = TimedExecution(self.settings)
@@ -126,12 +135,41 @@ class E2Executor(Node):
                 protection_version=PROTECTION_VERSION if self.protection is not None else None,
                 warnings=['Filtered base wrench is not automatically calibrated contact normal force',
                           'sent target is not controller-applied target'])
+        if self.is_direct_run():
+            condition = self.config['condition']
+            metadata.update(experiment_id='E2', method=condition,
+                predicted_force='not_predicted' if condition == 'A' else 'policy',
+                run=self.config['run'], comparison=self.config.get('comparison'),
+                external_force_N=self.a_processing_force,
+                runtime_profile='matched_ABC' if self.direct_abc else 'config_free_A',
+                protection_version=self.protection.version, physical_validation=None,
+                external_force_profile=(dict(shape='linear' if self.config['force_ramp_sec'] else 'constant',
+                    duration_s=self.config['force_ramp_sec'],
+                    start='first contact' if self.config['force_ramp_sec'] else 'execution_start',
+                    shared_contact_gate_and_slew=True) if condition == 'A' else None),
+                processing_markers=dict(mode='automatic_execution_start',
+                    source='fresh Force mode acknowledgement after start alignment',
+                    physical_processing_verified=False))
+            metadata['artifact_paths'].extend([str(Path(__file__).with_name('e2_direct_abc.py')),
+                str(Path(__file__).with_name('e2_protection.py'))])
+            if self.config['run']['directory']:
+                runtime_path = Path(self.config['run']['directory'])/'runtime.json'
+                if runtime_path.is_file():
+                    metadata['artifact_paths'].append(str(runtime_path))
         if self.protection is not None:
-            metadata.update(raw_sensor_available=None, raw_sensor_required_before_ready=True,
+            source_required = self.protection.requires_source
+            metadata.update(raw_sensor_available=None if source_required else False,
+                raw_sensor_required_before_ready=source_required,
+                force_feedback_topic='/ur10skku/currentF',
+                sensor_acquisition_freshness_available=source_required,
                 sampling=dict(feedback_max_hz=20.,commands_hz=125.,
-                    source_timestamp='host UDP reception via protection_feedback; sensor ADC time unavailable'),
-                safety_comparability='additional A protection revision; not identical to archived B/C')
+                    source_timestamp=('host UDP reception via protection_feedback; sensor ADC time unavailable'
+                        if source_required else 'headerless currentF; local ROS receipt freshness only')),
+                safety_comparability=('shared A/B/C measured-wrench protection; see comparison hash'
+                    if self.direct_abc else 'additional A protection revision; not identical to archived B/C'))
         log_root = (Path(self.config['run']['directory'])/'executor' if self.ablation else root/'logs/inference_metrics')
+        if self.is_direct_run() and self.config['run']['directory']:
+            log_root = Path(self.config['run']['directory'])/'executor'
         self.recorder = ExecutionRecorder(log_root,
             self.get_parameter('metrics_run_tag').value+'_executor',metadata,8192,warn=self.get_logger().warn)
         qos = QoSProfile(depth=1,reliability=ReliabilityPolicy.RELIABLE)
@@ -142,7 +180,7 @@ class E2Executor(Node):
         self.create_subscription(Float64MultiArray,'/ur10skku/currentP',self.on_pose,qos)
         self.create_subscription(Float64MultiArray,'/ur10skku/currentF',self.on_force,qos)
         self.create_subscription(String,'/ur10skku/ctlMode',self.on_mode,qos)
-        if self.protection is not None:
+        if self.protection is not None and self.protection.requires_source:
             self.create_subscription(String,ACQUISITION_TOPIC,self.on_acquisition,qos)
             self.create_subscription(String,PROVENANCE_TOPIC,self.on_wrench_provenance,qos)
         self.create_subscription(String,'/e2/plan',self.on_plan,10)
@@ -152,7 +190,7 @@ class E2Executor(Node):
         self.create_timer(self.settings['control_period_s'],self.tick)
         self.create_timer(.1,self.status)
         self.event('executor_started',hardware_motion_started=False,transport=TRANSPORT_VERSION)
-        if self.ablation:
+        if self.ablation or self.is_direct_run():
             self.event('run_start', run=self.config['run'])
         self.get_logger().info('E2 executor waiting for fresh robot feedback; R/T/C use the same timed transport.')
 
@@ -164,12 +202,21 @@ class E2Executor(Node):
         context.update(details)
         self.recorder.event(name,self.timing(),session_id=self.session,**context)
 
+    def is_direct_run(self):
+        return getattr(self, 'direct_a', False) or getattr(self, 'direct_abc', False)
+
+    def uses_external_force(self):
+        return (self.is_direct_run() or self.ablation) and self.config['condition'] == 'A'
+
     def force_selection_status(self):
         """Selected target before gate/slew; never a claim of applied force."""
-        external = self.ablation and self.config['condition'] == 'A'
+        external = self.uses_external_force()
         return dict(processing=self.processing,
             force_source='external_F0' if external else 'provider',
             external_force_fz_N=(float(self.a_processing_force) if self.processing else 0.) if external else None,
+            external_force_ramp_sec=(self.config['force_ramp_sec'] if external and self.is_direct_run() else None),
+            external_force_ramped_fz_N=(self.engine.external_force_ramped_fz
+                if external and self.is_direct_run() and self.processing else None),
             command_supply_active=self.state == 'running' and not self.engine.closed,
             controller_applied_force=None)
 
@@ -203,10 +250,13 @@ class E2Executor(Node):
             row=dict(self.timing('/ur10skku/currentF'),representation='filtered_republished_feedback',
                 semantic_frame='robot_base',force_unit='N',torque_unit='Nm',raw_values=values.tolist(),
                 correction_status=('source receipt provenance in protection_feedback events'
-                    if getattr(self,'protection',None) is not None else
+                    if getattr(self,'protection',None) is not None and self.protection.requires_source else
                     'deployed configuration; source acquisition timestamp unavailable'))
             row.update(zip(['fx','fy','fz','tx','ty','tz'],values.tolist()))
             self.recorder.emit('wrench',row)
+        if (getattr(self,'protection',None) is not None and not self.protection.requires_source
+                and self.state not in ('waiting_feedback','stopped','stop_failed')):
+            self.protection_check(self.force_at)
 
     def on_mode(self,msg):
         self.mode,self.mode_at=msg.data,time.monotonic()
@@ -215,7 +265,9 @@ class E2Executor(Node):
         self.protection.fault = self.protection.fault or str(reason)
         if self.protection_wait_reason != str(reason):
             self.event('protection_fault',reason=str(reason),state=self.state,
-                       source_acquisition='host UDP receive; sensor ADC timestamp unavailable',
+                       source_acquisition=('host UDP receive; sensor ADC timestamp unavailable'
+                           if self.protection.requires_source else
+                           'currentF ROS receipt; sensor acquisition timestamp unavailable'),
                        actual_pose=None if self.pose is None else self.pose.tolist(),
                        raw_sensor=None if self.protection.raw is None else
                            {k:v for k,v in self.protection.raw.items() if k!='wrench'},
@@ -235,8 +287,9 @@ class E2Executor(Node):
         if protection is None:
             return True
         try:
+            kwargs = {} if protection.requires_source else {'force': self.force}
             protection.check(now,self.get_clock().now().nanoseconds,self.pose,
-                now-self.pose_at,now-self.force_at,now-self.mode_at)
+                now-self.pose_at,now-self.force_at,now-self.mode_at,**kwargs)
             self.protection_wait_reason = None
             return True
         except ProtectionFault as exc:
@@ -249,7 +302,7 @@ class E2Executor(Node):
             return False
 
     def protection_feedback(self, msg, raw):
-        if self.protection is None:
+        if self.protection is None or not self.protection.requires_source:
             return
         now = time.monotonic()
         try:
@@ -282,7 +335,7 @@ class E2Executor(Node):
             queue_cancel_ack=bool(getattr(self,'stop_ack',False)),
             physical_stop_verified=self.state=='stopped' and bool(getattr(self,'stop_ack',False)))
         if getattr(self,'protection',None) is not None:
-            body.update(protection_version=PROTECTION_VERSION,
+            body.update(protection_version=self.protection.version,
                         protection_wait_reason=self.protection_wait_reason)
         if getattr(self,'e1_operator_automation',False):
             body.update(processing_marker_source='automatic_contact_proxy',
@@ -294,6 +347,13 @@ class E2Executor(Node):
                     'stop_reason=%s queue_cancel_ack=%s physical_stop_verified=%s '
                     'session=%s log=%s' % (self.state,self.processing,self.stop_reason,
                     body['queue_cancel_ack'],body['physical_stop_verified'],self.session,body['log_dir']))
+        elif self.is_direct_run():
+            key = (self.state, self.processing, self.stop_reason, self.protection_wait_reason)
+            if key != self.last_console_status:
+                self.last_console_status = key
+                self.get_logger().info('[E2 %s] state=%s processing=%s force_source=%s F0=%s N protection=%s' %
+                    (self.config['condition'], self.state, self.processing, body['force_source'],
+                     body['external_force_fz_N'], self.protection_wait_reason))
         self.pub_status.publish(String(data=json.dumps(body)))
 
     def automatic_processing_marker(self, active, result=None, termination=None):
@@ -421,18 +481,20 @@ class E2Executor(Node):
             self.event('phase_or_pass_marker',phase_id=phases[self.phase_index],source='operator')
             return complete(True,'Phase marker recorded')
         if name in ('processing_start','processing_end'):
+            if getattr(self, 'direct_abc', False):
+                return complete(False,'Matched A/B/C starts automatically; use finish or abort to end the attempt')
             if getattr(self,'e1_operator_automation',False):
                 return complete(False,'E1 contact-proxy markers are automatic; use finish to end the run')
             if self.state!='running':
                 return complete(False,'Processing events require running state')
             if (name=='processing_start')==self.processing:
                 return complete(False,'Duplicate/out-of-order processing event')
-            if name=='processing_start' and self.ablation and getattr(self,'processing_completed',False):
+            if name=='processing_start' and (self.ablation or self.is_direct_run()) and getattr(self,'processing_completed',False):
                 return complete(False,'Processing interval already ended; no restart within this attempt')
             self.processing=name=='processing_start'
             if not self.processing:self.processing_completed=True
             self.event(name,source='operator',force_threshold_used=False)
-            if self.ablation and self.processing:
+            if (self.ablation or self.is_direct_run()) and self.processing:
                 self.phase_index = 0
                 self.event('approach_end',source='operator')
                 self.event('phase_or_pass_marker',phase_id=self.config['protocol']['phase_ids'][0],source='operator')
@@ -441,7 +503,7 @@ class E2Executor(Node):
                 return complete(False,'finish requires running state')
             if name=='abort' and self.state in ('stopping','stopped','stop_failed'):
                 return complete(False,'Stop already requested; check physical_stop_verified and stop state')
-            if self.ablation:
+            if self.ablation or self.is_direct_run():
                 self.event('finish_requested' if name=='finish' else 'abort_requested',source='operator',
                            processing_end_recorded=not self.processing,quality_verified=None)
             self.request_stop('manual_abort' if name=='abort' else 'operator_finish')
@@ -463,9 +525,12 @@ class E2Executor(Node):
                 conditioning_profile=result.get('conditioning_profile'),
                 force_source=result.get('force_source'),processing=self.processing,
                 phase_id=(self.config['protocol']['phase_ids'][self.phase_index]
-                          if self.ablation and self.processing and self.phase_index>=0 else None),
+                          if (self.ablation or self.is_direct_run()) and self.processing and self.phase_index>=0 else None),
                 pose_age_s=result.get('pose_age_s'),force_age_s=result.get('force_age_s'),
                 gate_transition=result.get('contact_transition'),gate_reason=result.get('gate_reason'),
+                force_ramp_start=result.get('force_ramp_start'),
+                force_ramp_sec=result.get('force_ramp_sec'),
+                force_ramp_fraction=result.get('force_ramp_fraction'),
                 controller_applied_force=None,
                 controller_mode=result.get('controller_mode','Force'),
                 force_semantics='Position mode sends pose6 only' if position_mode else 'signed controller force target'))
@@ -578,6 +643,14 @@ class E2Executor(Node):
                 self.engine.start(now,self.pose);self.started_at=now;self.state='running'
                 self.event('execution_start',processing_started=False,monotonic_start=now)
                 if self.ablation:self.event('approach_start',source='execution_state')
+                if (self.is_direct_run() and not self.processing and
+                        not getattr(self, 'processing_completed', False)):
+                    self.processing = True
+                    self.phase_index = 0
+                    self.event('processing_start', source='execution_start', automatic=True,
+                        force_threshold_used=False, physical_processing_verified=False)
+                    self.event('phase_or_pass_marker',
+                        phase_id=self.config['protocol']['phase_ids'][0], source='execution_start')
                 self.status()
             return
         if self.state!='running':return
@@ -589,21 +662,29 @@ class E2Executor(Node):
             if self.mode!='Force' or now-self.mode_at>self.settings['feedback_max_age_s']:
                 raise ExecutionFault('controller Force mode lost or stale')
             external = ((self.a_processing_force if self.processing else 0.)
-                        if self.ablation and self.config['condition']=='A' else None)
+                        if self.uses_external_force() else None)
             result=self.engine.tick(now,self.pose,self.force,now-self.pose_at,now-self.force_at,
-                                    external_force_fz=external)
+                external_force_fz=external,
+                external_force_ramp_sec=(self.config['force_ramp_sec'] if self.is_direct_run() else 0.))
             if result is None:return
             if 'end' in result:
                 self.final_target=result.get('last_target')
                 self.request_stop(result['end']);return
+            if result.get('force_ramp_started_now'):
+                self.event('force_ramp_started', source='first_contact',
+                    measured_fz_N=float(self.force[2]), ramp_sec=self.config['force_ramp_sec'],
+                    target_force_N=self.a_processing_force,
+                    physical_contact_verified=False)
             self.automatic_processing_marker(result['contact'],result=result)
             if self.last_phase!=result['phase']:
                 self.event('provider_phase',phase=result['phase'],processing_interval=(
+                    'automatic_execution_start' if self.is_direct_run() else
                     'automatic_contact_proxy' if getattr(self,'e1_operator_automation',False)
                     else 'operator events'));self.last_phase=result['phase']
             self.command_id+=1
             self.pub_command.publish(Float64MultiArray(data=result['sent'].tolist()))
-            if self.command_id==1:self.event('first_command_sent',processing_started=False)
+            if self.command_id==1:self.event('first_command_sent',processing_started=(
+                self.processing if self.is_direct_run() else False))
             stages=[('time_sampled','requested'),('contact_gated','gated'),('node_sent','sent')]
             if result.get('conditioning_profile'):
                 stages.insert(1,('pose_conditioned','conditioned'))

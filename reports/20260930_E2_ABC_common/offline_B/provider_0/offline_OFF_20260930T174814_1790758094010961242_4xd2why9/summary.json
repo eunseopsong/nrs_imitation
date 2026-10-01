@@ -1,0 +1,143 @@
+{
+  "run_id": "offline_OFF_20260930T174814_1790758094010961242_4xd2why9",
+  "counts": {
+    "events": {
+      "received": 10,
+      "enqueued": 10,
+      "dropped": 0,
+      "written": 10
+    },
+    "tcp_pose": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "wrench": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "snapshot": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    },
+    "roi": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "commands": {
+      "received": 256,
+      "enqueued": 256,
+      "dropped": 0,
+      "written": 256
+    }
+  },
+  "streams": {
+    "events:inference_node": {
+      "rows": 10,
+      "first_ns": 4004016299660,
+      "last_ns": 4005141939974,
+      "max_gap_ns": 1124224858,
+      "retrograde": 0
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "rows": 1,
+      "first_ns": 4004016347872,
+      "last_ns": 4004016347872,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "wrench:/ur10skku/currentF": {
+      "rows": 1,
+      "first_ns": 4004016434167,
+      "last_ns": 4004016434167,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "rows": 2,
+      "first_ns": 4004016723120,
+      "last_ns": 4004016723120,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "rows": 1,
+      "first_ns": 4004016829934,
+      "last_ns": 4004016829934,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "commands:denormalized_policy_prediction": {
+      "rows": 128,
+      "first_ns": 4005140439665,
+      "last_ns": 4005140439665,
+      "max_gap_ns": 0,
+      "retrograde": 0
+    },
+    "commands:shared_postprocessor": {
+      "rows": 128,
+      "first_ns": 4005141179430,
+      "last_ns": 4005141518789,
+      "max_gap_ns": 5030,
+      "retrograde": 0
+    }
+  },
+  "source_counts": {
+    "events:inference_node": {
+      "received": 10,
+      "enqueued": 10,
+      "dropped": 0,
+      "written": 10
+    },
+    "tcp_pose:/ur10skku/currentP": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "wrench:/ur10skku/currentF": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "snapshot:/realsense/vr/color/image_raw": {
+      "received": 2,
+      "enqueued": 2,
+      "dropped": 0,
+      "written": 2
+    },
+    "roi:/stain_relative_frame/stain_origin": {
+      "received": 1,
+      "enqueued": 1,
+      "dropped": 0,
+      "written": 1
+    },
+    "commands:denormalized_policy_prediction": {
+      "received": 128,
+      "enqueued": 128,
+      "dropped": 0,
+      "written": 128
+    },
+    "commands:shared_postprocessor": {
+      "received": 128,
+      "enqueued": 128,
+      "dropped": 0,
+      "written": 128
+    }
+  },
+  "write_error_count": 0,
+  "writer_diagnostic_rows_note": "logger_writer events are additional to enqueued stream counts",
+  "write_errors": [],
+  "queue_pending": 0,
+  "drained": true,
+  "middleware_loss_count": null,
+  "physical_task_completion": "unknown"
+}

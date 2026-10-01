@@ -96,11 +96,13 @@ def registered_A_sample(config, output):
     from std_msgs.msg import Float64MultiArray
     from .e2_ablation import select_condition, model_errors, read_stats, digest
 
-    cfg = select_condition(config, 'A')
-    errors = model_errors(cfg)
+    from .e2_direct_a import is_direct_a
+    direct = is_direct_a(config)
+    cfg = config if direct else select_condition(config, 'A')
+    errors = [] if direct else model_errors(cfg)
     if errors:
         raise ValueError('; '.join(errors))
-    checkpoint = Path(cfg['models']['A']['checkpoint'])
+    checkpoint = Path(cfg['il']['checkpoint'] if direct else cfg['models']['A']['checkpoint'])
     stats = read_stats(checkpoint.with_name('dataset_stats.pkl'))
     pc = stats['policy_config']
     for key, expected in dict(state_dim=6, action_dim=6, motion_only=True,
@@ -110,13 +112,15 @@ def registered_A_sample(config, output):
     torch.set_num_threads(2)
     loader = OfflineNode(Path(output)/'loader', force_on=False)
     loader.ckpt_dir = str(checkpoint.parent)
+    loader.checkpoint = str(checkpoint)
     loader.motion_only = True; loader.action_dim = 6; loader.chunk_size = 128
     loader.use_force_history = False; loader.flow_infer_steps = 10
     loader.params.update(ckpt_dir=loader.ckpt_dir, use_force_history=False,
                          use_force_observation=False, chunk_size=128)
     policy = loader._load_policy_and_ckpt_from_act_root()
     ck = torch.load(checkpoint, map_location='cpu', weights_only=False)
-    assert ck['epoch'] == 499
+    selected_epoch = int(ck['epoch'])
+    assert selected_epoch >= 0
     actual, saved = policy.state_dict(), ck['model_state_dict']
     assert actual.keys() == saved.keys()
     assert all(torch.equal(actual[k], v) for k, v in saved.items())
@@ -132,6 +136,7 @@ def registered_A_sample(config, output):
     for i, force in enumerate(([1., 2., 3.], [-73., 51., -99.])):
         node = OfflineNode(Path(output)/('provider_'+str(i)), policy, force_on=False)
         node.ckpt_dir = str(checkpoint.parent); node.motion_only = True
+        node.checkpoint = str(checkpoint)
         node.action_dim = 6; node.chunk_size = 128; node.use_force_history = False
         node.flow_infer_steps = 10; node.resize_hw = 0; node._e2_context = cfg
         node.stats = core._load_dataset_stats(node.ckpt_dir)
@@ -162,7 +167,7 @@ def registered_A_sample(config, output):
         assert all(v['dropped'] == 0 for v in summary['counts'].values())
     np.testing.assert_array_equal(*predictions)
     return predictions[0], pose, dict(checkpoint=str(checkpoint), checkpoint_sha256=digest(checkpoint),
-        selected_epoch_zero_based=499, loaded_weights_exactly_match_checkpoint=True,
+        selected_epoch_zero_based=selected_epoch, loaded_weights_exactly_match_checkpoint=True,
         state_dim=6, action_dim=6, force_observation=False, force_history=False,
         force_action=False, force_supervision_channels=0, force_prediction_logged_as_null=True,
         force_perturbation_invariant=True, dataset=str(path), sample_index=index,

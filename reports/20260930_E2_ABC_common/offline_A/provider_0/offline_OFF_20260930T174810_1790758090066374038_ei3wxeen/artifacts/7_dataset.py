@@ -1,0 +1,1009 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+source/data/dataset.py
+
+Multimodal ACT/Flow-compatible HDF5 dataloader for nrs_imitation.
+
+Supported observation modes:
+  - single_cam       : cam0 + qpos + optional force_history
+  - dual_cam         : cam0/cam1 + qpos + optional force_history
+  - single_cam_marker: cam0 + marker + qpos + optional force_history
+
+Canonical episode layout:
+  episode_0.hdf5
+  ├── action/position        (T,6)
+  ├── action/force           (T,3)
+  ├── action/gripper_present_position (T,), optional
+  ├── action/gripper_goal_current_mA (T,), optional when include_gripper=True
+  ├── observations/position  (T,6)
+  ├── observations/force     (T,3)
+  ├── observations/marker    (T,M), optional
+  ├── observations/gripper/present_position, optional
+  ├── observations/gripper/present_current_mA, optional
+  ├── observations/images/cam0
+  ├── observations/images/stain_mask, optional
+  ├── observations/images/cam1, optional
+  └── observations/is_pad, optional
+
+Return tuple:
+  default without marker:
+    image, qpos, action, is_pad, force_history
+  default with marker:
+    image, qpos, action, is_pad, force_history, marker
+  include_gripper=True without marker:
+    image, qpos, action, is_pad, force_history, gripper_position, gripper_current,
+    optional gripper_history
+  include_gripper=True with marker:
+    image, qpos, action, is_pad, force_history, marker, gripper_position,
+    gripper_current, optional gripper_history
+
+Shapes:
+  image         : (K,3,H,W), float32 in [0,1]
+  stain_mask    : (1,H,W), float32 in [0,1], appended when use_stain_mask=True
+  qpos          : (9,), normalized
+  action        : (seq_len,9) or gripper-extended (seq_len,11), normalized
+  is_pad        : (seq_len,), bool
+  force_history : (L,3), normalized, if requested
+  marker        : (M,), normalized, only if obs_mode is a marker mode
+  gripper_position : (1,), float32, normalized when include_gripper=True
+  gripper_current  : (1,), float32, normalized when include_gripper=True
+  gripper_history  : (Lg,2), normalized causal [position,current] history when requested
+"""
+
+from __future__ import annotations
+
+import json
+import multiprocessing as mp
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+
+import h5py
+import numpy as np
+import torch
+from torch.utils.data import Dataset, DataLoader
+
+
+# =============================================================================
+# Small helpers
+# =============================================================================
+
+def _episode_files(dataset_dir: str | Path, num_episodes: int = 0) -> List[Path]:
+    d = Path(dataset_dir).expanduser()
+    if not d.is_dir():
+        raise FileNotFoundError(f"dataset_dir does not exist: {d}")
+    files = sorted(d.glob("episode_*.hdf5"))
+    if not files:
+        files = sorted(d.glob("episode_*.h5"))
+    if not files:
+        raise FileNotFoundError(f"no episode_*.hdf5 files found in {d}")
+    if num_episodes is not None and int(num_episodes) > 0:
+        files = files[: int(num_episodes)]
+    return files
+
+
+def _read_dataset(f: h5py.File, keys: Sequence[str], required: bool = True):
+    ds = _find_dataset(f, keys, required=required)
+    if ds is None:
+        return None
+    return np.asarray(ds)
+
+
+def _find_dataset(f: h5py.File, keys: Sequence[str], required: bool = True):
+    for k in keys:
+        try:
+            if k in f:
+                return f[k]
+        except Exception:
+            pass
+    if required:
+        raise KeyError(f"missing dataset; tried keys={list(keys)}")
+    return None
+
+
+def _read_position(f: h5py.File) -> np.ndarray:
+    arr = _read_dataset(f, ["observations/position", "position", "pose"], required=True)
+    arr = np.asarray(arr, dtype=np.float32)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.shape[-1] < 6:
+        raise ValueError(f"position must have >=6 dims, got {arr.shape}")
+    return arr[:, :6]
+
+
+def _read_force(f: h5py.File, T: int) -> np.ndarray:
+    arr = _read_dataset(f, ["observations/force", "force", "ft"], required=True)
+    arr = np.asarray(arr, dtype=np.float32)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.shape[-1] < 3:
+        raise ValueError(f"force must have >=3 dims, got {arr.shape}")
+    arr = arr[:, :3]
+    if arr.shape[0] == 1 and T > 1:
+        arr = np.repeat(arr, T, axis=0)
+    return arr
+
+
+def _read_marker(f: h5py.File, T: int, marker_dim: int) -> np.ndarray:
+    arr = _read_dataset(f, ["observations/marker", "marker", "aruco", "aruco_pose"], required=False)
+    if arr is None:
+        return np.zeros((T, marker_dim), dtype=np.float32)
+    arr = np.asarray(arr, dtype=np.float32)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.shape[0] == 1 and T > 1:
+        arr = np.repeat(arr, T, axis=0)
+    out = np.zeros((arr.shape[0], marker_dim), dtype=np.float32)
+    d = min(marker_dim, arr.shape[-1])
+    out[:, :d] = arr[:, :d]
+    if arr.shape[-1] == 6 and marker_dim >= 7:
+        out[:, 6] = 1.0
+    return out
+
+
+def _read_gripper_state(f: h5py.File, T: int) -> Tuple[np.ndarray, np.ndarray]:
+    position = _read_dataset(
+        f,
+        [
+            "observations/gripper/present_position",
+            "gripper/present_position",
+        ],
+        required=True,
+    )
+    current = _read_dataset(
+        f,
+        [
+            "observations/gripper/present_current_mA",
+            "gripper/present_current_mA",
+        ],
+        required=True,
+    )
+    position = np.asarray(position, dtype=np.float32).reshape(-1)
+    current = np.asarray(current, dtype=np.float32).reshape(-1)
+    if position.shape[0] == 1 and T > 1:
+        position = np.repeat(position, T, axis=0)
+    if current.shape[0] == 1 and T > 1:
+        current = np.repeat(current, T, axis=0)
+    return position, current
+
+
+def _read_action(
+    f: h5py.File,
+    fallback_pos: np.ndarray,
+    fallback_force: np.ndarray,
+    fallback_gripper_position: Optional[np.ndarray] = None,
+    fallback_gripper_current: Optional[np.ndarray] = None,
+    include_gripper: bool = False,
+    motion_only: bool = False,
+) -> np.ndarray:
+    pos = _read_dataset(f, ["action/position", "actions/position"], required=False)
+    if motion_only:
+        if include_gripper:
+            raise ValueError("motion_only is defined for polishing pose6 only")
+        # Do not even read force targets: no force latent, head or supervision.
+        return np.asarray(fallback_pos if pos is None else pos, dtype=np.float32).reshape(-1, 6).copy()
+    force = _read_dataset(f, ["action/force", "actions/force"], required=False)
+    gripper_pos = _read_dataset(
+        f,
+        ["action/gripper_present_position", "actions/gripper_present_position"],
+        required=False,
+    )
+    gripper_goal_current = _read_dataset(
+        f,
+        ["action/gripper_goal_current_mA", "actions/gripper_goal_current_mA"],
+        required=False,
+    )
+    if include_gripper and gripper_goal_current is None:
+        gripper_present_current = _read_dataset(
+            f,
+            ["action/gripper_present_current_mA", "actions/gripper_present_current_mA"],
+            required=False,
+        )
+        if gripper_present_current is not None:
+            gripper_goal_current = np.abs(np.asarray(gripper_present_current, dtype=np.float32))
+    if pos is None:
+        pos = fallback_pos
+    if force is None:
+        force = fallback_force
+    if include_gripper and gripper_pos is None:
+        if fallback_gripper_position is None:
+            raise KeyError("Missing action/gripper_present_position and no fallback provided")
+        gripper_pos = fallback_gripper_position
+    if include_gripper and gripper_goal_current is None:
+        if fallback_gripper_current is None:
+            raise KeyError("Missing action/gripper_goal_current_mA and no fallback provided")
+        gripper_goal_current = np.abs(np.asarray(fallback_gripper_current, dtype=np.float32))
+    pos = np.asarray(pos, dtype=np.float32)
+    force = np.asarray(force, dtype=np.float32)
+    if pos.ndim == 1:
+        pos = pos.reshape(1, -1)
+    if force.ndim == 1:
+        force = force.reshape(1, -1)
+    out = [pos[:, :6], force[:, :3]]
+    if include_gripper and gripper_pos is not None:
+        gripper_pos = np.asarray(gripper_pos, dtype=np.float32).reshape(-1, 1)
+        if gripper_pos.shape[0] == 1 and pos.shape[0] > 1:
+            gripper_pos = np.repeat(gripper_pos, pos.shape[0], axis=0)
+        out.append(gripper_pos[:, :1])
+        gripper_goal_current = np.asarray(gripper_goal_current, dtype=np.float32).reshape(-1, 1)
+        if gripper_goal_current.shape[0] == 1 and pos.shape[0] > 1:
+            gripper_goal_current = np.repeat(gripper_goal_current, pos.shape[0], axis=0)
+        out.append(gripper_goal_current[:, :1])
+    return np.concatenate(out, axis=-1).astype(np.float32)
+
+
+def _read_image(f: h5py.File, camera_name: str) -> np.ndarray:
+    keys = [
+        f"observations/images/{camera_name}",
+        f"images/{camera_name}",
+        camera_name,
+    ]
+    if camera_name == "cam0":
+        keys += ["observations/image", "image", "rgb", "color"]
+    arr = _read_dataset(f, keys, required=True)
+    return np.asarray(arr)
+
+
+def _read_image_frame(f: h5py.File, camera_name: str, frame_idx: int) -> np.ndarray:
+    keys = [
+        f"observations/images/{camera_name}",
+        f"images/{camera_name}",
+        camera_name,
+    ]
+    if camera_name == "cam0":
+        keys += ["observations/image", "image", "rgb", "color"]
+    ds = _find_dataset(f, keys, required=True)
+    if ds.ndim == 3:
+        return np.asarray(ds)
+    if ds.ndim != 4:
+        raise ValueError(f"image dataset must be 3D or 4D, got {ds.shape}")
+    idx = int(np.clip(frame_idx, 0, max(ds.shape[0] - 1, 0)))
+    return np.asarray(ds[idx])
+
+
+def _read_stain_mask_frame(f: h5py.File, stain_mask_key: str, frame_idx: int) -> np.ndarray:
+    key = str(stain_mask_key or "observations/images/stain_mask").strip()
+    keys = [key]
+    for fallback in [
+        "observations/images/stain_mask",
+        "images/stain_mask",
+        "stain_mask",
+    ]:
+        if fallback not in keys:
+            keys.append(fallback)
+    ds = _find_dataset(f, keys, required=True)
+    if ds.ndim == 2:
+        return np.asarray(ds)
+    if ds.ndim == 3:
+        # Either (T,H,W) or a single-channel image already shaped (H,W,1)/(1,H,W).
+        if ds.shape[-1] == 1 or ds.shape[0] == 1:
+            return np.asarray(ds)
+        idx = int(np.clip(frame_idx, 0, max(ds.shape[0] - 1, 0)))
+        return np.asarray(ds[idx])
+    if ds.ndim == 4:
+        idx = int(np.clip(frame_idx, 0, max(ds.shape[0] - 1, 0)))
+        return np.asarray(ds[idx])
+    raise ValueError(f"stain_mask dataset must be 2D, 3D, or 4D, got {ds.shape}")
+
+
+def _image_frame_to_chw_float(frame: np.ndarray) -> torch.Tensor:
+    a = np.asarray(frame)
+    if a.ndim != 3:
+        raise ValueError(f"image frame must be 3D, got {a.shape}")
+    if a.shape[0] == 3 and a.shape[-1] != 3:
+        chw = a
+    elif a.shape[-1] == 3:
+        chw = np.transpose(a, (2, 0, 1))
+    else:
+        raise ValueError(f"cannot interpret image frame shape={a.shape}")
+    chw = chw.astype(np.float32)
+    if chw.max(initial=0.0) > 1.5:
+        chw = chw / 255.0
+    return torch.from_numpy(np.clip(chw, 0.0, 1.0))
+
+
+def _stain_mask_frame_to_chw_float(frame: np.ndarray) -> torch.Tensor:
+    a = np.asarray(frame)
+    if a.ndim == 2:
+        chw = a[None, ...]
+    elif a.ndim == 3:
+        if a.shape[0] == 1:
+            chw = a
+        elif a.shape[-1] == 1:
+            chw = np.transpose(a, (2, 0, 1))
+        else:
+            raise ValueError(f"cannot interpret stain_mask frame shape={a.shape}")
+    else:
+        raise ValueError(f"stain_mask frame must be 2D or 3D, got {a.shape}")
+
+    chw = chw.astype(np.float32)
+    if chw.max(initial=0.0) > 1.5:
+        chw = chw / 255.0
+    return torch.from_numpy(np.clip(chw, 0.0, 1.0))
+
+
+def _slice_pad(arr: np.ndarray, start: int, length: int, pad_value: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
+    T = arr.shape[0]
+    start = int(np.clip(start, 0, max(T - 1, 0)))
+    end = min(start + length, T)
+    chunk = arr[start:end]
+    pad_n = length - chunk.shape[0]
+    is_pad = np.zeros((length,), dtype=np.bool_)
+    if pad_n > 0:
+        if pad_value is None:
+            pad_value = chunk[-1:] if chunk.shape[0] > 0 else np.zeros((1, arr.shape[-1]), dtype=arr.dtype)
+        pad = np.repeat(pad_value.reshape(1, -1), pad_n, axis=0).astype(arr.dtype)
+        chunk = np.concatenate([chunk, pad], axis=0)
+        is_pad[-pad_n:] = True
+    return chunk, is_pad
+
+
+def _force_history(force: np.ndarray, start: int, L: int) -> np.ndarray:
+    L = max(1, int(L))
+    T = force.shape[0]
+    start = int(np.clip(start, 0, max(T - 1, 0)))
+    lo = max(0, start - L + 1)
+    hist = force[lo:start + 1]
+    if hist.shape[0] < L:
+        pad = np.repeat(hist[0:1], L - hist.shape[0], axis=0)
+        hist = np.concatenate([pad, hist], axis=0)
+    return hist.astype(np.float32)
+
+
+def _gripper_history(
+    gripper_position: np.ndarray,
+    gripper_current: np.ndarray,
+    start: int,
+    length: int,
+) -> np.ndarray:
+    """Return causal [present_position, present_current_mA] history."""
+    length = max(1, int(length))
+    position = np.asarray(gripper_position, dtype=np.float32).reshape(-1)
+    current = np.asarray(gripper_current, dtype=np.float32).reshape(-1)
+    total = min(position.shape[0], current.shape[0])
+    if total <= 0:
+        raise ValueError("gripper history requires at least one position/current sample")
+
+    start = int(np.clip(start, 0, total - 1))
+    lo = max(0, start - length + 1)
+    history = np.stack([position[lo:start + 1], current[lo:start + 1]], axis=-1)
+    if history.shape[0] < length:
+        pad = np.repeat(history[0:1], length - history.shape[0], axis=0)
+        history = np.concatenate([pad, history], axis=0)
+    return history.astype(np.float32)
+
+
+def _sanitize_minmax(vmin: np.ndarray, vmax: np.ndarray, eps: float = 1e-6) -> Tuple[np.ndarray, np.ndarray]:
+    vmin = np.asarray(vmin, dtype=np.float32)
+    vmax = np.asarray(vmax, dtype=np.float32)
+    return vmin, np.maximum(vmax, vmin + eps).astype(np.float32)
+
+
+def normalize_minmax(x: np.ndarray, vmin: np.ndarray, vmax: np.ndarray, mode: str) -> np.ndarray:
+    vmin, vmax = _sanitize_minmax(vmin, vmax)
+    y = (x - vmin) / np.maximum(vmax - vmin, 1e-6)
+    if mode == "minmax_m11":
+        y = 2.0 * y - 1.0
+        return np.clip(y, -1.0, 1.0).astype(np.float32)
+    return np.clip(y, 0.0, 1.0).astype(np.float32)
+
+
+# =============================================================================
+# Stats
+# =============================================================================
+
+def compute_dataset_stats(
+    episode_paths: Sequence[Path],
+    marker_dim: int = 7,
+    qpos_norm_mode: str = "minmax_m11",
+    action_norm_mode: str = "minmax_m11",
+    marker_norm_mode: str = "minmax_m11",
+    include_gripper: bool = False,
+    motion_only: bool = False,
+) -> Dict[str, np.ndarray | str | int]:
+    qpos_all = []
+    action_all = []
+    marker_all = []
+    gripper_position_all = []
+    gripper_current_all = []
+
+    for p in episode_paths:
+        with h5py.File(str(p), "r") as f:
+            pos = _read_position(f)
+            force = _read_force(f, T=pos.shape[0])
+            if include_gripper:
+                gripper_position, gripper_current = _read_gripper_state(f, T=pos.shape[0])
+                T = min(pos.shape[0], force.shape[0], gripper_position.shape[0], gripper_current.shape[0])
+                gripper_position = gripper_position[:T]
+                gripper_current = gripper_current[:T]
+            else:
+                gripper_position = None
+                gripper_current = None
+                T = min(pos.shape[0], force.shape[0])
+            pos = pos[:T]
+            force = force[:T]
+            qpos = (pos[:, :6].copy() if motion_only else
+                    np.concatenate([pos[:, :6], force[:, :3]], axis=-1)).astype(np.float32)
+            action = _read_action(
+                f,
+                fallback_pos=pos,
+                fallback_force=force,
+                fallback_gripper_position=gripper_position,
+                fallback_gripper_current=gripper_current,
+                include_gripper=include_gripper,
+                motion_only=motion_only,
+            )[:T]
+            marker = _read_marker(f, T=T, marker_dim=marker_dim)[:T]
+            qpos_all.append(qpos)
+            action_all.append(action)
+            marker_all.append(marker)
+            if include_gripper and gripper_position is not None and gripper_current is not None:
+                gripper_position_all.append(gripper_position.reshape(-1, 1).astype(np.float32))
+                gripper_current_all.append(gripper_current.reshape(-1, 1).astype(np.float32))
+
+    q = np.concatenate(qpos_all, axis=0)
+    a = np.concatenate(action_all, axis=0)
+    m = np.concatenate(marker_all, axis=0)
+    qmin, qmax = _sanitize_minmax(q.min(axis=0), q.max(axis=0))
+    amin, amax = _sanitize_minmax(a.min(axis=0), a.max(axis=0))
+    mmin, mmax = _sanitize_minmax(m.min(axis=0), m.max(axis=0))
+
+    stats = {
+        "qpos_min": qmin.astype(np.float32),
+        "qpos_max": qmax.astype(np.float32),
+        "action_min": amin.astype(np.float32),
+        "action_max": amax.astype(np.float32),
+        "marker_min": mmin.astype(np.float32),
+        "marker_max": mmax.astype(np.float32),
+        "qpos_norm_mode": qpos_norm_mode,
+        "action_norm_mode": action_norm_mode,
+        "marker_norm_mode": marker_norm_mode,
+        "marker_dim": int(marker_dim),
+        "include_gripper": bool(include_gripper),
+        "num_total_timesteps": int(q.shape[0]),
+    }
+    if include_gripper and gripper_position_all and gripper_current_all:
+        gp = np.concatenate(gripper_position_all, axis=0)
+        gc = np.concatenate(gripper_current_all, axis=0)
+        gpmin, gpmax = _sanitize_minmax(gp.min(axis=0), gp.max(axis=0))
+        gcmin, gcmax = _sanitize_minmax(gc.min(axis=0), gc.max(axis=0))
+        stats["gripper_position_min"] = gpmin.astype(np.float32)
+        stats["gripper_position_max"] = gpmax.astype(np.float32)
+        stats["gripper_current_min"] = gcmin.astype(np.float32)
+        stats["gripper_current_max"] = gcmax.astype(np.float32)
+        stats["gripper_norm_mode"] = qpos_norm_mode
+    return stats
+
+
+# =============================================================================
+# Dataset
+# =============================================================================
+
+class ImitationEpisodeDataset(Dataset):
+    def __init__(
+        self,
+        episode_paths: Sequence[Path],
+        stats: Dict,
+        camera_names: Sequence[str],
+        obs_mode: str = "single_cam",
+        seq_len: int = 200,
+        samples_per_episode: int = 50,
+        seed: int = 0,
+        return_force_history: bool = True,
+        force_history_len: int = 10,
+        marker_dim: int = 7,
+        qpos_norm_mode: str = "minmax_m11",
+        action_norm_mode: str = "minmax_m11",
+        marker_norm_mode: str = "minmax_m11",
+        include_gripper: bool = False,
+        use_gripper_history: bool = False,
+        gripper_history_len: int = 15,
+        use_stain_mask: bool = False,
+        stain_mask_key: str = "observations/images/stain_mask",
+        resample_each_epoch: bool = False,
+        phase_resample_enable: bool = False,
+        phase_contact_on_thr: float = 3.0,
+        phase_contact_off_thr: float = 1.2,
+        phase_precontact_sec: float = 1.0,
+        dataset_hz: float = 30.0,
+        phase_weight_free: float = 1.0,
+        phase_weight_precontact: float = 5.0,
+        phase_weight_contact: float = 1.0,
+        qpos_dropout_prob: float = 0.0,
+        qpos_swap_prob: float = 0.0,
+        use_force_observation: bool = True,
+        motion_only: bool = False,
+    ):
+        super().__init__()
+        self.episode_paths = list(episode_paths)
+        self.stats = stats
+        self.camera_names = list(camera_names)
+        self.obs_mode = str(obs_mode)
+        self.seq_len = int(seq_len)
+        self.samples_per_episode = int(samples_per_episode)
+        self.seed = int(seed)
+        self.return_force_history = bool(return_force_history)
+        self.force_history_len = int(force_history_len)
+        self.marker_dim = int(marker_dim)
+        self.qpos_norm_mode = str(qpos_norm_mode)
+        self.action_norm_mode = str(action_norm_mode)
+        self.marker_norm_mode = str(marker_norm_mode)
+        self.include_gripper = bool(include_gripper)
+        self.use_gripper_history = bool(use_gripper_history)
+        self.gripper_history_len = max(1, int(gripper_history_len))
+        if self.use_gripper_history and not self.include_gripper:
+            raise ValueError("use_gripper_history=True requires include_gripper=True")
+        self.use_stain_mask = bool(use_stain_mask)
+        self.stain_mask_key = str(stain_mask_key or "observations/images/stain_mask")
+        self.resample_each_epoch = bool(resample_each_epoch)
+        # FACTR2/FIRST (arXiv:2606.12406): oversample pre-contact/contact
+        # start points instead of sampling chunk starts uniformly. Pre-
+        # contact = the phase_precontact_sec window immediately before each
+        # contact onset (hysteresis on measured fz, same on/off thresholds
+        # used at inference for contact detection).
+        self.phase_resample_enable = bool(phase_resample_enable)
+        self.phase_contact_on_thr = float(phase_contact_on_thr)
+        self.phase_contact_off_thr = float(phase_contact_off_thr)
+        self.phase_precontact_window = max(1, int(round(float(phase_precontact_sec) * float(dataset_hz))))
+        self.phase_weights_by_label = (
+            float(phase_weight_free), float(phase_weight_precontact), float(phase_weight_contact)
+        )
+        # Phase-aware qpos dropout: only zero qpos (post-normalization) for
+        # chunk-start points that are NOT yet in contact (free/pre-contact).
+        # Once contact/wiping has begun, the visual stain cue fades, and
+        # qpos becomes the only record of the already-committed trajectory
+        # -- dropping it there as well would remove the one remaining signal
+        # instead of fighting a shortcut. Reuses phase_contact_on_thr.
+        self.qpos_dropout_prob = float(qpos_dropout_prob)
+        if not (0.0 <= self.qpos_dropout_prob < 1.0):
+            raise ValueError(f"qpos_dropout_prob must be in [0,1), got {self.qpos_dropout_prob}")
+
+        # Position/direction shortcut-breaking augmentation: for chunk-start
+        # points not yet in contact, swap the (post-normalization) qpos for
+        # a start pose drawn from an episode of the OPPOSITE
+        # stain_direction_deg -- image and the true action target stay
+        # untouched. This makes qpos an unreliable predictor of direction by
+        # construction, so the only way to still lower the loss is to read
+        # direction off the image. Requires episodes tagged with
+        # stain_direction_deg (see build scripts); silently disabled
+        # (falls back to no-op) if that attribute isn't present.
+        self.qpos_swap_prob = float(qpos_swap_prob)
+        self.use_force_observation = bool(use_force_observation)
+        self.motion_only = bool(motion_only)
+        if self.motion_only and (self.use_force_observation or self.return_force_history or
+                                 include_gripper or qpos_swap_prob):
+            raise ValueError("motion_only requires force observation/history OFF, no gripper/qpos swap")
+        if not (0.0 <= self.qpos_swap_prob < 1.0):
+            raise ValueError(f"qpos_swap_prob must be in [0,1), got {self.qpos_swap_prob}")
+        self._direction_labels: List[Optional[int]] = [None] * len(self.episode_paths)
+        self._qpos_pool_by_direction: Dict[int, np.ndarray] = {}
+        if self.qpos_swap_prob > 0.0:
+            pools: Dict[int, list] = {}
+            for i, path in enumerate(self.episode_paths):
+                with h5py.File(str(path), "r") as f:
+                    direction = f.attrs.get("stain_direction_deg", None)
+                    if direction is None:
+                        continue
+                    pos0 = np.asarray(f["observations/position"][0, :6], dtype=np.float32)
+                    force0 = np.asarray(f["observations/force"][0, :3], dtype=np.float32)
+                direction = int(direction)
+                self._direction_labels[i] = direction
+                pools.setdefault(direction, []).append(np.concatenate([pos0, force0]))
+            self._qpos_pool_by_direction = {k: np.stack(v, axis=0) for k, v in pools.items()}
+            if len(self._qpos_pool_by_direction) < 2:
+                raise ValueError(
+                    "qpos_swap_prob > 0 requires episodes tagged with at least 2 distinct "
+                    f"stain_direction_deg values, found {sorted(self._qpos_pool_by_direction)}"
+                )
+        if self.include_gripper:
+            required_gripper_stats = (
+                "gripper_position_min",
+                "gripper_position_max",
+                "gripper_current_min",
+                "gripper_current_max",
+            )
+            missing = [key for key in required_gripper_stats if key not in self.stats]
+            if missing:
+                raise ValueError(
+                    "include_gripper=True requires normalized gripper observation stats; "
+                    f"missing keys={missing}"
+                )
+        self.gripper_norm_mode = str(self.stats.get("gripper_norm_mode", self.qpos_norm_mode))
+        # A shared value lets persistent DataLoader workers observe epoch
+        # changes made by the training process.
+        self._epoch_shared = mp.Value("q", 0, lock=True)
+
+        self.return_marker = self.obs_mode in ("dual_cam_marker", "single_cam_marker")
+        self.index = []
+        for ep_i in range(len(self.episode_paths)):
+            for s_i in range(max(1, self.samples_per_episode)):
+                self.index.append((ep_i, s_i))
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def set_epoch(self, epoch: int) -> None:
+        """Select the deterministic start-point bank used for this epoch."""
+        with self._epoch_shared.get_lock():
+            self._epoch_shared.value = int(epoch)
+
+    def _phase_labels(self, fz: np.ndarray) -> np.ndarray:
+        """0=free-space, 1=pre-contact, 2=contact, per timestep."""
+        T = fz.shape[0]
+        contact = np.zeros(T, dtype=bool)
+        active = False
+        for t in range(T):
+            if not active and fz[t] >= self.phase_contact_on_thr:
+                active = True
+            elif active and fz[t] <= self.phase_contact_off_thr:
+                active = False
+            contact[t] = active
+
+        label = np.where(contact, 2, 0).astype(np.int8)
+        onsets = np.flatnonzero(contact[1:] & ~contact[:-1]) + 1
+        if contact[0]:
+            onsets = np.concatenate(([0], onsets))
+        F = self.phase_precontact_window
+        for onset in onsets:
+            lo = max(0, onset - F)
+            seg = label[lo:onset]
+            seg[seg == 0] = 1
+        return label
+
+    def _choose_start(self, T: int, global_idx: int, force_fz: Optional[np.ndarray] = None) -> int:
+        if T <= 1:
+            return 0
+        epoch = int(self._epoch_shared.value) if self.resample_each_epoch else 0
+        rng = np.random.default_rng(
+            self.seed + 1000003 * int(global_idx) + 9176 * epoch
+        )
+        max_start = max(0, T - 1)
+        n_choices = max_start + 1
+        if not self.phase_resample_enable or force_fz is None:
+            return int(rng.integers(0, n_choices))
+
+        label = self._phase_labels(np.asarray(force_fz[:T], dtype=np.float64))[:n_choices]
+        w_by_label = np.asarray(self.phase_weights_by_label, dtype=np.float64)
+        weights = w_by_label[label]
+        total = float(weights.sum())
+        if total <= 0.0:
+            return int(rng.integers(0, n_choices))
+        return int(rng.choice(n_choices, p=weights / total))
+
+    def __getitem__(self, idx: int):
+        ep_i, _ = self.index[idx]
+        path = self.episode_paths[ep_i]
+        with h5py.File(str(path), "r") as f:
+            pos = _read_position(f)
+            force = _read_force(f, T=pos.shape[0])
+            if self.include_gripper:
+                gripper_position, gripper_current = _read_gripper_state(f, T=pos.shape[0])
+            else:
+                gripper_position = None
+                gripper_current = None
+            action = _read_action(
+                f,
+                fallback_pos=pos,
+                fallback_force=force,
+                fallback_gripper_position=gripper_position,
+                fallback_gripper_current=gripper_current,
+                include_gripper=self.include_gripper,
+                motion_only=self.motion_only,
+            )
+            marker = _read_marker(f, T=pos.shape[0], marker_dim=self.marker_dim)
+
+            if self.include_gripper:
+                T = min(
+                    pos.shape[0],
+                    force.shape[0],
+                    action.shape[0],
+                    marker.shape[0],
+                    gripper_position.shape[0],
+                    gripper_current.shape[0],
+                )
+            else:
+                T = min(pos.shape[0], force.shape[0], action.shape[0], marker.shape[0])
+            pos = pos[:T]
+            force = force[:T]
+            action = action[:T]
+            marker = marker[:T]
+            if self.include_gripper:
+                gripper_position = gripper_position[:T]
+                gripper_current = gripper_current[:T]
+            start = self._choose_start(T, idx, force_fz=force[:, 2] if force.shape[1] >= 3 else None)
+
+            # Images use the frame at the current qpos time.
+            imgs = []
+            for cam in self.camera_names:
+                frame = _read_image_frame(f, cam, start)
+                imgs.append(_image_frame_to_chw_float(frame))
+            image = torch.stack(imgs, dim=0)  # (K,3,H,W)
+            if self.use_stain_mask:
+                stain_frame = _read_stain_mask_frame(f, self.stain_mask_key, start)
+                stain_mask = _stain_mask_frame_to_chw_float(stain_frame)
+            else:
+                stain_mask = None
+
+        qpos_raw = (pos[start, :6].copy() if self.motion_only else
+                    np.concatenate([pos[start, :6], force[start, :3]], axis=0)).astype(np.float32)
+        action_chunk, is_pad = _slice_pad(action, start, self.seq_len)
+        marker_raw = marker[start].astype(np.float32)
+        fh_raw = _force_history(force, start, self.force_history_len)
+
+        qpos = normalize_minmax(qpos_raw, self.stats["qpos_min"], self.stats["qpos_max"], self.qpos_norm_mode)
+        action_norm = normalize_minmax(action_chunk, self.stats["action_min"], self.stats["action_max"], self.action_norm_mode)
+        marker_norm = normalize_minmax(marker_raw, self.stats["marker_min"], self.stats["marker_max"], self.marker_norm_mode)
+        fh_norm = (np.zeros_like(fh_raw) if self.motion_only else
+                   normalize_minmax(fh_raw, self.stats["qpos_min"][6:9], self.stats["qpos_max"][6:9], self.qpos_norm_mode))
+
+        image_t = image.float()
+        qpos_t = torch.from_numpy(qpos).float()
+        if self.qpos_dropout_prob > 0.0:
+            fz_at_start = float(force[start, 2]) if force.shape[1] >= 3 else 0.0
+            in_contact_at_start = fz_at_start >= self.phase_contact_on_thr
+            if not in_contact_at_start:
+                epoch = int(self._epoch_shared.value) if self.resample_each_epoch else 0
+                rng = np.random.default_rng(self.seed + 7919 * int(idx) + 104729 * epoch)
+                if rng.random() < self.qpos_dropout_prob:
+                    qpos_t = torch.zeros_like(qpos_t)
+        if self.qpos_swap_prob > 0.0 and self._direction_labels[ep_i] is not None:
+            fz_at_start = float(force[start, 2]) if force.shape[1] >= 3 else 0.0
+            in_contact_at_start = fz_at_start >= self.phase_contact_on_thr
+            if not in_contact_at_start:
+                epoch = int(self._epoch_shared.value) if self.resample_each_epoch else 0
+                rng = np.random.default_rng(self.seed + 5040101 * int(idx) + 998244353 * epoch)
+                if rng.random() < self.qpos_swap_prob:
+                    my_direction = self._direction_labels[ep_i]
+                    other_dirs = [d for d in self._qpos_pool_by_direction if d != my_direction]
+                    if other_dirs:
+                        swap_dir = other_dirs[int(rng.integers(0, len(other_dirs)))]
+                        pool = self._qpos_pool_by_direction[swap_dir]
+                        swapped_raw = pool[int(rng.integers(0, pool.shape[0]))]
+                        swapped_norm = normalize_minmax(
+                            swapped_raw, self.stats["qpos_min"], self.stats["qpos_max"], self.qpos_norm_mode
+                        )
+                        qpos_t = torch.from_numpy(swapped_norm).float()
+        # E1 FORCE_OBS_OFF: preserve the 9-D qpos interface, but make every
+        # measured-force channel constant after normalization.  This is
+        # deliberately applied after qpos dropout/swap so those augmentations
+        # cannot re-introduce measured force.  Action targets are untouched.
+        if not self.use_force_observation:
+            qpos_t[6:9] = 0.0
+        action_t = torch.from_numpy(action_norm).float()
+        is_pad_t = torch.from_numpy(is_pad).bool()
+        fh_t = torch.from_numpy(fh_norm).float()
+        if not self.use_force_observation:
+            fh_t.zero_()
+        marker_t = torch.from_numpy(marker_norm).float()
+        if self.include_gripper:
+            gripper_position_raw = np.asarray([gripper_position[start]], dtype=np.float32)
+            gripper_current_raw = np.asarray([gripper_current[start]], dtype=np.float32)
+            gripper_position_norm = normalize_minmax(
+                gripper_position_raw,
+                self.stats["gripper_position_min"],
+                self.stats["gripper_position_max"],
+                self.gripper_norm_mode,
+            )
+            gripper_current_norm = normalize_minmax(
+                gripper_current_raw,
+                self.stats["gripper_current_min"],
+                self.stats["gripper_current_max"],
+                self.gripper_norm_mode,
+            )
+            gripper_position_t = torch.from_numpy(gripper_position_norm).float()
+            gripper_current_t = torch.from_numpy(gripper_current_norm).float()
+            if self.use_gripper_history:
+                gripper_history_raw = _gripper_history(
+                    gripper_position,
+                    gripper_current,
+                    start,
+                    self.gripper_history_len,
+                )
+                gripper_history_min = np.asarray(
+                    [self.stats["gripper_position_min"][0], self.stats["gripper_current_min"][0]],
+                    dtype=np.float32,
+                )
+                gripper_history_max = np.asarray(
+                    [self.stats["gripper_position_max"][0], self.stats["gripper_current_max"][0]],
+                    dtype=np.float32,
+                )
+                gripper_history_norm = normalize_minmax(
+                    gripper_history_raw,
+                    gripper_history_min,
+                    gripper_history_max,
+                    self.gripper_norm_mode,
+                )
+                gripper_history_t = torch.from_numpy(gripper_history_norm).float()
+            else:
+                gripper_history_t = None
+        else:
+            gripper_position_t = None
+            gripper_current_t = None
+            gripper_history_t = None
+
+        extra = (stain_mask.float(),) if self.use_stain_mask else ()
+        if self.include_gripper and self.return_marker:
+            base = (image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t, gripper_position_t, gripper_current_t)
+            if self.use_gripper_history:
+                base += (gripper_history_t,)
+            return base + extra
+        if self.include_gripper:
+            base = (image_t, qpos_t, action_t, is_pad_t, fh_t, gripper_position_t, gripper_current_t)
+            if self.use_gripper_history:
+                base += (gripper_history_t,)
+            return base + extra
+        if self.return_marker:
+            return (image_t, qpos_t, action_t, is_pad_t, fh_t, marker_t) + extra
+        return (image_t, qpos_t, action_t, is_pad_t, fh_t) + extra
+
+
+# =============================================================================
+# Loader factory
+# =============================================================================
+
+def make_loaders(
+    dataset_dir: str,
+    num_episodes: int = 0,
+    camera_names: Sequence[str] = ("cam0",),
+    obs_mode: str = "single_cam",
+    batch_size_train: int = 12,
+    batch_size_val: int = 12,
+    seq_len_train: int = 200,
+    seq_len_val: int = 200,
+    seed: int = 0,
+    samples_per_episode: int = 50,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
+    prefetch_factor: int = 2,
+    return_force_history: bool = True,
+    use_force_history: bool = True,
+    force_history_len: int = 10,
+    qpos_norm_mode: str = "minmax_m11",
+    action_norm_mode: str = "minmax_m11",
+    marker_norm_mode: str = "minmax_m11",
+    marker_dim: int = 7,
+    include_gripper: bool = False,
+    use_gripper_history: bool = False,
+    gripper_history_len: int = 15,
+    use_stain_mask: bool = False,
+    stain_mask_key: str = "observations/images/stain_mask",
+    stain_mask_threshold: float = 0.5,
+    resample_each_epoch: bool = False,
+    phase_resample_enable: bool = False,
+    phase_contact_on_thr: float = 3.0,
+    phase_contact_off_thr: float = 1.2,
+    phase_precontact_sec: float = 1.0,
+    dataset_hz: float = 30.0,
+    phase_weight_free: float = 1.0,
+    phase_weight_precontact: float = 5.0,
+    phase_weight_contact: float = 1.0,
+    qpos_dropout_prob: float = 0.0,
+    qpos_swap_prob: float = 0.0,
+    use_force_observation: bool = True,
+    motion_only: bool = False,
+):
+    use_gripper_history = bool(use_gripper_history)
+    gripper_history_len = max(1, int(gripper_history_len))
+    if use_gripper_history and not include_gripper:
+        raise ValueError("use_gripper_history=True requires include_gripper=True")
+
+    paths = _episode_files(dataset_dir, num_episodes=num_episodes)
+    n = len(paths)
+    if n == 1:
+        train_paths = paths
+        val_paths = paths
+    else:
+        rng = np.random.default_rng(seed)
+        order = np.arange(n)
+        rng.shuffle(order)
+        split = max(1, int(round(0.9 * n)))
+        split = min(split, n - 1)
+        train_paths = [paths[i] for i in order[:split]]
+        val_paths = [paths[i] for i in order[split:]]
+
+    stats = compute_dataset_stats(
+        train_paths,
+        marker_dim=marker_dim,
+        qpos_norm_mode=qpos_norm_mode,
+        action_norm_mode=action_norm_mode,
+        marker_norm_mode=marker_norm_mode,
+        include_gripper=include_gripper,
+        motion_only=motion_only,
+    )
+    stats["dataset_dir"] = str(Path(dataset_dir).expanduser())
+    if motion_only:
+        stats["motion_only"] = True
+        stats["force_action"] = False
+    stats["split_episode_files"] = {"train": [p.name for p in train_paths],
+                                    "validation": [p.name for p in val_paths]}
+    stats["camera_names"] = list(camera_names)
+    stats["obs_mode"] = str(obs_mode)
+    stats["use_stain_mask"] = bool(use_stain_mask)
+    stats["stain_mask_key"] = str(stain_mask_key or "observations/images/stain_mask")
+    stats["stain_mask_threshold"] = float(stain_mask_threshold)
+    stats["use_gripper_history"] = bool(use_gripper_history)
+    stats["gripper_history_len"] = int(gripper_history_len) if use_gripper_history else 0
+    stats["gripper_history_channels"] = ["present_position", "present_current_mA"]
+
+    common = dict(
+        stats=stats,
+        camera_names=list(camera_names),
+        obs_mode=obs_mode,
+        samples_per_episode=samples_per_episode,
+        return_force_history=return_force_history and use_force_history,
+        force_history_len=force_history_len,
+        marker_dim=marker_dim,
+        qpos_norm_mode=qpos_norm_mode,
+        action_norm_mode=action_norm_mode,
+        marker_norm_mode=marker_norm_mode,
+        include_gripper=include_gripper,
+        use_gripper_history=use_gripper_history,
+        gripper_history_len=gripper_history_len,
+        use_stain_mask=use_stain_mask,
+        stain_mask_key=stain_mask_key,
+        phase_contact_on_thr=phase_contact_on_thr,
+        phase_contact_off_thr=phase_contact_off_thr,
+        phase_precontact_sec=phase_precontact_sec,
+        dataset_hz=dataset_hz,
+        phase_weight_free=phase_weight_free,
+        phase_weight_precontact=phase_weight_precontact,
+        phase_weight_contact=phase_weight_contact,
+        use_force_observation=use_force_observation,
+        motion_only=motion_only,
+    )
+    train_ds = ImitationEpisodeDataset(
+        train_paths,
+        seq_len=seq_len_train,
+        seed=seed,
+        resample_each_epoch=resample_each_epoch,
+        phase_resample_enable=phase_resample_enable,
+        qpos_dropout_prob=qpos_dropout_prob,
+        qpos_swap_prob=qpos_swap_prob,
+        **common,
+    )
+    val_ds = ImitationEpisodeDataset(
+        val_paths,
+        seq_len=seq_len_val,
+        seed=seed + 12345,
+        resample_each_epoch=False,
+        phase_resample_enable=False,
+        qpos_dropout_prob=0.0,
+        qpos_swap_prob=0.0,
+        **common,
+    )
+
+    loader_kwargs = dict(
+        num_workers=int(num_workers),
+        pin_memory=bool(pin_memory),
+        persistent_workers=bool(persistent_workers) if int(num_workers) > 0 else False,
+    )
+    if int(num_workers) > 0:
+        loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+
+    train_loader = DataLoader(train_ds, batch_size=batch_size_train, shuffle=True, drop_last=False, **loader_kwargs)
+    val_loader = DataLoader(val_ds, batch_size=batch_size_val, shuffle=False, drop_last=False, **loader_kwargs)
+
+    meta = {
+        "num_episodes_total": n,
+        "num_train_episodes": len(train_paths),
+        "num_val_episodes": len(val_paths),
+        "num_train_samples": len(train_ds),
+        "num_val_samples": len(val_ds),
+        "camera_names": list(camera_names),
+        "obs_mode": obs_mode,
+        "marker_dim": int(marker_dim),
+        "include_gripper": bool(include_gripper),
+        "use_gripper_history": bool(use_gripper_history),
+        "gripper_history_len": int(gripper_history_len) if use_gripper_history else 0,
+        "gripper_history_channels": ["present_position", "present_current_mA"],
+        "action_dim": int(stats["action_min"].shape[0]),
+        "use_stain_mask": bool(use_stain_mask),
+        "stain_mask_key": str(stain_mask_key or "observations/images/stain_mask"),
+        "stain_mask_threshold": float(stain_mask_threshold),
+        "resample_each_epoch": bool(resample_each_epoch),
+        "use_force_observation": bool(use_force_observation),
+    }
+    return train_loader, val_loader, stats, meta

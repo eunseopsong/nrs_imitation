@@ -1,0 +1,60 @@
+{
+  "A": {
+    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e2_force_ablation_20260926/A/20260926_2129/policy_best.ckpt",
+    "checkpoint_sha256": "dec3b8989bda51674cf17225c12c0a7be177c0976ff0604fe4556d54666f1707",
+    "selected_epoch_zero_based": 39,
+    "loaded_weights_exactly_match_checkpoint": true,
+    "state_dim": 6,
+    "action_dim": 6,
+    "force_observation": false,
+    "force_history": false,
+    "force_action": false,
+    "force_supervision_channels": 0,
+    "force_prediction_logged_as_null": true,
+    "force_perturbation_invariant": true,
+    "dataset": "/home/eunseop/nrs_imitation/datasets/polishing/single_cam/20260910_90deg_rel_single/imitation_form/episode_35.hdf5",
+    "sample_index": 191,
+    "output_shape": [
+      128,
+      6
+    ],
+    "transport_shape": [
+      128,
+      9
+    ],
+    "ros_context_initialized": false,
+    "hardware_io": false
+  },
+  "B": {
+    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/off/20260916_1531/policy_best.ckpt",
+    "selected_epoch_zero_based": 42,
+    "loaded_weights_exactly_match_checkpoint": true,
+    "force_observation": false,
+    "force_action": true,
+    "output_shape": [
+      128,
+      9
+    ],
+    "force_perturbation_max_difference": 0.0,
+    "finite_predictions": true,
+    "logging_drained_without_errors": true,
+    "hardware_io": false,
+    "ros_context_initialized": false
+  },
+  "C": {
+    "checkpoint": "/home/eunseop/nrs_imitation/checkpoints/flow/polishing/single_cam/e1_force_observation_20260916/on/20260916_1531/policy_best.ckpt",
+    "selected_epoch_zero_based": 39,
+    "loaded_weights_exactly_match_checkpoint": true,
+    "force_observation": true,
+    "force_action": true,
+    "output_shape": [
+      128,
+      9
+    ],
+    "force_perturbation_max_difference": 23.45709228515625,
+    "finite_predictions": true,
+    "logging_drained_without_errors": true,
+    "hardware_io": false,
+    "ros_context_initialized": false
+  }
+}

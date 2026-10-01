@@ -1,0 +1,59 @@
+{
+  "run": "/home/eunseop/nrs_imitation/results/20260930/E2/A_direct/E2_A_20260930T162724_9ab59cc844da",
+  "executor": "/home/eunseop/nrs_imitation/results/20260930/E2/A_direct/E2_A_20260930T162724_9ab59cc844da/executor/E2_A_20260930T162724_9ab59cc844da_executor_20260930T162725_1790753245668049247_221c_8j8",
+  "logging": {
+    "drained": true,
+    "queue_pending": 0,
+    "write_errors": [],
+    "counts": {
+      "events": {
+        "received": 47,
+        "enqueued": 47,
+        "dropped": 0,
+        "written": 47
+      },
+      "wrench": {
+        "received": 438,
+        "enqueued": 438,
+        "dropped": 0,
+        "written": 438
+      },
+      "tcp_pose": {
+        "received": 438,
+        "enqueued": 438,
+        "dropped": 0,
+        "written": 438
+      },
+      "commands": {
+        "received": 7460,
+        "enqueued": 7460,
+        "dropped": 0,
+        "written": 7460
+      }
+    }
+  },
+  "measured_fz_max_N": 96.6722063259594,
+  "sent_fz_max_N": 22.872526903697945,
+  "nominal_target_N": 23.0,
+  "gate_transitions": 547,
+  "exact_repeated_wrench": {
+    "values": [
+      -0.2629168433254122,
+      0.07873437514271242,
+      0.12331261747370155,
+      0.00834417826046054,
+      0.01236988641641848,
+      -0.020955454298655075
+    ],
+    "count": 158,
+    "total": 438,
+    "publisher_identity_unknown": true
+  },
+  "termination": "manual_abort in executor; robot E-stop reason is not recorded here",
+  "interpretation": "Repeated low-force feedback coincides with frequent gate transitions. Multiple publishers or stale republishing are hypotheses, not confirmed from headerless CSV.",
+  "new_ramp": {
+    "duration_s": 3.0,
+    "start": "first observed contact after processing starts",
+    "hardware_tested": false
+  }
+}

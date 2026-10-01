@@ -1,0 +1,122 @@
+{
+  "output": "/home/eunseop/nrs_imitation/results/20260930/E2_report_20260930.pdf",
+  "pages": 15,
+  "titles": [
+    "E2 실험 로그 분석 보고서",
+    "실험 조건과 분석 기준",
+    "15회 개별 실행 결과",
+    "조건별 지표와 반복 편차",
+    "실측 힘의 시간 변화",
+    "실측 TCP 경로와 높이",
+    "기록 품질과 종료 상태",
+    "기존 제거량 추정 지표",
+    "A | 기록 초기·최종 사진",
+    "B | 기록 초기·최종 사진",
+    "C | 기록 초기·최종 사진",
+    "A | 원본 제거량 추정 히트맵",
+    "B | 원본 제거량 추정 히트맵",
+    "C | 원본 제거량 추정 히트맵",
+    "자료 범위와 재현 정보"
+  ],
+  "sha256": "9387a08927cec253f170636a155a43000148c9e6dd96e94b6f0dec99c64d1643",
+  "bytes": 3003067,
+  "manifest_sha256": "48e97b65b429cd578926280d3aaf815ee75f1683b390e17cbfba34df58a76aec",
+  "template_pdf_sha256": "eff2876a361fd046ee3fbc3c27eeaa09d0dfb0535d7abaa760580b13021cc70e",
+  "template_code_sha256": "89269f6e57cc92bfb80debf7c41cd0e11594be74a36ef59e13cb6c57f18c1c43",
+  "verified_archive_files": 909,
+  "layout_checks": [
+    {
+      "page": 1,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 2,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 3,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 4,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 5,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 6,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 7,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 8,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 9,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 10,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 11,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 12,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 13,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 14,
+      "figure_text_and_table_cells_fit": true
+    },
+    {
+      "page": 15,
+      "figure_text_and_table_cells_fit": true
+    }
+  ],
+  "pdf_verification": {
+    "page_count": 15,
+    "page_format": "A4",
+    "embedded_fonts": [
+      "NanumGothic",
+      "NanumGothicBold"
+    ],
+    "unicode_text_extraction": true,
+    "rendered_pages": 15,
+    "all_pages_visually_reviewed": true,
+    "table_and_text_bounds_checked": true,
+    "initial_final_images": 30,
+    "original_heatmaps": 15
+  },
+  "archive_selection": {
+    "A": 5,
+    "B": 5,
+    "C": 5,
+    "A4_uses_requested_retry": true,
+    "excluded_A4_preserved": true,
+    "source_videos": {
+      "A": 0,
+      "B": 5,
+      "C": 5
+    }
+  },
+  "analysis_artifacts": {
+    "archive_results.py": "150c0f9572af768acf3323907bdd435a93da87da4f699a4d45860254c2eff24b",
+    "build_report.py": "44b44cc4eacdabb3e59febb9420d35661a527db0240133740f1eaaccc0517c66",
+    "metrics.json": "6ddd2413f4ae00317d164bd2554b1a691a3e45ba5338b3fcb0a1ecb66b8e7ce4",
+    "metrics.csv": "e3c199ee66b21e4963c713880329dd2f4818e08173960b28fc5fd5b10479670e",
+    "integrity.json": "8f11d2f458cf11bc5beb5829acbd67e3432b2a3b3f604989385c90abe6771531"
+  }
+}

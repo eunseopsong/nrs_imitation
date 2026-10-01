@@ -1,6 +1,7 @@
 """Direct E2 A/B/C launch with unique attempt preservation; check starts no nodes."""
 import atexit
 import json
+from datetime import datetime
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
@@ -15,10 +16,18 @@ from launch.substitutions import LaunchConfiguration
 from nrs_imitation.e2_ablation import ROOT, EXPERIMENT, select_condition, readiness
 from nrs_imitation.e2_providers import hardware_blockers
 from nrs_imitation.e2_run_context import create_attempt, read, write, seal_archive, LaunchRunRecord
+from nrs_imitation.e2_direct_abc import launch_arguments as common_arguments, PARAMETERS
 
 
 def configure(context):
-    path = Path(LaunchConfiguration('config').perform(context)).expanduser().resolve()
+    config_text = LaunchConfiguration('config').perform(context)
+    if not config_text:
+        source = Path(get_package_share_directory('nrs_imitation'))/'launch/e2_abc_common.launch.py'
+        args = {key: LaunchConfiguration(key).perform(context) for key in
+                (*PARAMETERS, 'condition', 'mode', 'session', 'repeat')}
+        return [IncludeLaunchDescription(PythonLaunchDescriptionSource(str(source)),
+                                         launch_arguments=args.items())]
+    path = Path(config_text).expanduser().resolve()
     cfg = json.loads(path.read_text())
     condition = LaunchConfiguration('condition').perform(context)
     mode = LaunchConfiguration('mode').perform(context)
@@ -80,12 +89,14 @@ def configure(context):
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('config',default_value=str(EXPERIMENT/'config.json'),description='E2 master or prepared attempt JSON'),
+        DeclareLaunchArgument('config',default_value='',description='Empty: matched A/B/C. Explicit JSON: legacy E2 protocol'),
         DeclareLaunchArgument('condition',choices=['A','B','C']),
         DeclareLaunchArgument('mode',default_value='check',choices=['check','run']),
-        DeclareLaunchArgument('session',default_value='E2_pilot_01'),
+        DeclareLaunchArgument('session',default_value='E2_ABC_'+datetime.now().strftime('%Y%m%d')),
+        DeclareLaunchArgument('repeat',default_value='auto',choices=['auto','1','2','3','4','5']),
         DeclareLaunchArgument('block',default_value='',description='Optional block; not required for repeated common-state trials'),
         DeclareLaunchArgument('specimen',default_value=''),
         DeclareLaunchArgument('region',default_value=''),
         DeclareLaunchArgument('surface_reuse',default_value=''),
+        *common_arguments(),
         OpaqueFunction(function=configure)])

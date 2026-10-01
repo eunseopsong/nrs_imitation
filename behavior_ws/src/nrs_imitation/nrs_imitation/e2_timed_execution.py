@@ -209,6 +209,8 @@ class TimedExecution:
         self.start_time = self.plan_start = self.last_tick = None
         self.command = self.start_pose = None
         self.contact = False
+        self.force_ramp_start = None
+        self.external_force_ramped_fz = 0.0
         self.closed = False
         self.endpoint_sent = False
         profile = self.cfg.get('c_pose_conditioning')
@@ -259,7 +261,8 @@ class TimedExecution:
                 np.linalg.norm(action[:3]-pose[:3]) > limits['max_xyz_from_current_mm']):
             raise ExecutionFault('requested action outside common workspace envelope')
 
-    def tick(self, now, pose, force, pose_age, force_age, external_force_fz=None):
+    def tick(self, now, pose, force, pose_age, force_age, external_force_fz=None,
+             external_force_ramp_sec=0.0):
         if self.closed or self.start_time is None or self.plan is None:
             return None
         if (pose_age < 0 or force_age < 0 or max(pose_age, force_age) > self.cfg['feedback_max_age_s']):
@@ -282,20 +285,35 @@ class TimedExecution:
         if self.plan.final and elapsed >= self.plan.time[-1]:
             self.endpoint_sent = True
         raw, phase, index = self.plan.sample(elapsed)
-        if external_force_fz is not None:
-            if not np.isfinite(external_force_fz):
-                raise ExecutionFault('invalid external force scheduler output')
-            raw[6:9] = (0., 0., float(external_force_fz))
-        conditioned = raw.copy()
-        if self.conditioner is not None:
-            conditioned[:6] = self.conditioner.sample(now)
-        for action in (raw, conditioned) if self.conditioner is not None else (raw,):
-            self._check_workspace(action, pose)
         previous_contact = self.contact
         if not self.contact and force[2] >= self.cfg['contact_on_N']:
             self.contact = True
         elif self.contact and force[2] <= self.cfg['contact_off_N']:
             self.contact = False
+        ramp_started_now = False
+        ramp_fraction = None
+        if external_force_fz is not None:
+            if not np.isfinite(external_force_fz):
+                raise ExecutionFault('invalid external force scheduler output')
+            if not np.isfinite(external_force_ramp_sec) or external_force_ramp_sec < 0:
+                raise ExecutionFault('invalid external force ramp duration')
+            ramp_fraction = 1.0
+            if external_force_ramp_sec > 0:
+                # Begin at first observed contact, so the ramp cannot finish
+                # while the policy is still approaching above the surface.
+                # Keep this clock across replans and later contact transitions.
+                if self.force_ramp_start is None and self.contact and external_force_fz != 0:
+                    self.force_ramp_start = now
+                    ramp_started_now = True
+                ramp_fraction = (0.0 if self.force_ramp_start is None else
+                    np.clip((now-self.force_ramp_start)/external_force_ramp_sec, 0.0, 1.0))
+            self.external_force_ramped_fz = float(external_force_fz)*float(ramp_fraction)
+            raw[6:9] = (0., 0., self.external_force_ramped_fz)
+        conditioned = raw.copy()
+        if self.conditioner is not None:
+            conditioned[:6] = self.conditioner.sample(now)
+        for action in (raw, conditioned) if self.conditioner is not None else (raw,):
+            self._check_workspace(action, pose)
         target = conditioned.copy()
         target[6:8] = 0.  # same disabled tangential commands as the pinned C
         if not self.contact:
@@ -334,6 +352,10 @@ class TimedExecution:
                     contact_transition=(self.contact != previous_contact),
                     gate_reason='base_fz_hysteresis', pose_age_s=pose_age, force_age_s=force_age,
                     force_source='external_F0' if external_force_fz is not None else 'provider',
+                    force_ramp_start=self.force_ramp_start,
+                    force_ramp_started_now=ramp_started_now,
+                    force_ramp_sec=external_force_ramp_sec,
+                    force_ramp_fraction=ramp_fraction,
                     conditioning_profile=C_POSE_PROFILE if self.conditioner is not None else None)
 
 

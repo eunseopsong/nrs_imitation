@@ -10,6 +10,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 VERSION = 'e2_source_wrench_workspace_v1'
+FEEDBACK_VERSION = 'e2_currentF_wrench_workspace_v1'
 ACQUISITION_TOPIC = '/ur10skku/ft_acquisition'
 PROVENANCE_TOPIC = '/ur10skku/currentF_provenance'
 RAW_SCHEMA = 'aft_ether_acquisition_v1'
@@ -18,6 +19,20 @@ LIMIT_KEYS = ('measured_force_abs_limits_N', 'measured_torque_abs_limits_Nm',
               'sensor_raw_force_abs_limits_N', 'sensor_raw_torque_abs_limits_Nm')
 CAPABILITIES = frozenset(('measured_wrench', 'source_freshness', 'raw_sensor_envelope',
                           'actual_tcp_workspace', 'startup_alignment_coverage'))
+
+
+def explicit_limits(record, keys):
+    limits = {}
+    for key in keys:
+        value = record.get(key)
+        if (not isinstance(value, list) or len(value) != 3 or
+                any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in value)):
+            raise ProtectionFault(key + ': explicit per-axis limits required')
+        arr = np.asarray(value, float)
+        if not np.isfinite(arr).all() or np.any(arr <= 0):
+            raise ProtectionFault(key + ': positive finite limits required')
+        limits[key] = arr
+    return limits
 
 
 class ProtectionFault(ValueError):
@@ -29,20 +44,14 @@ def record_from_config(config):
 
 
 class ProtectionMonitor:
+    version = VERSION
+    requires_source = True
+
     def __init__(self, record, settings):
         self.frame = record['measured_wrench_frame']
         if self.frame not in ('sensor', 'robot_base', 'controller_tcp'):
             raise ProtectionFault('unsupported protection wrench frame')
-        self.limits = {}
-        for key in LIMIT_KEYS:
-            value = record.get(key)
-            if (not isinstance(value, list) or len(value) != 3 or
-                    any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in value)):
-                raise ProtectionFault(key + ': explicit per-axis limits required')
-            arr = np.asarray(value, float)
-            if not np.isfinite(arr).all() or np.any(arr <= 0):
-                raise ProtectionFault(key + ': positive finite limits required')
-            self.limits[key] = arr
+        self.limits = explicit_limits(record, LIMIT_KEYS)
         self.max_age = record['acquisition_max_age_s']
         if (isinstance(self.max_age, bool) or not isinstance(self.max_age, (int, float)) or
                 not np.isfinite(self.max_age) or self.max_age <= 0):
@@ -152,7 +161,13 @@ class ProtectionMonitor:
         wrench = self.base['wrench'].copy()
         if self.frame == 'sensor':
             wrench = self.raw['wrench']
-        elif self.frame == 'controller_tcp':
+        self._check_pose_wrench(p, wrench)
+        self.armed = True
+        return dict(version=self.version, raw_sequence=self.raw['sequence'],
+                    source_ros_ns=self.raw['source_ros_ns'], anchor_mm=self.anchor.tolist())
+
+    def _check_pose_wrench(self, p, wrench):
+        if self.frame == 'controller_tcp':
             rot = Rotation.from_rotvec(p[3:]).inv()
             wrench = np.r_[rot.apply(wrench[:3]), rot.apply(wrench[3:])]
         # Rotation of axes only: torque remains at the source sensor origin.
@@ -166,6 +181,41 @@ class ProtectionMonitor:
                 -delta[2] > self.workspace['max_z_down_from_start_mm'] or
                 delta[2] > self.workspace['max_z_up_from_start_mm']):
             self.fail('actual TCP outside common workspace from startup anchor')
+
+
+class FeedbackProtectionMonitor(ProtectionMonitor):
+    """Guard currentF's filtered base wrench using local ROS receipt freshness.
+
+    Headerless currentF cannot establish sensor acquisition freshness or a raw
+    sensor envelope. No source packet or timestamp is fabricated here.
+    """
+    version = FEEDBACK_VERSION
+    requires_source = False
+
+    def __init__(self, record, settings):
+        self.frame = record['measured_wrench_frame']
+        if self.frame not in ('robot_base', 'controller_tcp'):
+            raise ProtectionFault('currentF supports robot_base or controller_tcp protection frame')
+        self.limits = explicit_limits(record, LIMIT_KEYS[:2])
+        self.feedback_age = settings['feedback_max_age_s']
+        self.workspace = settings['workspace_limits']
+        self.raw = self.base = None
+        self.anchor = None
+        self.armed = False
+        self.fault = None
+
+    def check(self, now, now_ros_ns, pose, pose_age, force_age, mode_age, *, force):
+        if self.fault:
+            self.fail(self.fault)
+        if pose is None or force is None:
+            raise ProtectionFault('waiting for currentP/currentF feedback')
+        ages = np.asarray([pose_age, force_age, mode_age], float)
+        if not np.isfinite(ages).all() or np.any(ages < 0) or np.any(ages > self.feedback_age):
+            raise ProtectionFault('pose/force/mode feedback stale during protected phase')
+        p = np.asarray(pose, float)
+        if p.shape != (6,) or not np.isfinite(p).all():
+            self.fail('invalid actual TCP pose')
+        self._check_pose_wrench(p, self._wrench(force))
         self.armed = True
-        return dict(version=VERSION, raw_sequence=self.raw['sequence'],
-                    source_ros_ns=self.raw['source_ros_ns'], anchor_mm=self.anchor.tolist())
+        return dict(version=self.version, feedback_topic='/ur10skku/currentF',
+                    freshness='local ROS receipt', anchor_mm=self.anchor.tolist())

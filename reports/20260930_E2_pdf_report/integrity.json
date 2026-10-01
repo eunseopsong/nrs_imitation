@@ -1,0 +1,3638 @@
+[
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/video/polishing_inference_20260930_181503_FLOW_E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f.webm",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/video/polishing_inference_20260930_181605_FLOW_E2_ABC_20260930_B_r2_20260930T181557_050892800c73.webm",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/video/polishing_inference_20260930_181718_FLOW_E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49.webm",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/video/polishing_inference_20260930_181820_FLOW_E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f.webm",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/video/polishing_inference_20260930_181927_FLOW_E2_ABC_20260930_B_r5_20260930T181918_048333adadb5.webm",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/video/polishing_inference_20260930_182106_FLOW_E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb.webm",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/video/polishing_inference_20260930_182224_FLOW_E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1.webm",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/video/polishing_inference_20260930_180805_FLOW_E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a.webm",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/video/polishing_inference_20260930_180911_FLOW_E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641.webm",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/video/polishing_inference_20260930_181017_FLOW_E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc.webm",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/artifacts/0_e2_executor_node.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/artifacts/1_e2_timed_execution.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/artifacts/2_e2_return_home.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/artifacts/4_e2_direct_abc.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/artifacts/5_e2_protection.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/artifacts/6_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/roi.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/summary.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/plots/01_removal_heatmap.png",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/plots/02_heatmap_value_vs_time.png",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/plots/03_signals_subplot.png",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/plots/04_3d_path_w.png",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/plots/summary.txt",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/0_dataset_stats.pkl",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/10_stain_relative_frame.yaml",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/11_setup_parameters.yaml",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/12_robot_motion.cpp",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/13_force_control.cpp",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/14_FTGetMain.cpp",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/15_spindle_gravity.yaml",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/16_RotationTransform.cpp",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/17_runtime.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/1_inference_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/2_execution_metrics.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/3_inference_core.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/4_inference_clean_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/5_inference_gradcam_single_cam.launch.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/6_flow_core.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/7_dataset.py",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/8_homography.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/artifacts/9_stain_origin_90deg_single.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/code_changes.patch",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/commands.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/events.jsonl",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/legacy.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/logger_status.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/metadata.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/roi.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/snapshots/final_image.png",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/snapshots/initial_image.png",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/summary.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/tcp_pose.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/wrench.csv",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/runtime.json",
+    "ok": true
+  },
+  {
+    "path": "comparison.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r1_20260930T182314_efd10d890028/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r2_20260930T182418_779ded6ed1dc/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r3_20260930T182518_47e327cbaa47/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r4_20260930T182848_be4f94ff2481/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "A/E2_ABC_20260930_A_r5_20260930T182657_03922e3656ae/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r1_20260930T181454_9b9304277b8f/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r2_20260930T181557_050892800c73/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r3_20260930T181708_1d31576f8f49/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r4_20260930T181811_d4c231d86a8f/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "B/E2_ABC_20260930_B_r5_20260930T181918_048333adadb5/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r1_20260930T182058_f1fb1aa474eb/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r2_20260930T182211_3f293b69cbb1/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r3_20260930T180757_8615b373a30a/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r4_20260930T180903_aab4ce127641/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "C/E2_ABC_20260930_C_r5_20260930T181008_efa57952cccc/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/executor/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/provider/log_audit.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/video_checks.json",
+    "ok": true
+  },
+  {
+    "path": "archive/excluded_attempts/A/E2_ABC_20260930_A_r4_20260930T182618_69f0cec160ef/archive_identity.json",
+    "ok": true
+  },
+  {
+    "path": "selection.json",
+    "ok": true
+  },
+  {
+    "path": "run_index.csv",
+    "ok": true
+  }
+]

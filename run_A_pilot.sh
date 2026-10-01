@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Actual A pilot entry. The existing launch preflight and runtime guards apply.
-# This script does not build, deploy, start a driver, zero a sensor, or set F0.
+# Config-free A entry, using the original motion-only checkpoint.
+# The launch supplies F0/protection defaults; drivers and sensor setup stay separate.
 set -e
 
 if (( $# > 1 )); then
@@ -16,6 +16,5 @@ fi
 source /home/eunseop/nrs_imitation/scripts/e2_A_env.sh
 
 cd /home/eunseop/nrs_imitation
-exec ros2 launch nrs_imitation e2_abc.launch.py \
-    mode:=run condition:=A "session:=$nrs_a_session" \
-    config:=/home/eunseop/nrs_imitation/experiments/e2_A_pilot_20260927/config.json
+exec ros2 launch nrs_imitation e2_a.launch.py \
+    mode:=run "session:=$nrs_a_session"

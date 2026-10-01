@@ -1,0 +1,853 @@
+diff --git a/behavior_ws/src/nrs_imitation/launch/e2_abc.launch.py b/behavior_ws/src/nrs_imitation/launch/e2_abc.launch.py
+index b845669..8dbb728 100644
+--- a/behavior_ws/src/nrs_imitation/launch/e2_abc.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/e2_abc.launch.py
+@@ -1,6 +1,7 @@
+ """Direct E2 A/B/C launch with unique attempt preservation; check starts no nodes."""
+ import atexit
+ import json
++from datetime import datetime
+ from pathlib import Path
+ 
+ from ament_index_python.packages import get_package_share_directory
+@@ -15,10 +16,18 @@ from launch.substitutions import LaunchConfiguration
+ from nrs_imitation.e2_ablation import ROOT, EXPERIMENT, select_condition, readiness
+ from nrs_imitation.e2_providers import hardware_blockers
+ from nrs_imitation.e2_run_context import create_attempt, read, write, seal_archive, LaunchRunRecord
++from nrs_imitation.e2_direct_abc import launch_arguments as common_arguments, PARAMETERS
+ 
+ 
+ def configure(context):
+-    path = Path(LaunchConfiguration('config').perform(context)).expanduser().resolve()
++    config_text = LaunchConfiguration('config').perform(context)
++    if not config_text:
++        source = Path(get_package_share_directory('nrs_imitation'))/'launch/e2_abc_common.launch.py'
++        args = {key: LaunchConfiguration(key).perform(context) for key in
++                (*PARAMETERS, 'condition', 'mode', 'session', 'repeat')}
++        return [IncludeLaunchDescription(PythonLaunchDescriptionSource(str(source)),
++                                         launch_arguments=args.items())]
++    path = Path(config_text).expanduser().resolve()
+     cfg = json.loads(path.read_text())
+     condition = LaunchConfiguration('condition').perform(context)
+     mode = LaunchConfiguration('mode').perform(context)
+@@ -80,12 +89,14 @@ def configure(context):
+ 
+ def generate_launch_description():
+     return LaunchDescription([
+-        DeclareLaunchArgument('config',default_value=str(EXPERIMENT/'config.json'),description='E2 master or prepared attempt JSON'),
++        DeclareLaunchArgument('config',default_value='',description='Empty: matched A/B/C. Explicit JSON: legacy E2 protocol'),
+         DeclareLaunchArgument('condition',choices=['A','B','C']),
+         DeclareLaunchArgument('mode',default_value='check',choices=['check','run']),
+-        DeclareLaunchArgument('session',default_value='E2_pilot_01'),
++        DeclareLaunchArgument('session',default_value='E2_ABC_'+datetime.now().strftime('%Y%m%d')),
++        DeclareLaunchArgument('repeat',default_value='1',choices=['1','2','3','4','5']),
+         DeclareLaunchArgument('block',default_value='',description='Optional block; not required for repeated common-state trials'),
+         DeclareLaunchArgument('specimen',default_value=''),
+         DeclareLaunchArgument('region',default_value=''),
+         DeclareLaunchArgument('surface_reuse',default_value=''),
++        *common_arguments(),
+         OpaqueFunction(function=configure)])
+diff --git a/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py b/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py
+index 7cacd12..0406ee4 100644
+--- a/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/inference_clean_single_cam.launch.py
+@@ -66,6 +66,9 @@ def _maybe_stain_origin(context, *_a, **_kw):
+     if autostart in ("false", "0", "no", "off"):
+         return []
+     ckpt_dir = LaunchConfiguration("ckpt_dir").perform(context)
++    checkpoint = LaunchConfiguration('checkpoint').perform(context)
++    if checkpoint:
++        ckpt_dir = os.path.dirname(os.path.abspath(os.path.expanduser(checkpoint)))
+     use_relative, report = _read_relative_flags(ckpt_dir)
+     if autostart in ("auto", "") and not use_relative:
+         return []                       # absolute-frame checkpoint -> nothing to launch
+@@ -111,6 +114,15 @@ def _e2_preflight(context, *_a, **_kw):
+     """Reject E2 before launching even recorders/reference nodes; legacy IL unchanged."""
+     method = LaunchConfiguration("execution_method").perform(context)
+     path = LaunchConfiguration("e2_config").perform(context)
++    if any(LaunchConfiguration(key).perform(context).lower() == 'true'
++           for key in ('e2_direct_a', 'e2_direct_abc')):
++        from nrs_imitation.e2_direct_a import build_runtime, launch_values
++        if path or method != 'il':
++            raise ValueError('Direct E2 requires IL and an empty e2_config')
++        if context.launch_configurations.get('inference_mode') != 'timed_topic':
++            raise ValueError('Direct E2 requires inference_mode:=timed_topic')
++        build_runtime(launch_values(context))
++        return []
+     if method == "il" and not path:
+         return []
+     from nrs_imitation.e2_providers import load_config, hardware_blockers
+@@ -126,6 +138,7 @@ def _e2_preflight(context, *_a, **_kw):
+ 
+ 
+ def generate_launch_description():
++    from nrs_imitation.e2_direct_a import PARAMETERS, launch_arguments
+     ckpt_dir = LaunchConfiguration("ckpt_dir")
+     act_root = LaunchConfiguration("act_root")
+     policy_class = LaunchConfiguration("policy_class")
+@@ -177,6 +190,7 @@ def generate_launch_description():
+             # ckpt_dir too (or "" to auto-select the latest one) -- inference_core
+             # raises a clear error instead of silently loading mismatched weights.
+             DeclareLaunchArgument("execution_method", default_value="il"),
++            *launch_arguments(),
+             DeclareLaunchArgument("e2_config", default_value=""),
+             DeclareLaunchArgument("e2_session_id", default_value=uuid.uuid4().hex),
+             DeclareLaunchArgument("e2_enable_hardware", default_value="false"),
+@@ -298,6 +312,7 @@ def generate_launch_description():
+             IncludeLaunchDescription(
+                 PythonLaunchDescriptionSource(base_launch),
+                 launch_arguments={
++                    **{key: LaunchConfiguration(key) for key in PARAMETERS},
+                     "ckpt_dir": ckpt_dir,
+                     "act_root": act_root,
+                     "execution_method": LaunchConfiguration("execution_method"),
+diff --git a/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py b/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
+index f697f02..27287dc 100644
+--- a/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
++++ b/behavior_ws/src/nrs_imitation/launch/inference_gradcam_single_cam.launch.py
+@@ -11,6 +11,7 @@ from launch_ros.parameter_descriptions import ParameterValue
+ 
+ 
+ def generate_launch_description():
++    from nrs_imitation.e2_direct_a import launch_arguments, node_parameters
+     ckpt_dir = LaunchConfiguration("ckpt_dir")
+     act_root = LaunchConfiguration("act_root")
+     policy_class = LaunchConfiguration("policy_class")
+@@ -154,6 +155,7 @@ def generate_launch_description():
+ 
+     return LaunchDescription([
+         DeclareLaunchArgument("execution_method", default_value="il"),
++        *launch_arguments(),
+         DeclareLaunchArgument("e2_config", default_value=""),
+         DeclareLaunchArgument("e2_session_id", default_value=uuid.uuid4().hex),
+         DeclareLaunchArgument("e2_enable_hardware", default_value="false"),
+@@ -435,8 +437,11 @@ def generate_launch_description():
+         Node(
+             package="nrs_imitation", executable="e2_executor", name="e2_executor",
+             output="screen", sigterm_timeout="20", sigkill_timeout="5",
+-            condition=IfCondition(PythonExpression(["'", LaunchConfiguration("e2_config"), "' != ''"])),
++            condition=IfCondition(PythonExpression(["'", LaunchConfiguration("e2_config"),
++                "' != '' or '", LaunchConfiguration('e2_direct_a'), "'.lower() == 'true' or '",
++                LaunchConfiguration('e2_direct_abc'), "'.lower() == 'true'"])),
+             parameters=[{
++                **node_parameters(),
+                 "e2_config": ParameterValue(LaunchConfiguration("e2_config"), value_type=str),
+                 "e2_session_id": ParameterValue(LaunchConfiguration("e2_session_id"), value_type=str),
+                 "e2_enable_hardware": ParameterValue(LaunchConfiguration("e2_enable_hardware"), value_type=bool),
+@@ -451,6 +456,7 @@ def generate_launch_description():
+             name="inference_single_cam",
+             output="screen",
+             parameters=[{
++                **node_parameters(),
+                 "ckpt_dir": ckpt_dir,
+                 "act_root": act_root,
+                 "policy_class": policy_class,
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+index cab3a05..69eec41 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_executor_node.py
+@@ -25,7 +25,8 @@ from .e2_timed_execution import (TRANSPORT_VERSION, TimedPlan, TimedExecution,
+ from .execution_metrics import ExecutionRecorder, stamp, pose_fields
+ from .e2_return_home import ReturnHome
+ from .e2_ablation import is_ablation, prepare_A_force
+-from .e2_protection import (ProtectionMonitor, ProtectionFault, record_from_config,
++from .e2_direct_abc import PARAMETERS as DIRECT_PARAMETERS, from_node, object_hash
++from .e2_protection import (ProtectionMonitor, FeedbackProtectionMonitor, ProtectionFault, record_from_config,
+                             ACQUISITION_TOPIC, PROVENANCE_TOPIC, VERSION as PROTECTION_VERSION)
+ 
+ 
+@@ -35,25 +36,33 @@ class E2Executor(Node):
+         for name, default in [('e2_config',''),('execution_method','il'),('e2_enable_hardware',False),
+                               ('e2_session_id',''),('metrics_run_tag','E2'),('act_root','/home/eunseop/nrs_imitation')]:
+             self.declare_parameter(name,default)
++        for name, default in DIRECT_PARAMETERS.items():
++            self.declare_parameter(name, default)
+         self.config_path = self.get_parameter('e2_config').value
+         self.method = self.get_parameter('execution_method').value
+-        self.config = load_config(self.config_path)
++        self.direct_a = bool(self.get_parameter('e2_direct_a').value)
++        self.direct_abc = bool(self.get_parameter('e2_direct_abc').value)
++        if self.is_direct_run() and (self.config_path or self.method != 'il'):
++            raise ValueError('Direct E2 requires IL and an empty e2_config')
++        self.config = from_node(self) if self.is_direct_run() else load_config(self.config_path)
+         self.ablation = is_ablation(self.config)
+         self.e1_operator_automation = (not self.ablation and
+             self.config.get('paper_experiment') == 'E1' and
+             self.config.get('e1_operator_automation') is True)
+-        blockers = hardware_blockers(self.config,self.method,self.get_parameter('e2_enable_hardware').value)
++        blockers = ([] if self.is_direct_run() else
++            hardware_blockers(self.config,self.method,self.get_parameter('e2_enable_hardware').value))
+         if blockers: raise RuntimeError('E2 executor preflight: '+ '; '.join(blockers))
+-        self.a_processing_force = (prepare_A_force(self.config)
+-            if self.ablation and self.config['condition'] == 'A' else None)
++        self.a_processing_force = (self.config['external_force_N'] if self.is_direct_run() else
++            prepare_A_force(self.config) if self.ablation and self.config['condition'] == 'A' else None)
+         self.session = self.get_parameter('e2_session_id').value
+         if not self.session: raise ValueError('A unique e2_session_id is required')
+         self.lock_file = open('/tmp/nrs_e2_executor_ur10skku.lock','a')
+         fcntl.flock(self.lock_file,fcntl.LOCK_EX | fcntl.LOCK_NB)
+-        self.identity = file_hash(self.config_path)
++        self.identity = object_hash(self.config) if self.is_direct_run() else file_hash(self.config_path)
+         self.clock_identity = clock_id()
+         self.settings = executor_settings(self.config, self.method)
+-        self.protection = (ProtectionMonitor(record_from_config(self.config), self.settings)
++        self.protection = (FeedbackProtectionMonitor(self.config['protection'], self.settings) if self.is_direct_run() else
++            ProtectionMonitor(record_from_config(self.config), self.settings)
+             if self.ablation and self.config['condition'] == 'A' else None)
+         self.protection_wait_reason = None
+         self.engine = TimedExecution(self.settings)
+@@ -126,12 +135,41 @@ class E2Executor(Node):
+                 protection_version=PROTECTION_VERSION if self.protection is not None else None,
+                 warnings=['Filtered base wrench is not automatically calibrated contact normal force',
+                           'sent target is not controller-applied target'])
++        if self.is_direct_run():
++            condition = self.config['condition']
++            metadata.update(experiment_id='E2', method=condition,
++                predicted_force='not_predicted' if condition == 'A' else 'policy',
++                run=self.config['run'], comparison=self.config.get('comparison'),
++                external_force_N=self.a_processing_force,
++                runtime_profile='matched_ABC' if self.direct_abc else 'config_free_A',
++                protection_version=self.protection.version, physical_validation=None,
++                external_force_profile=(dict(shape='linear' if self.config['force_ramp_sec'] else 'constant',
++                    duration_s=self.config['force_ramp_sec'],
++                    start='first contact' if self.config['force_ramp_sec'] else 'execution_start',
++                    shared_contact_gate_and_slew=True) if condition == 'A' else None),
++                processing_markers=dict(mode='automatic_execution_start',
++                    source='fresh Force mode acknowledgement after start alignment',
++                    physical_processing_verified=False))
++            metadata['artifact_paths'].extend([str(Path(__file__).with_name('e2_direct_abc.py')),
++                str(Path(__file__).with_name('e2_protection.py'))])
++            if self.config['run']['directory']:
++                runtime_path = Path(self.config['run']['directory'])/'runtime.json'
++                if runtime_path.is_file():
++                    metadata['artifact_paths'].append(str(runtime_path))
+         if self.protection is not None:
+-            metadata.update(raw_sensor_available=None, raw_sensor_required_before_ready=True,
++            source_required = self.protection.requires_source
++            metadata.update(raw_sensor_available=None if source_required else False,
++                raw_sensor_required_before_ready=source_required,
++                force_feedback_topic='/ur10skku/currentF',
++                sensor_acquisition_freshness_available=source_required,
+                 sampling=dict(feedback_max_hz=20.,commands_hz=125.,
+-                    source_timestamp='host UDP reception via protection_feedback; sensor ADC time unavailable'),
+-                safety_comparability='additional A protection revision; not identical to archived B/C')
++                    source_timestamp=('host UDP reception via protection_feedback; sensor ADC time unavailable'
++                        if source_required else 'headerless currentF; local ROS receipt freshness only')),
++                safety_comparability=('shared A/B/C measured-wrench protection; see comparison hash'
++                    if self.direct_abc else 'additional A protection revision; not identical to archived B/C'))
+         log_root = (Path(self.config['run']['directory'])/'executor' if self.ablation else root/'logs/inference_metrics')
++        if self.is_direct_run() and self.config['run']['directory']:
++            log_root = Path(self.config['run']['directory'])/'executor'
+         self.recorder = ExecutionRecorder(log_root,
+             self.get_parameter('metrics_run_tag').value+'_executor',metadata,8192,warn=self.get_logger().warn)
+         qos = QoSProfile(depth=1,reliability=ReliabilityPolicy.RELIABLE)
+@@ -142,7 +180,7 @@ class E2Executor(Node):
+         self.create_subscription(Float64MultiArray,'/ur10skku/currentP',self.on_pose,qos)
+         self.create_subscription(Float64MultiArray,'/ur10skku/currentF',self.on_force,qos)
+         self.create_subscription(String,'/ur10skku/ctlMode',self.on_mode,qos)
+-        if self.protection is not None:
++        if self.protection is not None and self.protection.requires_source:
+             self.create_subscription(String,ACQUISITION_TOPIC,self.on_acquisition,qos)
+             self.create_subscription(String,PROVENANCE_TOPIC,self.on_wrench_provenance,qos)
+         self.create_subscription(String,'/e2/plan',self.on_plan,10)
+@@ -152,7 +190,7 @@ class E2Executor(Node):
+         self.create_timer(self.settings['control_period_s'],self.tick)
+         self.create_timer(.1,self.status)
+         self.event('executor_started',hardware_motion_started=False,transport=TRANSPORT_VERSION)
+-        if self.ablation:
++        if self.ablation or self.is_direct_run():
+             self.event('run_start', run=self.config['run'])
+         self.get_logger().info('E2 executor waiting for fresh robot feedback; R/T/C use the same timed transport.')
+ 
+@@ -164,12 +202,21 @@ class E2Executor(Node):
+         context.update(details)
+         self.recorder.event(name,self.timing(),session_id=self.session,**context)
+ 
++    def is_direct_run(self):
++        return getattr(self, 'direct_a', False) or getattr(self, 'direct_abc', False)
++
++    def uses_external_force(self):
++        return (self.is_direct_run() or self.ablation) and self.config['condition'] == 'A'
++
+     def force_selection_status(self):
+         """Selected target before gate/slew; never a claim of applied force."""
+-        external = self.ablation and self.config['condition'] == 'A'
++        external = self.uses_external_force()
+         return dict(processing=self.processing,
+             force_source='external_F0' if external else 'provider',
+             external_force_fz_N=(float(self.a_processing_force) if self.processing else 0.) if external else None,
++            external_force_ramp_sec=(self.config['force_ramp_sec'] if external and self.is_direct_run() else None),
++            external_force_ramped_fz_N=(self.engine.external_force_ramped_fz
++                if external and self.is_direct_run() and self.processing else None),
+             command_supply_active=self.state == 'running' and not self.engine.closed,
+             controller_applied_force=None)
+ 
+@@ -203,10 +250,13 @@ class E2Executor(Node):
+             row=dict(self.timing('/ur10skku/currentF'),representation='filtered_republished_feedback',
+                 semantic_frame='robot_base',force_unit='N',torque_unit='Nm',raw_values=values.tolist(),
+                 correction_status=('source receipt provenance in protection_feedback events'
+-                    if getattr(self,'protection',None) is not None else
++                    if getattr(self,'protection',None) is not None and self.protection.requires_source else
+                     'deployed configuration; source acquisition timestamp unavailable'))
+             row.update(zip(['fx','fy','fz','tx','ty','tz'],values.tolist()))
+             self.recorder.emit('wrench',row)
++        if (getattr(self,'protection',None) is not None and not self.protection.requires_source
++                and self.state not in ('waiting_feedback','stopped','stop_failed')):
++            self.protection_check(self.force_at)
+ 
+     def on_mode(self,msg):
+         self.mode,self.mode_at=msg.data,time.monotonic()
+@@ -215,7 +265,9 @@ class E2Executor(Node):
+         self.protection.fault = self.protection.fault or str(reason)
+         if self.protection_wait_reason != str(reason):
+             self.event('protection_fault',reason=str(reason),state=self.state,
+-                       source_acquisition='host UDP receive; sensor ADC timestamp unavailable',
++                       source_acquisition=('host UDP receive; sensor ADC timestamp unavailable'
++                           if self.protection.requires_source else
++                           'currentF ROS receipt; sensor acquisition timestamp unavailable'),
+                        actual_pose=None if self.pose is None else self.pose.tolist(),
+                        raw_sensor=None if self.protection.raw is None else
+                            {k:v for k,v in self.protection.raw.items() if k!='wrench'},
+@@ -235,8 +287,9 @@ class E2Executor(Node):
+         if protection is None:
+             return True
+         try:
++            kwargs = {} if protection.requires_source else {'force': self.force}
+             protection.check(now,self.get_clock().now().nanoseconds,self.pose,
+-                now-self.pose_at,now-self.force_at,now-self.mode_at)
++                now-self.pose_at,now-self.force_at,now-self.mode_at,**kwargs)
+             self.protection_wait_reason = None
+             return True
+         except ProtectionFault as exc:
+@@ -249,7 +302,7 @@ class E2Executor(Node):
+             return False
+ 
+     def protection_feedback(self, msg, raw):
+-        if self.protection is None:
++        if self.protection is None or not self.protection.requires_source:
+             return
+         now = time.monotonic()
+         try:
+@@ -282,7 +335,7 @@ class E2Executor(Node):
+             queue_cancel_ack=bool(getattr(self,'stop_ack',False)),
+             physical_stop_verified=self.state=='stopped' and bool(getattr(self,'stop_ack',False)))
+         if getattr(self,'protection',None) is not None:
+-            body.update(protection_version=PROTECTION_VERSION,
++            body.update(protection_version=self.protection.version,
+                         protection_wait_reason=self.protection_wait_reason)
+         if getattr(self,'e1_operator_automation',False):
+             body.update(processing_marker_source='automatic_contact_proxy',
+@@ -294,6 +347,13 @@ class E2Executor(Node):
+                     'stop_reason=%s queue_cancel_ack=%s physical_stop_verified=%s '
+                     'session=%s log=%s' % (self.state,self.processing,self.stop_reason,
+                     body['queue_cancel_ack'],body['physical_stop_verified'],self.session,body['log_dir']))
++        elif self.is_direct_run():
++            key = (self.state, self.processing, self.stop_reason, self.protection_wait_reason)
++            if key != self.last_console_status:
++                self.last_console_status = key
++                self.get_logger().info('[E2 %s] state=%s processing=%s force_source=%s F0=%s N protection=%s' %
++                    (self.config['condition'], self.state, self.processing, body['force_source'],
++                     body['external_force_fz_N'], self.protection_wait_reason))
+         self.pub_status.publish(String(data=json.dumps(body)))
+ 
+     def automatic_processing_marker(self, active, result=None, termination=None):
+@@ -421,18 +481,20 @@ class E2Executor(Node):
+             self.event('phase_or_pass_marker',phase_id=phases[self.phase_index],source='operator')
+             return complete(True,'Phase marker recorded')
+         if name in ('processing_start','processing_end'):
++            if getattr(self, 'direct_abc', False):
++                return complete(False,'Matched A/B/C starts automatically; use finish or abort to end the attempt')
+             if getattr(self,'e1_operator_automation',False):
+                 return complete(False,'E1 contact-proxy markers are automatic; use finish to end the run')
+             if self.state!='running':
+                 return complete(False,'Processing events require running state')
+             if (name=='processing_start')==self.processing:
+                 return complete(False,'Duplicate/out-of-order processing event')
+-            if name=='processing_start' and self.ablation and getattr(self,'processing_completed',False):
++            if name=='processing_start' and (self.ablation or self.is_direct_run()) and getattr(self,'processing_completed',False):
+                 return complete(False,'Processing interval already ended; no restart within this attempt')
+             self.processing=name=='processing_start'
+             if not self.processing:self.processing_completed=True
+             self.event(name,source='operator',force_threshold_used=False)
+-            if self.ablation and self.processing:
++            if (self.ablation or self.is_direct_run()) and self.processing:
+                 self.phase_index = 0
+                 self.event('approach_end',source='operator')
+                 self.event('phase_or_pass_marker',phase_id=self.config['protocol']['phase_ids'][0],source='operator')
+@@ -441,7 +503,7 @@ class E2Executor(Node):
+                 return complete(False,'finish requires running state')
+             if name=='abort' and self.state in ('stopping','stopped','stop_failed'):
+                 return complete(False,'Stop already requested; check physical_stop_verified and stop state')
+-            if self.ablation:
++            if self.ablation or self.is_direct_run():
+                 self.event('finish_requested' if name=='finish' else 'abort_requested',source='operator',
+                            processing_end_recorded=not self.processing,quality_verified=None)
+             self.request_stop('manual_abort' if name=='abort' else 'operator_finish')
+@@ -463,9 +525,12 @@ class E2Executor(Node):
+                 conditioning_profile=result.get('conditioning_profile'),
+                 force_source=result.get('force_source'),processing=self.processing,
+                 phase_id=(self.config['protocol']['phase_ids'][self.phase_index]
+-                          if self.ablation and self.processing and self.phase_index>=0 else None),
++                          if (self.ablation or self.is_direct_run()) and self.processing and self.phase_index>=0 else None),
+                 pose_age_s=result.get('pose_age_s'),force_age_s=result.get('force_age_s'),
+                 gate_transition=result.get('contact_transition'),gate_reason=result.get('gate_reason'),
++                force_ramp_start=result.get('force_ramp_start'),
++                force_ramp_sec=result.get('force_ramp_sec'),
++                force_ramp_fraction=result.get('force_ramp_fraction'),
+                 controller_applied_force=None,
+                 controller_mode=result.get('controller_mode','Force'),
+                 force_semantics='Position mode sends pose6 only' if position_mode else 'signed controller force target'))
+@@ -578,6 +643,14 @@ class E2Executor(Node):
+                 self.engine.start(now,self.pose);self.started_at=now;self.state='running'
+                 self.event('execution_start',processing_started=False,monotonic_start=now)
+                 if self.ablation:self.event('approach_start',source='execution_state')
++                if (self.is_direct_run() and not self.processing and
++                        not getattr(self, 'processing_completed', False)):
++                    self.processing = True
++                    self.phase_index = 0
++                    self.event('processing_start', source='execution_start', automatic=True,
++                        force_threshold_used=False, physical_processing_verified=False)
++                    self.event('phase_or_pass_marker',
++                        phase_id=self.config['protocol']['phase_ids'][0], source='execution_start')
+                 self.status()
+             return
+         if self.state!='running':return
+@@ -589,21 +662,29 @@ class E2Executor(Node):
+             if self.mode!='Force' or now-self.mode_at>self.settings['feedback_max_age_s']:
+                 raise ExecutionFault('controller Force mode lost or stale')
+             external = ((self.a_processing_force if self.processing else 0.)
+-                        if self.ablation and self.config['condition']=='A' else None)
++                        if self.uses_external_force() else None)
+             result=self.engine.tick(now,self.pose,self.force,now-self.pose_at,now-self.force_at,
+-                                    external_force_fz=external)
++                external_force_fz=external,
++                external_force_ramp_sec=(self.config['force_ramp_sec'] if self.is_direct_run() else 0.))
+             if result is None:return
+             if 'end' in result:
+                 self.final_target=result.get('last_target')
+                 self.request_stop(result['end']);return
++            if result.get('force_ramp_started_now'):
++                self.event('force_ramp_started', source='first_contact',
++                    measured_fz_N=float(self.force[2]), ramp_sec=self.config['force_ramp_sec'],
++                    target_force_N=self.a_processing_force,
++                    physical_contact_verified=False)
+             self.automatic_processing_marker(result['contact'],result=result)
+             if self.last_phase!=result['phase']:
+                 self.event('provider_phase',phase=result['phase'],processing_interval=(
++                    'automatic_execution_start' if self.is_direct_run() else
+                     'automatic_contact_proxy' if getattr(self,'e1_operator_automation',False)
+                     else 'operator events'));self.last_phase=result['phase']
+             self.command_id+=1
+             self.pub_command.publish(Float64MultiArray(data=result['sent'].tolist()))
+-            if self.command_id==1:self.event('first_command_sent',processing_started=False)
++            if self.command_id==1:self.event('first_command_sent',processing_started=(
++                self.processing if self.is_direct_run() else False))
+             stages=[('time_sampled','requested'),('contact_gated','gated'),('node_sent','sent')]
+             if result.get('conditioning_profile'):
+                 stages.insert(1,('pose_conditioned','conditioned'))
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_offline.py b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_offline.py
+index 28aa6fd..664c561 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_offline.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_offline.py
+@@ -96,11 +96,13 @@ def registered_A_sample(config, output):
+     from std_msgs.msg import Float64MultiArray
+     from .e2_ablation import select_condition, model_errors, read_stats, digest
+ 
+-    cfg = select_condition(config, 'A')
+-    errors = model_errors(cfg)
++    from .e2_direct_a import is_direct_a
++    direct = is_direct_a(config)
++    cfg = config if direct else select_condition(config, 'A')
++    errors = [] if direct else model_errors(cfg)
+     if errors:
+         raise ValueError('; '.join(errors))
+-    checkpoint = Path(cfg['models']['A']['checkpoint'])
++    checkpoint = Path(cfg['il']['checkpoint'] if direct else cfg['models']['A']['checkpoint'])
+     stats = read_stats(checkpoint.with_name('dataset_stats.pkl'))
+     pc = stats['policy_config']
+     for key, expected in dict(state_dim=6, action_dim=6, motion_only=True,
+@@ -110,13 +112,15 @@ def registered_A_sample(config, output):
+     torch.set_num_threads(2)
+     loader = OfflineNode(Path(output)/'loader', force_on=False)
+     loader.ckpt_dir = str(checkpoint.parent)
++    loader.checkpoint = str(checkpoint)
+     loader.motion_only = True; loader.action_dim = 6; loader.chunk_size = 128
+     loader.use_force_history = False; loader.flow_infer_steps = 10
+     loader.params.update(ckpt_dir=loader.ckpt_dir, use_force_history=False,
+                          use_force_observation=False, chunk_size=128)
+     policy = loader._load_policy_and_ckpt_from_act_root()
+     ck = torch.load(checkpoint, map_location='cpu', weights_only=False)
+-    assert ck['epoch'] == 499
++    selected_epoch = int(ck['epoch'])
++    assert selected_epoch >= 0
+     actual, saved = policy.state_dict(), ck['model_state_dict']
+     assert actual.keys() == saved.keys()
+     assert all(torch.equal(actual[k], v) for k, v in saved.items())
+@@ -132,6 +136,7 @@ def registered_A_sample(config, output):
+     for i, force in enumerate(([1., 2., 3.], [-73., 51., -99.])):
+         node = OfflineNode(Path(output)/('provider_'+str(i)), policy, force_on=False)
+         node.ckpt_dir = str(checkpoint.parent); node.motion_only = True
++        node.checkpoint = str(checkpoint)
+         node.action_dim = 6; node.chunk_size = 128; node.use_force_history = False
+         node.flow_infer_steps = 10; node.resize_hw = 0; node._e2_context = cfg
+         node.stats = core._load_dataset_stats(node.ckpt_dir)
+@@ -162,7 +167,7 @@ def registered_A_sample(config, output):
+         assert all(v['dropped'] == 0 for v in summary['counts'].values())
+     np.testing.assert_array_equal(*predictions)
+     return predictions[0], pose, dict(checkpoint=str(checkpoint), checkpoint_sha256=digest(checkpoint),
+-        selected_epoch_zero_based=499, loaded_weights_exactly_match_checkpoint=True,
++        selected_epoch_zero_based=selected_epoch, loaded_weights_exactly_match_checkpoint=True,
+         state_dim=6, action_dim=6, force_observation=False, force_history=False,
+         force_action=False, force_supervision_channels=0, force_prediction_logged_as_null=True,
+         force_perturbation_invariant=True, dataset=str(path), sample_index=index,
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_protection.py b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_protection.py
+index 5d9f469..545561a 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_protection.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_protection.py
+@@ -10,6 +10,7 @@ import numpy as np
+ from scipy.spatial.transform import Rotation
+ 
+ VERSION = 'e2_source_wrench_workspace_v1'
++FEEDBACK_VERSION = 'e2_currentF_wrench_workspace_v1'
+ ACQUISITION_TOPIC = '/ur10skku/ft_acquisition'
+ PROVENANCE_TOPIC = '/ur10skku/currentF_provenance'
+ RAW_SCHEMA = 'aft_ether_acquisition_v1'
+@@ -20,6 +21,20 @@ CAPABILITIES = frozenset(('measured_wrench', 'source_freshness', 'raw_sensor_env
+                           'actual_tcp_workspace', 'startup_alignment_coverage'))
+ 
+ 
++def explicit_limits(record, keys):
++    limits = {}
++    for key in keys:
++        value = record.get(key)
++        if (not isinstance(value, list) or len(value) != 3 or
++                any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in value)):
++            raise ProtectionFault(key + ': explicit per-axis limits required')
++        arr = np.asarray(value, float)
++        if not np.isfinite(arr).all() or np.any(arr <= 0):
++            raise ProtectionFault(key + ': positive finite limits required')
++        limits[key] = arr
++    return limits
++
++
+ class ProtectionFault(ValueError):
+     pass
+ 
+@@ -29,20 +44,14 @@ def record_from_config(config):
+ 
+ 
+ class ProtectionMonitor:
++    version = VERSION
++    requires_source = True
++
+     def __init__(self, record, settings):
+         self.frame = record['measured_wrench_frame']
+         if self.frame not in ('sensor', 'robot_base', 'controller_tcp'):
+             raise ProtectionFault('unsupported protection wrench frame')
+-        self.limits = {}
+-        for key in LIMIT_KEYS:
+-            value = record.get(key)
+-            if (not isinstance(value, list) or len(value) != 3 or
+-                    any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in value)):
+-                raise ProtectionFault(key + ': explicit per-axis limits required')
+-            arr = np.asarray(value, float)
+-            if not np.isfinite(arr).all() or np.any(arr <= 0):
+-                raise ProtectionFault(key + ': positive finite limits required')
+-            self.limits[key] = arr
++        self.limits = explicit_limits(record, LIMIT_KEYS)
+         self.max_age = record['acquisition_max_age_s']
+         if (isinstance(self.max_age, bool) or not isinstance(self.max_age, (int, float)) or
+                 not np.isfinite(self.max_age) or self.max_age <= 0):
+@@ -152,7 +161,13 @@ class ProtectionMonitor:
+         wrench = self.base['wrench'].copy()
+         if self.frame == 'sensor':
+             wrench = self.raw['wrench']
+-        elif self.frame == 'controller_tcp':
++        self._check_pose_wrench(p, wrench)
++        self.armed = True
++        return dict(version=self.version, raw_sequence=self.raw['sequence'],
++                    source_ros_ns=self.raw['source_ros_ns'], anchor_mm=self.anchor.tolist())
++
++    def _check_pose_wrench(self, p, wrench):
++        if self.frame == 'controller_tcp':
+             rot = Rotation.from_rotvec(p[3:]).inv()
+             wrench = np.r_[rot.apply(wrench[:3]), rot.apply(wrench[3:])]
+         # Rotation of axes only: torque remains at the source sensor origin.
+@@ -166,6 +181,41 @@ class ProtectionMonitor:
+                 -delta[2] > self.workspace['max_z_down_from_start_mm'] or
+                 delta[2] > self.workspace['max_z_up_from_start_mm']):
+             self.fail('actual TCP outside common workspace from startup anchor')
++
++
++class FeedbackProtectionMonitor(ProtectionMonitor):
++    """Guard currentF's filtered base wrench using local ROS receipt freshness.
++
++    Headerless currentF cannot establish sensor acquisition freshness or a raw
++    sensor envelope. No source packet or timestamp is fabricated here.
++    """
++    version = FEEDBACK_VERSION
++    requires_source = False
++
++    def __init__(self, record, settings):
++        self.frame = record['measured_wrench_frame']
++        if self.frame not in ('robot_base', 'controller_tcp'):
++            raise ProtectionFault('currentF supports robot_base or controller_tcp protection frame')
++        self.limits = explicit_limits(record, LIMIT_KEYS[:2])
++        self.feedback_age = settings['feedback_max_age_s']
++        self.workspace = settings['workspace_limits']
++        self.raw = self.base = None
++        self.anchor = None
++        self.armed = False
++        self.fault = None
++
++    def check(self, now, now_ros_ns, pose, pose_age, force_age, mode_age, *, force):
++        if self.fault:
++            self.fail(self.fault)
++        if pose is None or force is None:
++            raise ProtectionFault('waiting for currentP/currentF feedback')
++        ages = np.asarray([pose_age, force_age, mode_age], float)
++        if not np.isfinite(ages).all() or np.any(ages < 0) or np.any(ages > self.feedback_age):
++            raise ProtectionFault('pose/force/mode feedback stale during protected phase')
++        p = np.asarray(pose, float)
++        if p.shape != (6,) or not np.isfinite(p).all():
++            self.fail('invalid actual TCP pose')
++        self._check_pose_wrench(p, self._wrench(force))
+         self.armed = True
+-        return dict(version=VERSION, raw_sequence=self.raw['sequence'],
+-                    source_ros_ns=self.raw['source_ros_ns'], anchor_mm=self.anchor.tolist())
++        return dict(version=self.version, feedback_topic='/ur10skku/currentF',
++                    freshness='local ROS receipt', anchor_mm=self.anchor.tolist())
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
+index 4cdcd4c..8478642 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/e2_timed_execution.py
+@@ -209,6 +209,8 @@ class TimedExecution:
+         self.start_time = self.plan_start = self.last_tick = None
+         self.command = self.start_pose = None
+         self.contact = False
++        self.force_ramp_start = None
++        self.external_force_ramped_fz = 0.0
+         self.closed = False
+         self.endpoint_sent = False
+         profile = self.cfg.get('c_pose_conditioning')
+@@ -259,7 +261,8 @@ class TimedExecution:
+                 np.linalg.norm(action[:3]-pose[:3]) > limits['max_xyz_from_current_mm']):
+             raise ExecutionFault('requested action outside common workspace envelope')
+ 
+-    def tick(self, now, pose, force, pose_age, force_age, external_force_fz=None):
++    def tick(self, now, pose, force, pose_age, force_age, external_force_fz=None,
++             external_force_ramp_sec=0.0):
+         if self.closed or self.start_time is None or self.plan is None:
+             return None
+         if (pose_age < 0 or force_age < 0 or max(pose_age, force_age) > self.cfg['feedback_max_age_s']):
+@@ -282,20 +285,35 @@ class TimedExecution:
+         if self.plan.final and elapsed >= self.plan.time[-1]:
+             self.endpoint_sent = True
+         raw, phase, index = self.plan.sample(elapsed)
++        previous_contact = self.contact
++        if not self.contact and force[2] >= self.cfg['contact_on_N']:
++            self.contact = True
++        elif self.contact and force[2] <= self.cfg['contact_off_N']:
++            self.contact = False
++        ramp_started_now = False
++        ramp_fraction = None
+         if external_force_fz is not None:
+             if not np.isfinite(external_force_fz):
+                 raise ExecutionFault('invalid external force scheduler output')
+-            raw[6:9] = (0., 0., float(external_force_fz))
++            if not np.isfinite(external_force_ramp_sec) or external_force_ramp_sec < 0:
++                raise ExecutionFault('invalid external force ramp duration')
++            ramp_fraction = 1.0
++            if external_force_ramp_sec > 0:
++                # Begin at first observed contact, so the ramp cannot finish
++                # while the policy is still approaching above the surface.
++                # Keep this clock across replans and later contact transitions.
++                if self.force_ramp_start is None and self.contact and external_force_fz != 0:
++                    self.force_ramp_start = now
++                    ramp_started_now = True
++                ramp_fraction = (0.0 if self.force_ramp_start is None else
++                    np.clip((now-self.force_ramp_start)/external_force_ramp_sec, 0.0, 1.0))
++            self.external_force_ramped_fz = float(external_force_fz)*float(ramp_fraction)
++            raw[6:9] = (0., 0., self.external_force_ramped_fz)
+         conditioned = raw.copy()
+         if self.conditioner is not None:
+             conditioned[:6] = self.conditioner.sample(now)
+         for action in (raw, conditioned) if self.conditioner is not None else (raw,):
+             self._check_workspace(action, pose)
+-        previous_contact = self.contact
+-        if not self.contact and force[2] >= self.cfg['contact_on_N']:
+-            self.contact = True
+-        elif self.contact and force[2] <= self.cfg['contact_off_N']:
+-            self.contact = False
+         target = conditioned.copy()
+         target[6:8] = 0.  # same disabled tangential commands as the pinned C
+         if not self.contact:
+@@ -334,6 +352,10 @@ class TimedExecution:
+                     contact_transition=(self.contact != previous_contact),
+                     gate_reason='base_fz_hysteresis', pose_age_s=pose_age, force_age_s=force_age,
+                     force_source='external_F0' if external_force_fz is not None else 'provider',
++                    force_ramp_start=self.force_ramp_start,
++                    force_ramp_started_now=ramp_started_now,
++                    force_ramp_sec=external_force_ramp_sec,
++                    force_ramp_fraction=ramp_fraction,
+                     conditioning_profile=C_POSE_PROFILE if self.conditioner is not None else None)
+ 
+ 
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+index 1effcd3..0c530be 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_core.py
+@@ -1126,6 +1126,9 @@ class NodeCmdMotionInfer(Node):
+         # -----------------------------
+         self.declare_parameter("execution_method", "il")
+         self.declare_parameter("e2_config", "")
++        from .e2_direct_a import PARAMETERS as direct_a_parameters
++        for name, default in direct_a_parameters.items():
++            self.declare_parameter(name, default)
+         self.declare_parameter("e2_session_id", "")
+         self.declare_parameter("e2_enable_hardware", False)
+         self.declare_parameter("ckpt_dir", "")  # empty -> auto latest checkpoint
+@@ -1650,16 +1653,29 @@ class NodeCmdMotionInfer(Node):
+         # -----------------------------
+         self.execution_method = str(self.get_parameter("execution_method").value)
+         self.e2_config = str(self.get_parameter("e2_config").value)
++        self.e2_direct_a = bool(self.get_parameter("e2_direct_a").value)
++        self.e2_direct_abc = bool(self.get_parameter("e2_direct_abc").value)
++        self.checkpoint = str(self.get_parameter("checkpoint").value).strip()
+         self._e2_stopped = False
+         self._e2_actions = None
+-        self._e2_transport = bool(self.e2_config)
++        self._e2_transport = bool(self.e2_config) or self.e2_direct_a or self.e2_direct_abc
+         self._e2_executor_state = "unknown"
+         self._e2_executor_receipt = -float("inf")
+         self._e2_start_clock_applied = False
+         self.e2_session_id = str(self.get_parameter("e2_session_id").value)
+         if self.execution_method not in ("il", "rule", "replay"):
+             raise ValueError("execution_method must be il, rule, or replay")
+-        if self.e2_config or self.execution_method != "il":
++        if self.e2_direct_a or self.e2_direct_abc:
++            from .e2_direct_abc import from_node, object_hash
++            from .e2_timed_execution import clock_id
++            if self.e2_config or self.execution_method != 'il':
++                raise ValueError('Direct E2 requires IL and an empty e2_config')
++            if not self.e2_session_id:
++                raise ValueError('Direct E2 requires a unique e2_session_id')
++            self._e2_context = from_node(self)
++            self._e2_config_hash = object_hash(self._e2_context)
++            self._e2_clock_id = clock_id()
++        elif self.e2_config or self.execution_method != "il":
+             from .e2_providers import load_config, hardware_blockers
+             if not self.e2_config:
+                 raise ValueError("R/T require e2_config; use scripts/e2_experiment.py dry-run first")
+@@ -2262,13 +2278,18 @@ class NodeCmdMotionInfer(Node):
+                 if self.execution_method == "rule" else TimedActions.load(self._e2_context["replay"]["template"]))
+         else:
+             raw_ckpt_dir = self.ckpt_dir
+-            self.ckpt_dir = _resolve_checkpoint_dir(
+-                ckpt_dir=self.ckpt_dir,
+-                act_root=self.act_root,
+-                policy_class=self.policy_class,
+-                ckpt_auto_subdir=self.ckpt_auto_subdir,
+-            )
+-            if not os.path.isdir(self.ckpt_dir) or not os.path.exists(os.path.join(self.ckpt_dir, "policy_best.ckpt")):
++            if self.checkpoint:
++                self.checkpoint = os.path.abspath(os.path.expanduser(self.checkpoint))
++                self.ckpt_dir = os.path.dirname(self.checkpoint)
++            else:
++                self.ckpt_dir = _resolve_checkpoint_dir(
++                    ckpt_dir=self.ckpt_dir,
++                    act_root=self.act_root,
++                    policy_class=self.policy_class,
++                    ckpt_auto_subdir=self.ckpt_auto_subdir,
++                )
++            checkpoint_path = self.checkpoint or os.path.join(self.ckpt_dir, 'policy_best.ckpt')
++            if not os.path.isdir(self.ckpt_dir) or not os.path.isfile(checkpoint_path):
+                 raise RuntimeError(
+                     f"ckpt_dir invalid: {self.ckpt_dir} "
+                     "(expected a directory containing policy_best.ckpt)"
+@@ -2303,8 +2324,8 @@ class NodeCmdMotionInfer(Node):
+                     )
+ 
+             self.action_dim = 11 if self.use_gripper else 9
+-            self.motion_only = (getattr(self, '_e2_context', {}).get('schema') == 'E2_ABC_force_ablation_v1'
+-                                and self._e2_context.get('condition') == 'A')
++            self.motion_only = (getattr(self, '_e2_context', {}).get('schema') in ('E2_ABC_force_ablation_v1', 'E2_direct_ABC_v1')
++                                and self._e2_context.get('condition') == 'A') or self.e2_direct_a
+             if self.motion_only:
+                 self.action_dim = 6
+             if self.use_gripper and self.stats is None:
+@@ -4446,9 +4467,9 @@ class NodeCmdMotionInfer(Node):
+ 
+         policy.eval()
+ 
+-        ckpt_path = os.path.join(self.ckpt_dir, "policy_best.ckpt")
++        ckpt_path = getattr(self, 'checkpoint', '') or os.path.join(self.ckpt_dir, "policy_best.ckpt")
+         if not os.path.exists(ckpt_path):
+-            raise RuntimeError(f"policy_best.ckpt not found: {ckpt_path}")
++            raise RuntimeError(f"checkpoint not found: {ckpt_path}")
+ 
+         ckpt_obj = torch.load(ckpt_path, map_location=self.device)
+         self._metrics_checkpoint_config = ckpt_obj.get("config") if isinstance(ckpt_obj, dict) else None
+@@ -4829,6 +4850,8 @@ class NodeCmdMotionInfer(Node):
+         """Reject launch overrides that would invalidate the pinned comparison."""
+         from .e2_providers import file_hash
+         cfg = self._e2_context
++        if getattr(self, 'e2_direct_a', False) and self.use_force_history:
++            raise RuntimeError('Direct A requires use_force_history:=false')
+         expected = dict(auto_move_to_demo_start=True, use_stain_mask=False, stain_canon_enable=False,
+             force_xy_cmd_enable=False, orientation_lock_enable=False, policy_z_offset_mm=0.,
+             demo_start_z_offset_mm=0., flow_local_anchor_enable=False,
+@@ -4840,13 +4863,16 @@ class NodeCmdMotionInfer(Node):
+                 flow_infer_steps=cfg['il']['flow_infer_steps'], chunk_size=cfg['il']['chunk_size'],
+                 force_history_len=cfg['il']['force_history_len'], trajectory_hz=cfg['il']['trajectory_hz'],
+                 flow_replan_interval_steps=cfg['il']['replan_interval_steps'])
+-            if file_hash(os.path.join(self.ckpt_dir, "policy_best.ckpt")) != cfg['il']['checkpoint_sha256']:
+-                raise RuntimeError("E2 C launch checkpoint differs from pinned config")
++            if getattr(self, 'e2_direct_a', False) or getattr(self, 'e2_direct_abc', False):
++                expected['use_force_history'] = cfg['il']['use_force_history']
++            checkpoint_path = getattr(self, 'checkpoint', '') or os.path.join(self.ckpt_dir, 'policy_best.ckpt')
++            if file_hash(checkpoint_path) != cfg['il']['checkpoint_sha256']:
++                raise RuntimeError("E2 launch checkpoint differs from pinned config")
+         for key, value in expected.items():
+             if getattr(self, key) != value:
+                 raise RuntimeError(f"E2 runtime mismatch: {key}={getattr(self,key)!r}, expected {value!r}")
+         if self.demo_start_pose6 is None or not np.allclose(self.demo_start_pose6, cfg['common']['demo_start_pose6'], atol=1e-5, rtol=0):
+-            raise RuntimeError("E2 common demo start differs from pinned C")
++            raise RuntimeError("E2 common demo start differs from pinned config")
+ 
+     def _on_e2_status(self, msg):
+         try:
+diff --git a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py
+index 75711f3..f95e3e4 100644
+--- a/behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py
++++ b/behavior_ws/src/nrs_imitation/nrs_imitation/inference_metrics.py
+@@ -65,7 +65,7 @@ class InferenceMetrics:
+             dev / "Y2Matrix/src/RotationTransform.cpp"]
+         if context_path:
+             artifacts.append(Path(context_path).expanduser())
+-        ckpt = Path(node.ckpt_dir) / "policy_best.ckpt"
++        ckpt = Path(getattr(node, 'checkpoint', '') or Path(node.ckpt_dir) / "policy_best.ckpt")
+         learned = getattr(node, "execution_method", "il") == "il"
+         ckpt_stat = ckpt.stat() if learned else None
+         resolved_names = ["use_force_observation", "use_force_history", "force_history_len", "chunk_size",
+@@ -129,6 +129,20 @@ class InferenceMetrics:
+                 execution_contract_hash=context_e2['execution_contract_hash'],
+                 predicted_force='not_predicted' if context_e2['condition']=='A' else 'policy',
+                 F_cmd_applied=None, force_provenance=context_e2['calibration'])
++        if context_e2.get('schema') == 'E2_direct_A_v1':
++            metadata.update(experiment_id='E2', method='A', predicted_force='not_predicted',
++                external_force_N=context_e2['external_force_N'],
++                force_observation_method='pose6_only_no_force_input',
++                runtime_profile='config_free_A', physical_validation=None)
++        if context_e2.get('schema') == 'E2_direct_ABC_v1':
++            condition = context_e2['condition']
++            metadata.update(experiment_id='E2', method=condition, run=context_e2['run'],
++                comparison=context_e2['comparison'],
++                predicted_force='not_predicted' if condition == 'A' else 'policy',
++                external_force_N=context_e2['external_force_N'],
++                force_observation_method=('pose6_only_no_force_input' if condition == 'A' else
++                    'measured' if condition == 'C' else 'constant_zero_after_channel_normalization'),
++                runtime_profile='matched_ABC', physical_validation=None)
+         if getattr(node, "_e2_transport", False):
+             metadata["e2_session_id"] = node.e2_session_id
+             metadata["execution_transport"] = "e2_timed_topic_v1"

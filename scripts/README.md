@@ -695,3 +695,111 @@ robot TCP Z
 실험에 섞지 않는다. 그래야 성능 변화가 history encoder 때문인지 분리해서 판단할
 수 있다. 이후 필요하다면 Feel the Force처럼 policy가 desired force를 예측하고
 별도 closed-loop controller가 이를 추종하는 구조를 독립적인 후속 연구로 검토한다.
+
+# E2 A/B/C 공통 비교 설정 (2026-09-30, 각 5회)
+
+`e2_abc.launch.py`는 `config`를 생략하면 공통 비교 실행 경로를 사용한다.
+세 조건 모두 validation best 체크포인트, 125 Hz 실행·30 Hz 정책 경로,
+MA35 평활화·0.5초 handover, 10 mm/s·25 mm/s², 40 deg/s·100 deg/s²,
+접촉 게이트 3/1.2 N, 힘 변화율 30 N/s, 0.2초 피드백 watchdog,
+같은 작업 영역·50초 실행 상한·큐 취소 및 정지 확인을 적용한다.
+측정 힘/토크 보호도 세 조건 모두 각 축 200 N/200 Nm로 동일하다.
+A 전용 3초 힘 램프는 없으며 `force_ramp_sec:=0.0`만 허용한다.
+공통 힘 변화율 제한에 따른 상승은 세 조건 모두 적용된다.
+
+| 조건 | 힘 관측 | 학습된 힘 출력 | 실행기의 힘 목표 |
+|---|---|---|---|
+| A | OFF, pose6만 입력 | 없음, pose6만 출력 | 외부 고정 23 N |
+| B | OFF, force 입력과 history를 0으로 마스킹 | 있음 | 정책 출력 |
+| C | ON, 측정 force와 history | 있음 | 정책 출력 |
+
+체크포인트는 A `e2_force_ablation_20260926/A/20260926_2129/policy_best.ckpt`,
+B `e1_force_observation_20260916/off/20260916_1531/policy_best.ckpt`,
+C `e1_force_observation_20260916/on/20260916_1531/policy_best.ckpt`이며
+모두 `checkpoints/flow/polishing/single_cam/` 아래의 원본 파일을 읽는다.
+학습된 경로 자체는 조건별 정책 출력이며, 실행 시 경로 후처리와 제한을 동일하게 적용한다.
+
+각 터미널에서 환경을 한 번 읽는다. 회차 인자를 생략하면 같은 날짜·세션에서
+조건별 기존 시도를 읽어 회차를 자동으로 기록한다. `mode:=check`는 회차를 소비하지 않는다.
+아래 명령은 한 번의 시도만 시작한다. 세 조건 모두 시작 정렬 및 최신 Force 모드
+확인 뒤 자동으로 작업 구간을 기록하므로 별도의 `processing_start` 호출은 필요 없다.
+
+```bash
+cd /home/eunseop/nrs_imitation
+source scripts/e2_A_env.sh
+```
+
+```bash
+ros2 launch nrs_imitation e2_abc.launch.py mode:=run condition:=C session:=E2_ABC_20260930
+ros2 launch nrs_imitation e2_abc.launch.py mode:=run condition:=B session:=E2_ABC_20260930
+ros2 launch nrs_imitation e2_abc.launch.py mode:=run condition:=A session:=E2_ABC_20260930
+```
+
+매 실행을 종료하고 정지 확인 및 터미널 정리를 마친 뒤 다음 명령을 하나씩 실행한다.
+사용자가 지정한 순서는 C 명령 5회 → B 명령 5회 → A 명령 5회다.
+각 명령은 한 번만 실행하며 5회를 자동 연속 실행하지 않는다.
+매 시도 전 초기 오염/표면 상태, 공구, RPM,
+힘제어기 설정을 동일하게 맞춘다. 자동 시작 마커는 실제 접촉/가공 시작을 검증한 시각이 아니다.
+50초 상한에 도달하면 timeout으로 기록되므로 공통 완료 기준에 따라 `finish`를 호출한다.
+
+```bash
+source /home/eunseop/nrs_imitation/scripts/e2_A_env.sh
+ros2 service call /e2_executor/finish std_srvs/srv/Trigger '{}'
+```
+
+설정 확인은 같은 명령에서 `mode:=check`로 바꾸면 되며 로봇 I/O 없이 실행한다.
+결과는 `results/<date>/E2/<session>/{A,B,C}/<unique-attempt>/`에 저장한다.
+회차, 조건, 실행 순서 계획, ckpt/normalizer 해시, 공통 설정 및 코드 해시가 저장되며 같은 세션 중
+설정이나 모델 파일이 달라지면 실행 전에 거부한다. 같은 회차를 다시 실행해도
+이전 결과는 덮어쓰지 않는다. Estop/중단 시도도 자동 회차에 포함하고 성공한 재시도로 대체하지 않는다.
+기록된 시도가 조건별 5회에 도달하면 자동 회차 실행을 거부한다.
+필요할 경우 기존 `repeat:=1`~`repeat:=5` 명시 실행도 지원한다.
+`comparison.json`은 공통 설정 및 계획, 각 시도의 `runtime.json`은 실제 설정이다.
+새 프로파일은 `matched_ABC`이며 이전 A ramp/last ckpt 결과 및 과거 B/C와 별도로 분석한다.
+이는 실행 조건 통일이며 고정 23 N의 보정 완료나 물리적 셋업의 일치를 인증하지 않는다.
+명시적인 `config:=/path/config.json`은 기존 E2 프로토콜을 계속 사용한다.
+
+# E2 A: config 없이 원본 체크포인트로 추론
+
+```bash
+cd /home/eunseop/nrs_imitation
+source scripts/e2_A_env.sh
+ros2 launch nrs_imitation e2_a.launch.py mode:=run
+```
+
+기본 체크포인트는 `checkpoints/flow/polishing/single_cam/e2_force_ablation_20260926/A/20260926_2129/policy_best.ckpt`다.
+원본 가중치와 같은 폴더의 `dataset_stats.pkl`을 직접 읽는다. 등록 복사본과 실험 `config.json`은 필요하지 않다.
+다른 체크포인트는 `checkpoint:=/absolute/path/policy_last.ckpt`로 지정한다.
+
+정책 입력·출력은 위치·자세 6차원이며 힘 관측·history·학습된 힘 출력은 사용하지 않는다.
+실행기는 기존 125 Hz timed executor, 30 Hz 궤적, MA35 자세 평활화, 속도·가속도 제한,
+접촉 게이트, 30 N/s 힘 변화율, 피드백 watchdog, 명령 큐 취소·정지 확인을 재사용한다.
+고정 힘은 `constant_force_N:=23.0`으로 지정한다. 보호 검사, 시작 위치 정렬,
+최신 Force 모드 피드백 확인을 마치고 `running` 상태에 들어가면 작업 시작 이벤트를
+자동으로 기록하고 고정 힘 목표를 활성화한다. `processing_start` 서비스 호출은 필요하지 않다.
+기본 `force_ramp_sec:=0.0`이며 A 전용 선형 램프는 사용하지 않는다.
+예: `ros2 launch nrs_imitation e2_a.launch.py mode:=run constant_force_N:=23.0 force_ramp_sec:=0.0`.
+접촉 게이트와 30 N/s 변화율 제한을 거쳐 실제 명령으로 전송된다.
+자동 시작 시각은 실행 상태에 따른 표시이며 물리적인 접촉·가공 시작을 검증한 시각은 아니다.
+
+작업 종료와 실제 정지 확인:
+
+```bash
+source /home/eunseop/nrs_imitation/scripts/e2_A_env.sh
+ros2 service call /e2_executor/finish std_srvs/srv/Trigger '{}'
+```
+
+`processing_end` 서비스는 작업 구간의 종료와 고정 힘 목표의 해제를 요청한다. 전체 실행 종료는 `finish`다.
+힘 피드백은 `/ur10skku/currentF` (`Float64MultiArray`, `[Fx,Fy,Fz,Tx,Ty,Tz]`)에서 받는다.
+기본 보호 한계는 사용자가 2026-09-30에 지정한 각 축 힘 200 N·토크 200 Nm이며, 이 토픽의 측정값에 적용한다.
+이 값은 목표 힘이 아니다. 실행 인자 `measured_force_abs_limits_N`, `measured_torque_abs_limits_Nm`으로 각각 변경할 수 있다.
+예: `measured_force_abs_limits_N:='[200.0, 200.0, 200.0]'`.
+`/ur10skku/ft_acquisition`과 `/ur10skku/currentF_provenance`는 이 실행 경로에서 구독하지 않는다.
+위치·힘·모드 피드백의 ROS 수신 간격이 0.2초를 넘으면 정지한다.
+`currentF`에는 타임스탬프가 없으므로 이 검사는 센서 원본 획득 시각이나 원시 센서 한계를 검증하지 않는다.
+`measured_wrench_frame:=robot_base`가 기본값이다.
+
+로봇 명령 없이 설정을 확인하려면 `mode:=check`, 검증 프레임으로 실제 ckpt 추론을 확인하려면 `mode:=offline`을 사용한다.
+결과는 `results/<date>/E2/A_direct/<unique-run>/`에 저장된다.
+정책의 힘 예측은 `null/not_predicted`, 실행기가 추가한 고정 힘은 별도로 기록한다.
+이 실행 경로는 `config_free_A`로 표시하며 과거 config 기반 실험의 승인·보정·동일 조건 검증을 주장하지 않는다.
